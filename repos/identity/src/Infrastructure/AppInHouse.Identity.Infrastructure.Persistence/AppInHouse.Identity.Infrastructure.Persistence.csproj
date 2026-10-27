@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\AppInHouse.Identity.Application\AppInHouse.Identity.Application.csproj" />
     <ProjectReference Include="..\..\Core\AppInHouse.Identity.Domain\AppInHouse.Identity.Domain.csproj" />
+    <ProjectReference Include="..\AppInHouse.Identity.Infrastructure.Identity\AppInHouse.Identity.Infrastructure.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

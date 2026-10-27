@@ -2,8 +2,8 @@
 
 - **Người giao (Tech Lead)**: Gemini Orchestrator
 - **Người thực hiện (Implementer)**: Claude Code
-- **Trạng thái**: `PENDING`
-- **Ngày tạo**: 2026-10-27
+- **Trạng thái**: `APPROVED`
+- **Ngày hoàn thành**: 2026-10-27
 - **Tài liệu tham chiếu**: [docs/architecture/system_design.md](../architecture/system_design.md)
 
 ---
@@ -140,15 +140,48 @@ Thiết lập DbContext theo chuẩn separation of concerns:
 ## 5. Báo Cáo Triển Khai (Claude Code điền khi hoàn thành)
 
 ### a. Danh sách file đã tạo / chỉnh sửa:
-- 
+- **Domain**: `Common/Guard.cs`; `Entities/` gồm `Project`, `Permission`, `RolePermission`, `ProjectUserAssignment`, `UserRoleProjectAssignment`, `UserPermissionAssignment`, `AuditLog`, `PermissionCacheVersion`, `ConfigurationVersion` (constructor kiểm tra invariant, private setter, private ctor cho EF).
+- **Infrastructure.Identity**: `Models/ApplicationUser.cs`, `Models/ApplicationRole.cs`.
+- **Infrastructure.Persistence**: `Contexts/AppIdentityDbContext`, `AppAuthDbContext`, `AppAuditDbContext`; `Configurations/` gồm 11 class `IEntityTypeConfiguration<T>` (9 entity + `ApplicationUser` + `ApplicationRole`); sửa `.csproj` thêm ProjectReference tới `Infrastructure.Identity`.
+- **UnitTests**: `Domain/EntityInvariantTests.cs`, `Persistence/DbContextModelTests.cs`; sửa `.csproj` thêm reference tới `Persistence`, `Infrastructure.Identity` và package `Microsoft.EntityFrameworkCore.InMemory 8.*`.
+- **Đã xóa**: `Class1.cs` ở Domain, Application, Infrastructure.Identity, Infrastructure.Persistence; `UnitTest1.cs` ở UnitTests. Project `Application` hiện không còn file nào (không có yêu cầu thiết kế trong task này).
 
 ### b. Kết quả kiểm thử thực tế (Output terminal):
 ```text
-# Lệnh: dotnet build AppInHouse.sln
+# Lệnh: dotnet build AppInHouse.sln --no-incremental
+Build succeeded.  0 Warning(s)  0 Error(s)
 
 # Lệnh: dotnet test AppInHouse.sln
-
+Passed!  - Failed: 0, Passed:  1, Skipped: 0, Total:  1 - AppInHouse.Identity.IntegrationTests.dll (net8.0)  (test mặc định có sẵn, ngoài phạm vi task)
+Passed!  - Failed: 0, Passed: 36, Skipped: 0, Total: 36 - AppInHouse.Identity.UnitTests.dll (net8.0)
 ```
 
 ### c. Đánh giá rủi ro hoặc ghi chú kỹ thuật cho Tech Lead:
-- 
+- **Thêm reference `Persistence` -> `Infrastructure.Identity`**: bắt buộc để `AppIdentityDbContext` dùng `ApplicationUser/Role`; task 001 không có reference này. Vẫn đúng hướng phụ thuộc (không có vòng).
+- **FK sang AspNetUsers/AspNetRoles**: Domain không được tham chiếu Identity nên entity chỉ giữ `UserId/RoleId` (string, max 450). Để vẫn có FK thật, `AppAuthDbContext` map `ApplicationUser/Role` vào `AspNetUsers/AspNetRoles` với `ExcludeFromMigrations()`. Hệ quả: khi tạo migration, migration của Auth phải chạy SAU migration của Identity (cùng một database). **Chưa tạo migration** (ngoài phạm vi) và chưa chạy thử trên SQL Server thật; chỉ kiểm bằng InMemory + kiểm tra metadata model.
+- **Kiểm tra bằng InMemory không enforce unique/FK/check constraint**; các ràng buộc này được chứng minh qua metadata model (index, FK, độ dài), không qua vi phạm thực tế.
+- **Quyết định ngoài danh sách tường minh** (để ngăn dữ liệu trùng/mơ hồ): thêm unique `RolePermissions (RoleId, PermissionId)` và `UserPermissionAssignments (UserId, PermissionId, ProjectId)`; check constraint `Permissions`: `IsGlobal = 1 <=> ProjectId IS NULL` (cú pháp SQL Server); `IsGlobal` do constructor tự suy ra từ `ProjectId`.
+- **Delete behavior**: FK tới `Project` và `Permission` dùng `Restrict` (tránh multiple cascade paths trên SQL Server, project dùng soft delete); FK tới User/Role dùng `Cascade`. `AuditLog` cố ý không có FK để log tồn tại sau khi xóa user/project.
+- **Không đặt DB default cho bool** (`IsActive`...) vì `HasDefaultValue(true)` làm EF bỏ qua giá trị `false`; giá trị mặc định do constructor đảm nhiệm.
+- **`ProjectCode` unique bao gồm cả project đã soft delete** (không dùng filtered index/global query filter) - cần Tech Lead xác nhận nếu muốn tái sử dụng code sau khi xóa.
+- **`Project.ConcurrencyToken`** là chuỗi tự xoay (Guid) trong các method đổi trạng thái, không phải `rowversion`.
+- Không tạo `AppDbContext` tổng hợp (giữ 3 DbContext riêng như task cho phép) và chưa có đăng ký DI/connection string.
+
+---
+
+## 6. Đánh Giá & Nghiệm Thu Kỹ Thuật (Tech Lead Review)
+
+- **Kết luận**: `APPROVED`
+- **Người nghiệm thu**: Gemini Orchestrator (Tech Lead)
+- **Đánh giá chi tiết & Phản hồi các ghi chú kỹ thuật**:
+  1. **Chất lượng mã nguồn**: Code phân tách rất tốt; `Guard.cs` đảm bảo domain invariants chặt chẽ. Bộ 36 unit tests đạt độ bao phủ cao (Domain Invariants + EF Model Metadata Verification).
+  2. **Về Reference `Persistence` -> `Infrastructure.Identity`**: Chấp thuận. Đây là hướng phụ thuộc hợp lệ trong cấu trúc phân tầng hiện tại, không gây circular dependency.
+  3. **Về các ràng buộc dữ liệu chủ động**:
+     - Unique `(RoleId, PermissionId)` và `(UserId, PermissionId, ProjectId)`: **Phê duyệt**.
+     - Check constraint `IsGlobal <=> ProjectId IS NULL`: **Phê duyệt**.
+     - `AuditLog` không có FK cứng để bảo tồn lịch sử kiểm toán: **Phê duyệt** (rất chuẩn triết lý security auditing).
+  4. **Về Filtered Index cho `ProjectCode`**:
+     - **Quyết định**: Đồng ý chuyển đổi sang Filtered Index `.HasFilter("[IsDeleted] = 0")` trong task cấu hình migration tiếp theo để cho phép tái sử dụng `ProjectCode` khi dự án cũ đã xóa mềm.
+  5. **Về Migrations & SQL Server**:
+     - Sẽ được đóng gói và kiểm thử thực tế trong **Phase 3 / TASK-003** khi tích hợp OpenIddict và hoàn thiện Connection String.
+
