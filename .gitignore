@@ -3,6 +3,16 @@
 .env.local
 *.log
 
+# .NET & Visual Studio
+[Bb]in/
+[Oo]bj/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+*.suo
+
 # Python
 __pycache__/
 *.pyc

@@ -17,11 +17,11 @@ Your counterpart is **Gemini Orchestrator / Tech Lead**.
    - Implement clean, modular, production-ready code.
    - Always run linting / tests to verify your implementation before reporting back.
 4. **Handoff Report**:
-   - When finished, fill out `## 4. Implementation Report` inside the task file:
+   - When finished, fill out `## 5. Báo Cáo Triển Khai (Implementation Report)` inside the task file:
      - List modified/created files.
      - Provide the commands executed and test outputs.
      - State any potential risks or edge cases found.
-   - Update the task status to `READY_FOR_REVIEW`.
+   - Update the task status from `PENDING` / `IN_PROGRESS` to `READY_FOR_REVIEW`.
 
 ---
 
