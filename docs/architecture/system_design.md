@@ -31,68 +31,46 @@ Hệ thống cung cấp nền tảng Identity Provider (IdP) tập trung và Adm
 
 ---
 
-## 3. Cấu Trúc Solution & Project Responsibilities
+## 3. Cấu Trúc Multi-Repo & Solution Layout
+
+Hệ thống được tổ chức theo mô hình **Multi-Repository Workspace** có Solution tổng (`AppInHouse.All.sln`) tại thư mục gốc để mở đồng thời tất cả các repository, trong khi mỗi service/repo con hoàn toàn độc lập và có solution riêng.
 
 ```text
-AppInHouse.Identity/
-├── AppInHouse.Identity.sln
+AppInHouse/ (Workspace Root)
+├── AppInHouse.All.sln                                  # Solution master mở tất cả các service/repo
+├── AGENTS.md                                           # Quy chuẩn phối hợp Multi-Agent
+├── CLAUDE.md                                           # Hướng dẫn dành cho Claude Code
+├── docs/                                               # Tài liệu kiến trúc và handoff chung
+│   ├── architecture/
+│   └── handoffs/
 │
-├── src/
-│   ├── Core/
-│   │   ├── AppInHouse.Identity.Domain/
-│   │   │   ├── Entities (Project, Permission, RolePermission, ProjectUserAssignment, AuditLog)
-│   │   │   ├── Enums (ClientType, GrantType, PermissionScope, Severity)
-│   │   │   └── Events (PermissionChangedEvent, UserLockedEvent)
-│   │   │
-│   │   ├── AppInHouse.Identity.Application/
-│   │   │   ├── Common (Interfaces, Models, PaginatedList, Result<T>)
-│   │   │   ├── Dtos (ProjectDto, ClientDto, UserDto, RoleDto, PermissionDto)
-│   │   │   ├── Services (IProjectService, IPermissionService, IAuthorizationEngine, IAuditService)
-│   │   │   └── Validators (FluentValidation)
-│   │   │
-│   │   └── AppInHouse.Identity.SharedKernel/
-│   │       ├── Constants (Permissions, Roles, Scopes, Claims, Policies)
-│   │       ├── Exceptions (NotFoundException, ForbiddenException, ConflictException)
-│   │       └── Helpers (CryptoHelper, SecurityStampHelper)
-│   │
-│   ├── Infrastructure/
-│   │   ├── AppInHouse.Identity.Infrastructure.Persistence/
-│   │   │   ├── Contexts (AppIdentityDbContext, AppConfigDbContext, AppAuthDbContext, AppAuditDbContext)
-│   │   │   ├── Configurations (EF Core EntityTypeConfiguration)
-│   │   │   ├── Migrations
-│   │   │   └── Seeders (DatabaseSeeder)
-│   │   │
-│   │   ├── AppInHouse.Identity.Infrastructure.Identity/
-│   │   │   ├── Models (ApplicationUser, ApplicationRole)
-│   │   │   ├── OpenIddict (Custom Claims Principal Factory, Token Customizers)
-│   │   │   └── Services (IdentityUserManager, IdentitySignInManager)
-│   │   │
-│   │   └── AppInHouse.Identity.Infrastructure.Caching/
-│   │       ├── CacheService (IMemoryCache / IDistributedCache wrapper)
-│   │       └── Invalidation (IPermissionInvalidationPublisher, VersionManager)
-│   │
-│   ├── Presentation/
-│   │   ├── AppInHouse.Identity.STS/
-│   │   │   ├── Controllers (AuthorizationController, UserinfoController, AccountController)
-│   │   │   └── Views (Login, Logout, Consent, Error)
-│   │   │
-│   │   ├── AppInHouse.Identity.Admin.Api/
-│   │   │   ├── Controllers (ProjectsController, ClientsController, UsersController, RolesController, PermissionsController)
-│   │   │   └── Swagger (OpenAPI docs, Bearer security scheme)
-│   │   │
-│   │   └── AppInHouse.Identity.Admin.Web/
-│   │       ├── Controllers & ViewModels
-│   │       └── Views (Dashboard, Project Explorer, Client Wizard, RBAC Matrix, Audit Log)
-│   │
-│   └── Sdk/
-│       └── AppInHouse.Identity.ClientSdk/
-│           ├── Middleware (ProjectContextMiddleware)
-│           ├── Authorization (DynamicPermissionHandler, HasPermissionAttribute)
-│           └── Extensions (ServiceCollectionExtensions)
-│
-└── tests/
-    ├── AppInHouse.Identity.UnitTests/
-    └── AppInHouse.Identity.IntegrationTests/
+└── repos/                                              # Danh mục các repository độc lập
+    │
+    ├── AppInHouse.Identity/                            # [REPO HIỆN TẠI] Centralized Identity Server & Admin Portal
+    │   ├── AppInHouse.Identity.sln                     # Solution riêng của Identity Platform
+    │   ├── Directory.Build.props                       # Cấu hình build chung của Identity Platform (.NET 8)
+    │   ├── src/
+    │   │   ├── Core/
+    │   │   │   ├── AppInHouse.Identity.Domain/
+    │   │   │   ├── AppInHouse.Identity.Application/
+    │   │   │   └── AppInHouse.Identity.SharedKernel/
+    │   │   ├── Infrastructure/
+    │   │   │   ├── AppInHouse.Identity.Infrastructure.Persistence/
+    │   │   │   ├── AppInHouse.Identity.Infrastructure.Identity/
+    │   │   │   ├── AppInHouse.Identity.Infrastructure.Caching/
+    │   │   │   └── AppInHouse.Identity.Infrastructure.Logging/
+    │   │   ├── Presentation/
+    │   │   │   ├── AppInHouse.Identity.STS/
+    │   │   │   ├── AppInHouse.Identity.Admin.Api/
+    │   │   │   └── AppInHouse.Identity.Admin.Web/
+    │   │   └── Sdk/
+    │   │       └── AppInHouse.Identity.ClientSdk/
+    │   └── tests/
+    │       ├── AppInHouse.Identity.UnitTests/
+    │       └── AppInHouse.Identity.IntegrationTests/
+    │
+    ├── (Tương lai: AppInHouse.ERP/)                    # Các repo dịch vụ tiếp theo
+    └── (Tương lai: AppInHouse.AIChat/)
 ```
 
 ---
