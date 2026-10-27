@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" />
     <PackageReference Include="xunit" Version="2.4.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
@@ -29,6 +30,7 @@
     <ProjectReference Include="..\..\src\Sdk\AppInHouse.Identity.ClientSdk\AppInHouse.Identity.ClientSdk.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Persistence\AppInHouse.Identity.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Identity\AppInHouse.Identity.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Caching\AppInHouse.Identity.Infrastructure.Caching.csproj" />
   </ItemGroup>
 
 </Project>

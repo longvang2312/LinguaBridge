@@ -27,6 +27,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Presentation\AppInHouse.Identity.Admin.Api\AppInHouse.Identity.Admin.Api.csproj" />
     <ProjectReference Include="..\..\src\Presentation\AppInHouse.Identity.STS\AppInHouse.Identity.STS.csproj" />
+    <ProjectReference Include="..\..\src\Core\AppInHouse.Identity.Application\AppInHouse.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Caching\AppInHouse.Identity.Infrastructure.Caching.csproj" />
+    <ProjectReference Include="..\..\src\Sdk\AppInHouse.Identity.ClientSdk\AppInHouse.Identity.ClientSdk.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Persistence\AppInHouse.Identity.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Identity\AppInHouse.Identity.Infrastructure.Identity.csproj" />
   </ItemGroup>
 
 </Project>

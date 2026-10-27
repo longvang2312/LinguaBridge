@@ -1,3 +1,4 @@
+using AppInHouse.Identity.Application.Authorization;
 using AppInHouse.Identity.Infrastructure.Identity.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,7 @@ namespace AppInHouse.Identity.Infrastructure.Persistence.Seeders;
 /// </summary>
 public class DbSeeder
 {
-    public const string GlobalAdminRole = "GlobalAdmin";
+    public const string GlobalAdminRole = AuthorizationConstants.GlobalAdminRole;
     public const string AdminApiScope = "identity_admin_api";
     public const string AdminPortalClientId = "admin-portal";
     public const string InternalServiceClientId = "internal-service";

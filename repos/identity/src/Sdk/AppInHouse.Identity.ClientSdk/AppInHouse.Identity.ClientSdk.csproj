@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\AppInHouse.Identity.SharedKernel\AppInHouse.Identity.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Core\AppInHouse.Identity.Application\AppInHouse.Identity.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -11,3 +16,4 @@
   </PropertyGroup>
 
 </Project>
+
