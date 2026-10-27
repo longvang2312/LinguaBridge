@@ -46,7 +46,7 @@ AppInHouse/ (Workspace Root)
 │
 └── repos/                                              # Danh mục các repository độc lập
     │
-    ├── AppInHouse.Identity/                            # [REPO HIỆN TẠI] Centralized Identity Server & Admin Portal
+    ├── identity/                                       # [REPO HIỆN TẠI] Centralized Identity Server & Admin Portal
     │   ├── AppInHouse.Identity.sln                     # Solution riêng của Identity Platform
     │   ├── Directory.Build.props                       # Cấu hình build chung của Identity Platform (.NET 8)
     │   ├── src/
@@ -69,8 +69,8 @@ AppInHouse/ (Workspace Root)
     │       ├── AppInHouse.Identity.UnitTests/
     │       └── AppInHouse.Identity.IntegrationTests/
     │
-    ├── (Tương lai: AppInHouse.ERP/)                    # Các repo dịch vụ tiếp theo
-    └── (Tương lai: AppInHouse.AIChat/)
+    ├── (Tương lai: erp/)                               # Các repo dịch vụ tiếp theo
+    └── (Tương lai: aichat/)
 ```
 
 ---
