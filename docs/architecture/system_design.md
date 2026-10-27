@@ -33,11 +33,11 @@ Hệ thống cung cấp nền tảng Identity Provider (IdP) tập trung và Adm
 
 ## 3. Cấu Trúc Multi-Repo & Solution Layout
 
-Hệ thống được tổ chức theo mô hình **Multi-Repository Workspace** có Solution tổng (`AppInHouse.All.sln`) tại thư mục gốc để mở đồng thời tất cả các repository, trong khi mỗi service/repo con hoàn toàn độc lập và có solution riêng.
+Hệ thống được tổ chức theo mô hình **Multi-Repository Workspace** có Solution tổng (`AppInHouse.sln`) tại thư mục gốc để mở đồng thời tất cả các repository, trong khi mỗi service/repo con hoàn toàn độc lập và có solution riêng.
 
 ```text
 AppInHouse/ (Workspace Root)
-├── AppInHouse.All.sln                                  # Solution master mở tất cả các service/repo
+├── AppInHouse.sln                                      # Solution master mở tất cả các service/repo
 ├── AGENTS.md                                           # Quy chuẩn phối hợp Multi-Agent
 ├── CLAUDE.md                                           # Hướng dẫn dành cho Claude Code
 ├── docs/                                               # Tài liệu kiến trúc và handoff chung

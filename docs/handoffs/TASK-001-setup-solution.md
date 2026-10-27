@@ -14,8 +14,8 @@ Thiết lập cấu trúc **Multi-Repository Workspace** theo yêu cầu của P
 1. Thư mục repo độc lập cho dịch vụ Identity Server: `repos/AppInHouse.Identity/`.
 2. Tạo solution riêng bên trong repo: `repos/AppInHouse.Identity/AppInHouse.Identity.sln`.
 3. Tạo cây project chuẩn Clean Architecture bên trong `repos/AppInHouse.Identity/src/` và `repos/AppInHouse.Identity/tests/`.
-4. Cập nhật Solution master dùng chung tại thư mục gốc: `AppInHouse.All.sln` (đã khởi tạo) bằng cách add toàn bộ các project của `AppInHouse.Identity` vào Solution tổng này để lập trình viên có thể mở một lần tất cả các repository trong workspace.
-5. Cả hai solution (`AppInHouse.Identity.sln` và `AppInHouse.All.sln`) đều phải build thành công `0 Error(s), 0 Warning(s)`.
+4. Cập nhật Solution master dùng chung tại thư mục gốc: `AppInHouse.sln` (đã khởi tạo) bằng cách add toàn bộ các project của `AppInHouse.Identity` vào Solution tổng này để lập trình viên có thể mở một lần tất cả các repository trong workspace.
+5. Cả hai solution (`AppInHouse.Identity.sln` và `AppInHouse.sln`) đều phải build thành công `0 Error(s), 0 Warning(s)`.
 
 ---
 
@@ -24,7 +24,7 @@ Thiết lập cấu trúc **Multi-Repository Workspace** theo yêu cầu của P
 > **LƯU Ý QUAN TRỌNG DÀNH CHO CLAUDE CODE**:
 > Chỉ được phép tạo và chỉnh sửa các file thuộc phạm vi dưới đây. Tuyệt đối không sửa `AGENTS.md`, `CLAUDE.md`, hoặc các file trong `docs/`.
 
-- [ ] `AppInHouse.All.sln` (Solution master ở thư mục gốc)
+- [ ] `AppInHouse.sln` (Solution master ở thư mục gốc)
 - [ ] `repos/AppInHouse.Identity/AppInHouse.Identity.sln` (Solution riêng của Identity repo)
 - [ ] `repos/AppInHouse.Identity/Directory.Build.props` (Cấu hình chung: TargetFramework `net8.0`, `Nullable: enable`, `ImplicitUsings: enable`)
 - [ ] `repos/AppInHouse.Identity/src/Core/AppInHouse.Identity.Domain/*`
@@ -84,7 +84,7 @@ Thiết lập cấu trúc **Multi-Repository Workspace** theo yêu cầu của P
 
 4. **Thêm các project vào cả 2 Solutions**:
    - Thêm vào solution riêng: `dotnet sln repos/AppInHouse.Identity/AppInHouse.Identity.sln add ...`
-   - Thêm vào solution master tại root: `dotnet sln AppInHouse.All.sln add ...`
+   - Thêm vào solution master tại root: `dotnet sln AppInHouse.sln add ...`
 
 5. **Cài đặt các gói NuGet cốt lõi (.NET 8)**:
    - `OpenIddict.AspNetCore` (5.*)
@@ -98,9 +98,9 @@ Thiết lập cấu trúc **Multi-Repository Workspace** theo yêu cầu của P
 ## 4. Tiêu Chí Nghiệm Thu (Acceptance Criteria)
 
 - [ ] Lệnh `dotnet build repos/AppInHouse.Identity/AppInHouse.Identity.sln` chạy thành công `0 Error(s), 0 Warning(s)`.
-- [ ] Lệnh `dotnet build AppInHouse.All.sln` chạy thành công `0 Error(s), 0 Warning(s)`.
-- [ ] Lệnh `dotnet test AppInHouse.All.sln` chạy thành công.
-- [ ] Solution master `AppInHouse.All.sln` tại thư mục gốc mở được tất cả project con.
+- [ ] Lệnh `dotnet build AppInHouse.sln` chạy thành công `0 Error(s), 0 Warning(s)`.
+- [ ] Lệnh `dotnet test AppInHouse.sln` chạy thành công.
+- [ ] Solution master `AppInHouse.sln` tại thư mục gốc mở được tất cả project con.
 - [ ] Điền báo cáo nghiệm thu vào mục bên dưới.
 
 ---
@@ -114,9 +114,9 @@ Thiết lập cấu trúc **Multi-Repository Workspace** theo yêu cầu của P
 ```text
 # Lệnh: dotnet build repos/AppInHouse.Identity/AppInHouse.Identity.sln
 
-# Lệnh: dotnet build AppInHouse.All.sln
+# Lệnh: dotnet build AppInHouse.sln
 
-# Lệnh: dotnet test AppInHouse.All.sln
+# Lệnh: dotnet test AppInHouse.sln
 
 ```
 
