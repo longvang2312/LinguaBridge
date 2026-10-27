@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - AppInHouse Identity</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f3f4f6; margin: 0; }
+        main { max-width: 22rem; margin: 4rem auto; padding: 2rem; background: #fff; border-radius: .5rem; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+        h1 { font-size: 1.4rem; margin-top: 0; }
+        label { display: block; margin-top: 1rem; font-weight: 600; }
+        input[type=email], input[type=password] { width: 100%; padding: .5rem; box-sizing: border-box; }
+        button { margin-top: 1.5rem; padding: .6rem 1.2rem; cursor: pointer; }
+        .error { color: #b91c1c; font-size: .9rem; }
+    </style>
+</head>
+<body>
+    <main>
+        @RenderBody()
+    </main>
+</body>
+</html>

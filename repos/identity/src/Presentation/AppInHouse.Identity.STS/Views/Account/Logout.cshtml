@@ -1,0 +1,12 @@
+@{
+    ViewData["Title"] = "Sign out";
+}
+
+<h1>Sign out</h1>
+<p>Do you want to sign out of AppInHouse Identity?</p>
+
+@* No action: posts back to the current URL, so it works for both /Account/Logout and /connect/logout (query preserved). *@
+<form method="post">
+    <input type="hidden" name="returnUrl" value="@Context.Request.Query["returnUrl"]" />
+    <button type="submit">Sign out</button>
+</form>

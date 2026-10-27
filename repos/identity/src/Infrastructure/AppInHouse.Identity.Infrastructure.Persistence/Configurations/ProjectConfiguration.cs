@@ -22,6 +22,7 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .HasMaxLength(Project.ConcurrencyTokenMaxLength)
             .IsConcurrencyToken();
 
-        builder.HasIndex(p => p.ProjectCode).IsUnique();
+        // Filtered: the code of a soft-deleted project can be reused.
+        builder.HasIndex(p => p.ProjectCode).IsUnique().HasFilter("[IsDeleted] = 0");
     }
 }

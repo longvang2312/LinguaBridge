@@ -167,6 +167,31 @@ public class DbContextModelTests
     }
 
     [Fact]
+    public void ProjectCodeIndex_IsFilteredToNonDeletedProjects()
+    {
+        using var context = NewAuthContext();
+
+        var index = FindIndex(Entity<Project>(context), nameof(Project.ProjectCode));
+
+        Assert.NotNull(index);
+        Assert.True(index.IsUnique);
+        Assert.Equal("[IsDeleted] = 0", index.GetFilter());
+    }
+
+    [Fact]
+    public void IdentityContext_MapsOpenIddictTables()
+    {
+        using var context = new AppIdentityDbContext(InMemory<AppIdentityDbContext>());
+
+        var tables = context.Model.GetEntityTypes().Select(e => e.GetTableName()).ToHashSet();
+
+        Assert.Contains("OpenIddictApplications", tables);
+        Assert.Contains("OpenIddictAuthorizations", tables);
+        Assert.Contains("OpenIddictScopes", tables);
+        Assert.Contains("OpenIddictTokens", tables);
+    }
+
+    [Fact]
     public void Indexes_QueryOptimization_AreConfigured()
     {
         using var auth = NewAuthContext();

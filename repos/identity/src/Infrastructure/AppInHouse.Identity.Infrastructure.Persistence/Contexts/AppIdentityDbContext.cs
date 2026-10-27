@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AppInHouse.Identity.Infrastructure.Persistence.Contexts;
 
-/// <summary>Owns the ASP.NET Core Identity tables (AspNetUsers, AspNetRoles, ...).</summary>
+/// <summary>Owns the ASP.NET Core Identity tables (AspNetUsers, AspNetRoles, ...) and the OpenIddict tables.</summary>
 public class AppIdentityDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, string>
 {
     public AppIdentityDbContext(DbContextOptions<AppIdentityDbContext> options) : base(options)
@@ -18,5 +18,8 @@ public class AppIdentityDbContext : IdentityDbContext<ApplicationUser, Applicati
 
         builder.ApplyConfiguration(new ApplicationUserConfiguration());
         builder.ApplyConfiguration(new ApplicationRoleConfiguration());
+
+        // Registers the OpenIddict Applications / Authorizations / Scopes / Tokens entities.
+        builder.UseOpenIddict();
     }
 }

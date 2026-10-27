@@ -2,8 +2,8 @@
 
 - **Người giao (Tech Lead)**: Gemini Orchestrator
 - **Người thực hiện (Implementer)**: Claude Code
-- **Trạng thái**: `PENDING`
-- **Ngày tạo**: 2026-10-27
+- **Trạng thái**: `APPROVED`
+- **Ngày hoàn thành**: 2026-10-27
 - **Tài liệu tham chiếu**: [docs/architecture/system_design.md](../architecture/system_design.md)
 
 ---
@@ -122,15 +122,53 @@ Triển khai lõi máy chủ xác thực **Identity Provider (STS - Security Tok
 ## 5. Báo Cáo Triển Khai (Claude Code điền khi hoàn thành)
 
 ### a. Danh sách file đã tạo / chỉnh sửa:
-- 
+- **Persistence**: sửa `Contexts/AppIdentityDbContext.cs` (`builder.UseOpenIddict()`), `Configurations/ProjectConfiguration.cs` (filtered unique index `[IsDeleted] = 0`), `.csproj` (+ `OpenIddict.EntityFrameworkCore 5.*`); tạo `Seeders/DbSeeder.cs`, `Seeders/DbSeederOptions.cs`.
+- **STS**: viết lại `Program.cs`; tạo `Controllers/AuthorizationController.cs` (authorize, token, userinfo, logout), `Controllers/AccountController.cs` (Login, Logout, AccessDenied), `Models/LoginViewModel.cs`, `Services/StartupInitializer.cs`, `Views/` (`_ViewImports`, `_ViewStart`, `Shared/_Layout`, `Account/Login`, `Account/Logout`, `Account/AccessDenied`); sửa `appsettings.json`, `appsettings.Development.json`.
+- **IntegrationTests**: `StsWebApplicationFactory.cs`, `DiscoveryTests.cs`, `ClientCredentialsTests.cs`, `AuthorizationCodeFlowTests.cs`, `DbSeederTests.cs`; xóa `UnitTest1.cs`; `.csproj` (+ `Microsoft.AspNetCore.Mvc.Testing 8.*`, `Microsoft.EntityFrameworkCore.InMemory 8.*`).
+- **UnitTests**: thêm 2 test vào `Persistence/DbContextModelTests.cs` (filtered index, bảng OpenIddict).
+- Không sửa `Infrastructure.Identity` (không cần thay đổi).
 
 ### b. Kết quả kiểm thử thực tế (Output terminal):
 ```text
-# Lệnh: dotnet build AppInHouse.sln
+# Lệnh: dotnet build repos/identity/AppInHouse.Identity.sln --no-incremental
+Build succeeded.  0 Warning(s)  0 Error(s)
+
+# Lệnh: dotnet build AppInHouse.sln --no-incremental
+Build succeeded.  0 Warning(s)  0 Error(s)
 
 # Lệnh: dotnet test AppInHouse.sln
-
+Passed!  - Failed: 0, Passed: 38, Skipped: 0, Total: 38 - AppInHouse.Identity.UnitTests.dll (net8.0)
+Passed!  - Failed: 0, Passed: 18, Skipped: 0, Total: 18 - AppInHouse.Identity.IntegrationTests.dll (net8.0)
 ```
+Integration tests gồm: discovery (200 + `token_endpoint`, các endpoint, grant types, S256, scopes), JWKS, `client_credentials` (200 + access_token / sai secret 401 `invalid_client` / scope lạ `invalid_scope` / scope không được phép), userinfo không token = 401, toàn bộ luồng Authorization Code + PKCE qua trang Login thật (login -> code -> token -> userinfo -> code chỉ dùng 1 lần -> refresh có xoay refresh token), sai `code_verifier` bị từ chối, thiếu PKCE bị từ chối, chống open redirect ở Login, seeder đầy đủ và idempotent.
 
 ### c. Đánh giá rủi ro hoặc ghi chú kỹ thuật cho Tech Lead:
-- 
+- **Khác biệt với snippet trong task**: task dùng tên API của OpenIddict 6 (`SetEndSessionEndpointUris`, `EnableEndSessionEndpointPassthrough`, `Permissions.Endpoints.EndSession`). Gói 5.* dùng `SetLogoutEndpointUris`, `EnableLogoutEndpointPassthrough`, `Permissions.Endpoints.Logout`; cùng endpoint `/connect/logout`.
+- **Chưa bật reference token**: task nêu `/connect/introspect` cho reference token nhưng mục 3.2 không có `UseReferenceAccessTokens()`. Tôi giữ access token mặc định (JWE); endpoint introspect đã bật và được quảng bá trong discovery nhưng **chưa có client nào được cấp quyền gọi** và **chưa có test** cho nó. Cần quyết định ở task sau (kèm client cho Admin API).
+- **Thông tin đăng nhập**: không hard-code trong code. Mật khẩu admin `Admin@AppInHouse123!` và secret `internal-service` chỉ nằm trong `appsettings.Development.json` (credential dev, đã commit-able); ngoài Development seeder chỉ chạy khi `Seeding:Enabled=true` và các giá trị được cấu hình, nếu thiếu sẽ ném lỗi.
+- **Chứng chỉ**: Development/Test dùng `AddDevelopmentEncryptionCertificate/SigningCertificate` (sinh cert trong CurrentUser certificate store của máy chạy test - có tác dụng phụ lên máy). Ngoài Development bắt buộc cấu hình `OpenIddict:EncryptionCertificateThumbprint` / `SigningCertificateThumbprint`, nếu không app ném lỗi khi khởi động. Nhánh thumbprint **chưa được test**.
+- **`DisableTransportSecurityRequirement`** chỉ bật bằng cấu hình (true ở Development và test) để chạy HTTP; mặc định false.
+- **Schema DB**: chưa có migration. `Database:EnsureCreated=true` (chỉ bật ở Development) tạo schema của `AppIdentityDbContext` (Identity + OpenIddict). Nó **không** tạo bảng của `AppAuthDbContext`/`AppAuditDbContext`; cần task migration riêng. Chưa chạy thử với SQL Server thật (test dùng EF InMemory, không enforce filtered index/unique/FK).
+- **Seeder** chạy qua `IHostedService` (`StartupInitializer`) thay vì code sau `Build()` để hoạt động ổn định với `WebApplicationFactory`. Seeder chỉ tạo nếu chưa có (không cập nhật client/secret đã tồn tại).
+- **Client `admin-portal`** là public client + PKCE bắt buộc, consent `Implicit` (không có màn hình đồng ý); redirect URI mặc định `https://localhost:7111/signin-oidc` (cổng https của Admin.Web) cấu hình qua `Seeding:AdminPortalRedirectUris`. Claim `role` chỉ vào access token (scope `roles` chưa được đăng ký theo danh sách scope của task).
+- **Refresh token rotation** dùng mặc định của OpenIddict (xoay mỗi lần dùng, có leeway mặc định 30 giây cho request song song); test chỉ kiểm tra token mới khác token cũ, không kiểm tra phát hiện tái sử dụng sau leeway.
+- Mỗi lần đổi code/refresh, STS kiểm tra lại user (tồn tại, `IsActive`, không bị khóa); đăng nhập sai trả cùng một thông báo chung để tránh dò tài khoản.
+- Logging project (Serilog) chưa được nối vào STS (ngoài phạm vi task).
+
+---
+
+## 6. Đánh Giá & Nghiệm Thu Kỹ Thuật (Tech Lead Review)
+
+- **Kết luận**: `APPROVED`
+- **Người nghiệm thu**: Gemini Orchestrator (Tech Lead)
+- **Đánh giá chi tiết & Phản hồi các ghi chú kỹ thuật**:
+  1. **Chất lượng kiểm thử xuất sắc**: Bộ 18 integration tests dùng `WebApplicationFactory` mô phỏng đầy đủ luồng thực tế (PKCE challenge, Single-use Auth code, Rotational Refresh token, Token Userinfo, Anti-Open Redirect). Tổng số test toàn solution đạt 56/56 test pass.
+  2. **Về tên API OpenIddict 5.x**: Hoàn toàn nhất trí với việc sử dụng `SetLogoutEndpointUris` / `EnableLogoutEndpointPassthrough` để phù hợp với OpenIddict 5.8 LTS.
+  3. **Về Quản lý Credential & Chứng chỉ**:
+     - Tách biệt credential vào `appsettings.Development.json` và yêu cầu Thumbprint trên môi trường Production là quyết định bảo mật rất chuẩn xác.
+     - Sử dụng `StartupInitializer` qua `IHostedService` giúp việc kiểm thử tự động hóa với `WebApplicationFactory` đạt độ tin cậy tuyệt đối.
+  4. **Về Introspection & Reference Tokens**:
+     - Sẽ được cấp quyền và cấu hình chi tiết trong **Phase 5** khi kết nối với `Admin.Api` và Client SDK.
+  5. **Hành động tiếp theo**:
+     - Chuyển sang **Phase 4**: Xây dựng **Dynamic Authorization Engine**, Client SDK (`[HasPermission]`), và cơ chế **Cache Invalidation Pipeline** (< 1s revocation latency).
+
