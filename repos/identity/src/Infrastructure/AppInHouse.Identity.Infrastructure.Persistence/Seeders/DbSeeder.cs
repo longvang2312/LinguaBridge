@@ -16,6 +16,7 @@ public class DbSeeder
 {
     public const string GlobalAdminRole = AuthorizationConstants.GlobalAdminRole;
     public const string AdminApiScope = "identity_admin_api";
+    public const string AdminApiResourceClientId = AdminApiScope;
     public const string AdminPortalClientId = "admin-portal";
     public const string InternalServiceClientId = "internal-service";
 
@@ -127,6 +128,9 @@ public class DbSeeder
     {
         await CreateClientIfMissingAsync(BuildAdminPortal(), cancellationToken);
         await CreateClientIfMissingAsync(BuildInternalService(), cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(_options.AdminApiClientSecret))
+            await CreateClientIfMissingAsync(BuildAdminApiResourceServer(), cancellationToken);
     }
 
     private async Task CreateClientIfMissingAsync(OpenIddictApplicationDescriptor descriptor, CancellationToken cancellationToken)
@@ -185,6 +189,19 @@ public class DbSeeder
             Permissions.GrantTypes.ClientCredentials,
             Permissions.Prefixes.Scope + AdminApiScope,
         },
+    };
+
+    /// <summary>
+    /// The Admin API as a resource server. OpenIddict only lets a client introspect tokens issued for it (its client id
+    /// must be one of the token's audiences), hence the client id equals the audience of the admin scope.
+    /// </summary>
+    private OpenIddictApplicationDescriptor BuildAdminApiResourceServer() => new()
+    {
+        ClientId = AdminApiResourceClientId,
+        ClientSecret = _options.AdminApiClientSecret,
+        DisplayName = "Identity Admin API",
+        ClientType = ClientTypes.Confidential,
+        Permissions = { Permissions.Endpoints.Introspection },
     };
 
     private static void EnsureSucceeded(IdentityResult result, string operation)

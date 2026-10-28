@@ -84,6 +84,50 @@ public class ClientCredentialsTests : IClassFixture<StsWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Introspect_ByTheAdminApiResourceServer_ReportsTheTokenAsActive()
+    {
+        var tokenResponse = await PostTokenAsync(
+            ("grant_type", "client_credentials"),
+            ("client_id", "internal-service"),
+            ("client_secret", StsWebApplicationFactory.InternalServiceSecret),
+            ("scope", "identity_admin_api"));
+        var accessToken = (await tokenResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString()!;
+
+        var response = await _client.PostAsync("/connect/introspect", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["client_id"] = "identity_admin_api",
+            ["client_secret"] = StsWebApplicationFactory.AdminApiClientSecret,
+            ["token"] = accessToken,
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(json.GetProperty("active").GetBoolean());
+        Assert.Equal("internal-service", json.GetProperty("sub").GetString());
+    }
+
+    [Fact]
+    public async Task Introspect_ByAClientThatIsNotAnAudience_IsRefused()
+    {
+        var tokenResponse = await PostTokenAsync(
+            ("grant_type", "client_credentials"),
+            ("client_id", "internal-service"),
+            ("client_secret", StsWebApplicationFactory.InternalServiceSecret),
+            ("scope", "identity_admin_api"));
+        var accessToken = (await tokenResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("access_token").GetString()!;
+
+        // internal-service has no introspection permission at all.
+        var response = await _client.PostAsync("/connect/introspect", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["client_id"] = "internal-service",
+            ["client_secret"] = StsWebApplicationFactory.InternalServiceSecret,
+            ["token"] = accessToken,
+        }));
+
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Userinfo_WithoutToken_IsUnauthorized()
     {
         var response = await _client.GetAsync("/connect/userinfo");

@@ -17,6 +17,12 @@ public class DbSeederOptions
     /// <summary>Secret of the confidential <c>internal-service</c> client.</summary>
     public string InternalServiceSecret { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Secret of the <c>identity_admin_api</c> resource-server client the Admin API uses to introspect access tokens.
+    /// Optional: the client is only seeded when a secret is configured.
+    /// </summary>
+    public string AdminApiClientSecret { get; set; } = string.Empty;
+
     public List<string> AdminPortalRedirectUris { get; set; } = new();
     public List<string> AdminPortalPostLogoutRedirectUris { get; set; } = new();
 }

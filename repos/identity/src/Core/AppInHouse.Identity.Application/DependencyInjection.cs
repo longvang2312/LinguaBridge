@@ -1,4 +1,5 @@
 using AppInHouse.Identity.Application.Abstractions;
+using AppInHouse.Identity.Application.Admin.Security;
 using AppInHouse.Identity.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +15,16 @@ public static class DependencyInjection
     {
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IPermissionInvalidationService, PermissionInvalidationService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the caller authorization of the admin use cases. The host must provide
+    /// <see cref="ICurrentCaller"/>; the persistence layer provides <see cref="IAdminAccessReader"/> and the use cases.
+    /// </summary>
+    public static IServiceCollection AddAdminAuthorization(this IServiceCollection services)
+    {
+        services.AddScoped<IAdminAuthorizer, AdminAuthorizer>();
         return services;
     }
 }
