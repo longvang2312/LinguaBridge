@@ -18,9 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
 // The identity platform's database (shared with the STS). Provider: SQL Server; integration tests replace these.
-builder.Services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("IdentityDb")));
-builder.Services.AddDbContext<AppAuthDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("IdentityDb")));
-builder.Services.AddDbContext<AppAuditDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("IdentityDb")));
+builder.Services.AddDbContext<AppIdentityDbContext>(options => options.UseIdentitySqlServer<AppIdentityDbContext>(configuration.GetConnectionString("IdentityDb")));
+builder.Services.AddDbContext<AppAuthDbContext>(options => options.UseIdentitySqlServer<AppAuthDbContext>(configuration.GetConnectionString("IdentityDb")));
+builder.Services.AddDbContext<AppAuditDbContext>(options => options.UseIdentitySqlServer<AppAuditDbContext>(configuration.GetConnectionString("IdentityDb")));
 
 // UserManager / RoleManager (no cookies or sign-in: this is an API) and the OpenIddict application/scope managers.
 builder.Services

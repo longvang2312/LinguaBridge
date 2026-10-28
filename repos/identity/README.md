@@ -71,7 +71,7 @@ Mở các file cấu hình sau để cập nhật connection string phù hợp v
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=AppInHouse_IdentityDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+    "IdentityDb": "Server=(localdb)\\mssqllocaldb;Database=AppInHouse_IdentityDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
   }
 }
 ```
@@ -85,9 +85,15 @@ Mở các file cấu hình sau để cập nhật connection string phù hợp v
 
 ---
 
-### 3.2. Chạy Migrations Để Tạo Bảng Vật Lý Trên SQL Server
+### 3.2. Tạo Bảng Vật Lý Trên SQL Server (Tự Động Khi Khởi Động)
 
-Từ thư mục gốc `AppInHouse` (hoặc `repos/identity`), chạy lần lượt 3 lệnh migration để áp dụng toàn bộ 23 bảng vào database:
+Khi chạy `AppInHouse.Identity.STS` hoặc `AppInHouse.Identity.Admin.Web` lần đầu với `"Database": { "MigrateOnStartup": true }` (đã bật sẵn trong `appsettings.Development.json` của cả hai), hệ thống **tự động áp dụng toàn bộ migration** theo thứ tự `AppIdentityDbContext` → `AppAuthDbContext` → `AppAuditDbContext` (23 bảng + 3 bảng `__EFMigrationsHistory_*`). Riêng STS còn **tự seed** tài khoản `admin@appinhouse.local`, vai trò `GlobalAdmin`, scope và các OpenIddict client mặc định ngay sau khi migrate (`Seeding:Enabled`). Với cơ sở dữ liệu không quan hệ (InMemory dùng trong test) bước migrate được bỏ qua.
+
+Nên chạy STS trước; nếu chạy đồng thời nhiều ứng dụng trên một DB trống, hãy khởi động lần lượt để tránh hai tiến trình cùng migrate.
+
+#### Phương án thay thế: chạy migration thủ công bằng CLI (tùy chọn)
+
+Nếu không muốn tự động (ví dụ Production, `MigrateOnStartup=false`), từ thư mục gốc `AppInHouse` chạy lần lượt 3 lệnh migration để áp dụng toàn bộ 23 bảng vào database:
 
 ```bash
 # 1. Migrate bảng Identity & OpenIddict
@@ -100,7 +106,7 @@ dotnet ef database update --project repos/identity/src/Infrastructure/AppInHouse
 dotnet ef database update --project repos/identity/src/Infrastructure/AppInHouse.Identity.Infrastructure.Persistence --startup-project repos/identity/src/Presentation/AppInHouse.Identity.STS --context AppAuditDbContext
 ```
 
-> **Lưu ý**: Trên môi trường `Development`, ứng dụng `Admin.Web` đã được cấu hình tự động chạy di trú (`DatabaseMigrator.MigrateOnStartup`) khi khởi động nếu bật `"Database": { "MigrateOnStartup": true }`.
+> **Lưu ý**: `Database:MigrateOnStartup` mặc định là `false` ở `appsettings.json` (Production nên migrate bằng CLI hoặc script có kiểm soát) và `true` ở `appsettings.Development.json`. `Database:EnsureCreated` chỉ còn là phương án cũ cho test in-memory.
 
 ---
 

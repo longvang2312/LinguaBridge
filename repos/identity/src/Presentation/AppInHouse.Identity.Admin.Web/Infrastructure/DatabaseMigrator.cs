@@ -25,7 +25,13 @@ public sealed class DatabaseMigrator : IHostedService
 
         await using var scope = _services.CreateAsyncScope();
 
-        await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().Database.MigrateAsync(cancellationToken);
+        var identityContext = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+
+        // Migrations only exist for relational providers; never fail on an in-memory database (tests).
+        if (!identityContext.Database.IsRelational())
+            return;
+
+        await identityContext.Database.MigrateAsync(cancellationToken);
         await scope.ServiceProvider.GetRequiredService<AppAuthDbContext>().Database.MigrateAsync(cancellationToken);
         await scope.ServiceProvider.GetRequiredService<AppAuditDbContext>().Database.MigrateAsync(cancellationToken);
     }

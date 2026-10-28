@@ -1,3 +1,4 @@
+using AppInHouse.Identity.Infrastructure.Persistence;
 using AppInHouse.Identity.Infrastructure.Identity.Models;
 using AppInHouse.Identity.Infrastructure.Persistence.Contexts;
 using AppInHouse.Identity.Infrastructure.Persistence.Seeders;
@@ -11,8 +12,10 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
 // The provider is SQL Server; integration tests replace this registration.
-builder.Services.AddDbContext<AppIdentityDbContext>(options =>
-    options.UseSqlServer(configuration.GetConnectionString("IdentityDb")));
+var connectionString = configuration.GetConnectionString(SqlServerOptionsExtensions.ConnectionStringName);
+builder.Services.AddDbContext<AppIdentityDbContext>(options => options.UseIdentitySqlServer<AppIdentityDbContext>(connectionString));
+builder.Services.AddDbContext<AppAuthDbContext>(options => options.UseIdentitySqlServer<AppAuthDbContext>(connectionString));
+builder.Services.AddDbContext<AppAuditDbContext>(options => options.UseIdentitySqlServer<AppAuditDbContext>(connectionString));
 
 builder.Services
     .AddIdentity<ApplicationUser, ApplicationRole>(options =>
