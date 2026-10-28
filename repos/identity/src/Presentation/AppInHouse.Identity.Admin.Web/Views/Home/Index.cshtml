@@ -1,8 +1,60 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@using AppInHouse.Identity.Application.Admin.Dashboard
+@model DashboardDto
+@{
+    ViewData["Title"] = "Dashboard";
+    var cards = new List<(string Label, string Value, string? Controller)>
+    {
+        ("Projects", $"{Model.ActiveProjects} / {Model.Projects}", "Projects"),
+    };
+    if (Model.Clients is { } clients) { cards.Add(("Clients", clients.ToString(), "Clients")); }
+    if (Model.Users is { } users) { cards.Add(("Users", users.ToString(), "Users")); }
+    cards.Add(("Roles", Model.Roles.ToString(), "Roles"));
+    cards.Add(("Permissions", Model.Permissions.ToString(), "Permissions"));
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<h1 class="h3 mb-3">Dashboard</h1>
+
+<div class="row g-3 mb-4">
+    @foreach (var card in cards)
+    {
+        <div class="col-6 col-lg">
+            <a class="text-decoration-none" asp-controller="@card.Controller" asp-action="Index">
+                <div class="card stat-card h-100">
+                    <div class="card-body">
+                        <div class="text-muted text-uppercase small">@card.Label</div>
+                        <div class="display-6" data-stat="@card.Label">@card.Value</div>
+                        @if (card.Label == "Projects") { <div class="small text-muted">active / total</div> }
+                    </div>
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between">
+        <span>Recent security and audit events</span>
+        <a asp-controller="AuditLogs" asp-action="Index">All events</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead><tr><th>When (UTC)</th><th>Action</th><th>Entity</th><th>Actor</th><th>IP</th></tr></thead>
+            <tbody>
+            @foreach (var log in Model.RecentAudit)
+            {
+                <tr>
+                    <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td><span class="badge text-bg-secondary">@log.Action</span></td>
+                    <td>@log.EntityName <span class="text-muted small">@log.EntityId</span></td>
+                    <td>@(log.UserId ?? "-")</td>
+                    <td>@(log.IpAddress ?? "-")</td>
+                </tr>
+            }
+            @if (Model.RecentAudit.Count == 0)
+            {
+                <tr><td colspan="5" class="text-muted">Nothing has been recorded yet.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
 </div>

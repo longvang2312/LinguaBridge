@@ -47,6 +47,32 @@ public sealed class ClientAdminService : IClientAdminService
         return new PagedResult<ClientDto>(items, query.Page, query.PageSize, total);
     }
 
+    public async Task<ClientDto> GetAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var caller = await _authorizer.GetCallerAsync(cancellationToken);
+        caller.RequireGlobalAdmin();
+
+        var application = await _applications.FindByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("The client was not found.");
+
+        return await ToDtoAsync(application, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> ListScopesAsync(CancellationToken cancellationToken = default)
+    {
+        var caller = await _authorizer.GetCallerAsync(cancellationToken);
+        caller.RequireGlobalAdmin();
+
+        var names = new List<string>();
+        await foreach (var scope in _scopes.ListAsync(cancellationToken: cancellationToken))
+        {
+            if (await _scopes.GetNameAsync(scope, cancellationToken) is { } name)
+                names.Add(name);
+        }
+
+        return names.Order(StringComparer.Ordinal).ToList();
+    }
+
     public async Task<CreatedClientDto> CreateAsync(CreateClientRequest request, CancellationToken cancellationToken = default)
     {
         var caller = await _authorizer.GetCallerAsync(cancellationToken);

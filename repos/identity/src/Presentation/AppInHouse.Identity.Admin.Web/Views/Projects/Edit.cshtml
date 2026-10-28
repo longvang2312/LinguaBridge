@@ -1,0 +1,26 @@
+@model ProjectEditViewModel
+@{
+    ViewData["Title"] = "Edit project";
+}
+
+<h1 class="h3 mb-3">Edit project <code>@Model.ProjectCode</code></h1>
+<form asp-action="Edit" asp-route-id="@Model.Id" method="post" class="card card-body" style="max-width: 40rem">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <input type="hidden" asp-for="Form.ConcurrencyToken" />
+    <div class="mb-3">
+        <label asp-for="Form.Name" class="form-label"></label>
+        <input asp-for="Form.Name" class="form-control" />
+        <span asp-validation-for="Form.Name" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Form.Description" class="form-label"></label>
+        <textarea asp-for="Form.Description" class="form-control" rows="3"></textarea>
+        <span asp-validation-for="Form.Description" class="text-danger"></span>
+    </div>
+    <div>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a class="btn btn-link" asp-action="Details" asp-route-id="@Model.Id">Cancel</a>
+    </div>
+</form>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

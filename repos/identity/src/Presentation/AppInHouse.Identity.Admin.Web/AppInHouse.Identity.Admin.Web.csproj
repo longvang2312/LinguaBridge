@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.*" />
+    <PackageReference Include="OpenIddict.AspNetCore" Version="5.*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Infrastructure\AppInHouse.Identity.Infrastructure.Persistence\AppInHouse.Identity.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\..\Infrastructure\AppInHouse.Identity.Infrastructure.Caching\AppInHouse.Identity.Infrastructure.Caching.csproj" />
     <ProjectReference Include="..\..\Core\AppInHouse.Identity.Application\AppInHouse.Identity.Application.csproj" />

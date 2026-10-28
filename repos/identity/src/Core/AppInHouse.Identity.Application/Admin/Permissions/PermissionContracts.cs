@@ -61,5 +61,8 @@ public interface IPermissionAdminService
 
     Task<PermissionDto> CreateAsync(CreatePermissionRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>A permission of a project the caller administers, or a global one.</summary>
+    Task<PermissionDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<PermissionDto> UpdateAsync(Guid id, UpdatePermissionRequest request, CancellationToken cancellationToken = default);
 }

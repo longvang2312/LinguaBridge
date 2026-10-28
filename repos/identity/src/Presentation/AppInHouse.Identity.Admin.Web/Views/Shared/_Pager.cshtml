@@ -1,0 +1,26 @@
+@model PagerModel
+@{
+    // Keeps the current filters: every query value except the page number is carried over.
+    string Link(int page)
+    {
+        var query = Context.Request.Query
+            .Where(q => !string.Equals(q.Key, "Page", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(q => q.Value.Select(v => $"{Uri.EscapeDataString(q.Key)}={Uri.EscapeDataString(v ?? string.Empty)}"))
+            .Append($"Page={page}");
+        return Context.Request.Path + "?" + string.Join("&", query);
+    }
+}
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="Pages">
+        <ul class="pagination pagination-sm">
+            <li class="page-item @(Model.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Link(Math.Max(1, Model.Page - 1))">Previous</a></li>
+            <li class="page-item disabled"><span class="page-link">Page @Model.Page of @Model.TotalPages (@Model.TotalCount items)</span></li>
+            <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")"><a class="page-link" href="@Link(Math.Min(Model.TotalPages, Model.Page + 1))">Next</a></li>
+        </ul>
+    </nav>
+}
+else
+{
+    <p class="text-muted small">@Model.TotalCount item(s)</p>
+}

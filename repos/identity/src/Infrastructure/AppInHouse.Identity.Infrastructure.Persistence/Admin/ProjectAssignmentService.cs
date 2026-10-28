@@ -32,6 +32,73 @@ public sealed class ProjectAssignmentService : IProjectAssignmentService
         _invalidation = invalidation;
     }
 
+    public async Task<IReadOnlyList<ProjectMemberDto>> ListMembersAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var caller = await _authorizer.GetCallerAsync(cancellationToken);
+        caller.RequireProjectAdmin(projectId);
+        await EnsureProjectExistsAsync(projectId, cancellationToken);
+
+        var assignments = await _auth.ProjectUserAssignments.AsNoTracking()
+            .Where(a => a.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        var userIds = assignments.Select(a => a.UserId).ToList();
+
+        var users = await _identity.Users.AsNoTracking()
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.Email, u.FullName })
+            .ToDictionaryAsync(u => u.Id, cancellationToken);
+
+        var roles = (await _auth.UserRoleProjectAssignments.AsNoTracking()
+                .Where(a => a.ProjectId == projectId)
+                .Select(a => new { a.UserId, a.RoleId })
+                .ToListAsync(cancellationToken))
+            .ToLookup(a => a.UserId, a => a.RoleId);
+
+        var direct = (await _auth.UserPermissionAssignments.AsNoTracking()
+                .Where(a => a.ProjectId == projectId)
+                .Select(a => new { a.UserId, a.PermissionId, a.Permission.PermissionCode, a.IsRevoked })
+                .ToListAsync(cancellationToken))
+            .ToLookup(a => a.UserId);
+
+        return assignments
+            .OrderBy(a => users.TryGetValue(a.UserId, out var u) ? u.Email : a.UserId, StringComparer.OrdinalIgnoreCase)
+            .Select(a =>
+            {
+                users.TryGetValue(a.UserId, out var user);
+                return new ProjectMemberDto(
+                    a.UserId,
+                    user?.Email ?? string.Empty,
+                    user?.FullName ?? string.Empty,
+                    a.IsProjectAdmin,
+                    a.IsBlocked,
+                    a.AssignedAt,
+                    roles[a.UserId].Order().ToList(),
+                    direct[a.UserId].OrderBy(d => d.PermissionCode)
+                        .Select(d => new DirectPermissionDto(d.PermissionId, d.PermissionCode, d.IsRevoked)).ToList());
+            })
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<UserProjectDto>> ListUserProjectsAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var caller = await _authorizer.GetCallerAsync(cancellationToken);
+        caller.RequireAnyAdmin();
+
+        var assignments = _auth.ProjectUserAssignments.AsNoTracking()
+            .Where(a => a.UserId == userId && !a.Project.IsDeleted);
+        if (!caller.IsGlobalAdmin)
+        {
+            // Never reveal memberships in projects the caller does not administer.
+            var visible = caller.AdministeredProjectIds.ToList();
+            assignments = assignments.Where(a => visible.Contains(a.ProjectId));
+        }
+
+        return await assignments
+            .OrderBy(a => a.Project.ProjectCode)
+            .Select(a => new UserProjectDto(a.ProjectId, a.Project.ProjectCode, a.Project.Name, a.IsProjectAdmin, a.IsBlocked))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<ProjectUserDto> AssignUserAsync(
         Guid projectId, AssignProjectUserRequest request, CancellationToken cancellationToken = default)
     {

@@ -1,0 +1,63 @@
+@using AppInHouse.Identity.Application.Admin.Clients
+@model ClientFormViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label asp-for="Form.ClientId" class="form-label">Client id</label>
+        @if (Model.IsNew)
+        {
+            <input asp-for="Form.ClientId" class="form-control" autocomplete="off" />
+        }
+        else
+        {
+            <input asp-for="Form.ClientId" class="form-control" readonly />
+        }
+        <span asp-validation-for="Form.ClientId" class="text-danger"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="Form.DisplayName" class="form-label">Display name</label>
+        <input asp-for="Form.DisplayName" class="form-control" />
+        <span asp-validation-for="Form.DisplayName" class="text-danger"></span>
+    </div>
+</div>
+<div class="mb-3">
+    <label asp-for="Form.Type" class="form-label">Application type</label>
+    @if (Model.IsNew)
+    {
+        <select asp-for="Form.Type" class="form-select" asp-items="Html.GetEnumSelectList<ClientApplicationType>()"></select>
+        <div class="form-text">Web: confidential, has a secret. SPA and Mobile: public, Authorization Code + PKCE. Machine: confidential, Client Credentials.</div>
+    }
+    else
+    {
+        <input class="form-control" value="@Model.Form.Type" readonly />
+        <input type="hidden" asp-for="Form.Type" />
+    }
+    <span asp-validation-for="Form.Type" class="text-danger"></span>
+</div>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label asp-for="Form.RedirectUris" class="form-label">Redirect URIs (one per line)</label>
+        <textarea asp-for="Form.RedirectUris" class="form-control font-monospace" rows="4"></textarea>
+        <div class="form-text">https only (http for localhost). No wildcards. Not used by Machine clients.</div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="Form.PostLogoutRedirectUris" class="form-label">Post-logout redirect URIs (one per line)</label>
+        <textarea asp-for="Form.PostLogoutRedirectUris" class="form-control font-monospace" rows="4"></textarea>
+    </div>
+</div>
+<div class="mb-3">
+    <div class="form-label">Allowed scopes</div>
+    @foreach (var scope in Model.AvailableScopes)
+    {
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" name="Form.Scopes" value="@scope" id="scope-@scope" checked="@Model.Form.Scopes.Contains(scope)" />
+            <label class="form-check-label" for="scope-@scope">@scope</label>
+        </div>
+    }
+</div>
+<div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="Form.AllowRefreshTokens" value="true" id="Form_AllowRefreshTokens" checked="@Model.Form.AllowRefreshTokens" />
+    <input type="hidden" name="Form.AllowRefreshTokens" value="false" />
+    <label class="form-check-label" for="Form_AllowRefreshTokens">Allow refresh tokens (rotation applies)</label>
+</div>

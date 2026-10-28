@@ -1,0 +1,70 @@
+@model MemberAccessViewModel
+@{
+    var project = Model.Project;
+    var member = Model.Member;
+    ViewData["Title"] = $"{member.Email} in {project.ProjectCode}";
+    string State(Guid permissionId)
+    {
+        var direct = member.DirectPermissions.FirstOrDefault(d => d.PermissionId == permissionId);
+        return direct is null ? "none" : direct.IsRevoked ? "revoke" : "grant";
+    }
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-action="Index">Projects</a></li>
+    <li class="breadcrumb-item"><a asp-action="Details" asp-route-id="@project.Id">@project.ProjectCode</a></li>
+    <li class="breadcrumb-item active">@member.Email</li>
+</ol></nav>
+
+<h1 class="h3 mb-3">Access of @member.Email in <code>@project.ProjectCode</code></h1>
+<p class="text-muted">Effective permissions = roles + direct grants - direct revocations. A revocation always wins. Changes apply immediately.</p>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <form asp-action="SetRoles" asp-route-id="@project.Id" asp-route-userId="@member.UserId" method="post" class="card">
+            <div class="card-header">Roles</div>
+            <div class="card-body">
+                @foreach (var role in Model.Roles)
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="roleIds" value="@role.Id" id="role-@role.Id" checked="@member.RoleIds.Contains(role.Id)" />
+                        <label class="form-check-label" for="role-@role.Id">@role.Name <span class="text-muted small">@role.Description</span></label>
+                    </div>
+                }
+                @if (Model.Roles.Count == 0) { <span class="text-muted">There are no roles yet.</span> }
+            </div>
+            <div class="card-footer"><button type="submit" class="btn btn-primary">Save roles</button></div>
+        </form>
+    </div>
+    <div class="col-lg-8">
+        <form asp-action="SetPermissions" asp-route-id="@project.Id" asp-route-userId="@member.UserId" method="post" class="card">
+            <div class="card-header">Direct permissions</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Permission</th><th>Direct entry</th></tr></thead>
+                    <tbody>
+                    @foreach (var group in Model.Permissions.GroupBy(p => p.Module).OrderBy(g => g.Key))
+                    {
+                        <tr class="table-light"><th colspan="2">@group.Key</th></tr>
+                        @foreach (var permission in group.OrderBy(p => p.PermissionCode))
+                        {
+                            var state = State(permission.Id);
+                            <tr>
+                                <td><code>@permission.PermissionCode</code> <span class="text-muted small">@permission.DisplayName</span></td>
+                                <td>
+                                    <select class="form-select form-select-sm" name="states[@permission.Id]">
+                                        <option value="none" selected="@(state == "none")">Inherit from roles</option>
+                                        <option value="grant" selected="@(state == "grant")">Grant</option>
+                                        <option value="revoke" selected="@(state == "revoke")">Revoke</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer"><button type="submit" class="btn btn-primary">Save direct permissions</button></div>
+        </form>
+    </div>
+</div>

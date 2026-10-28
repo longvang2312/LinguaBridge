@@ -76,6 +76,34 @@ public class EntityInvariantTests
         Assert.Throws<InvalidOperationException>(project.Activate);
     }
 
+    // ---- Permission.UpdateDetails ----
+
+    [Fact]
+    public void Permission_UpdateDetails_ChangesOnlyTheDescriptiveFields_AndTrims()
+    {
+        var permission = new Permission("users.view", "View users", "Users", SomeId);
+
+        permission.UpdateDetails("  See users ", " Directory ");
+
+        Assert.Equal("See users", permission.DisplayName);
+        Assert.Equal("Directory", permission.Module);
+        Assert.Equal("users.view", permission.PermissionCode);
+        Assert.Equal(SomeId, permission.ProjectId);
+    }
+
+    [Fact]
+    public void Permission_UpdateDetails_RejectsInvalidValues_WithoutPartialUpdate()
+    {
+        var permission = new Permission("users.view", "View users", "Users");
+
+        Assert.Throws<ArgumentException>(() => permission.UpdateDetails("New name", " "));
+        Assert.Throws<ArgumentException>(() => permission.UpdateDetails("", "Users"));
+        Assert.Throws<ArgumentException>(() => permission.UpdateDetails(new string('a', Permission.DisplayNameMaxLength + 1), "Users"));
+
+        Assert.Equal("View users", permission.DisplayName);
+        Assert.Equal("Users", permission.Module);
+    }
+
     // ---- Permission ----
 
     [Fact]

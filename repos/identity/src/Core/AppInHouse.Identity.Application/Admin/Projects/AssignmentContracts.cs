@@ -42,8 +42,31 @@ public sealed record DirectPermissionDto(Guid PermissionId, string PermissionCod
 
 public sealed record UserPermissionsDto(Guid ProjectId, string UserId, IReadOnlyList<DirectPermissionDto> Assignments);
 
+/// <summary>A member of a project with the roles and direct permission entries held there.</summary>
+public sealed record ProjectMemberDto(
+    string UserId,
+    string Email,
+    string FullName,
+    bool IsProjectAdmin,
+    bool IsBlocked,
+    DateTime AssignedAt,
+    IReadOnlyList<string> RoleIds,
+    IReadOnlyList<DirectPermissionDto> DirectPermissions);
+
+/// <summary>A project a user belongs to.</summary>
+public sealed record UserProjectDto(Guid ProjectId, string ProjectCode, string ProjectName, bool IsProjectAdmin, bool IsBlocked);
+
 public interface IProjectAssignmentService
 {
+    /// <summary>The members of the project (project administrators of that project and global administrators only).</summary>
+    Task<IReadOnlyList<ProjectMemberDto>> ListMembersAsync(Guid projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The projects the user belongs to. Global administrators see all of them; project administrators only the
+    /// ones they administer themselves.
+    /// </summary>
+    Task<IReadOnlyList<UserProjectDto>> ListUserProjectsAsync(string userId, CancellationToken cancellationToken = default);
+
     Task<ProjectUserDto> AssignUserAsync(Guid projectId, AssignProjectUserRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>Replaces the user's roles in the project, then invalidates the user's cached permissions.</summary>

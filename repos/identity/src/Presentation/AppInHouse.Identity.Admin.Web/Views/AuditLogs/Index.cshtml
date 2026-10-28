@@ -1,0 +1,78 @@
+@model AuditListViewModel
+@{
+    ViewData["Title"] = "Audit trail";
+    var filter = Model.Filter;
+}
+
+<h1 class="h3 mb-3">Audit trail</h1>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input class="form-control" name="ActorId" value="@filter.ActorId" placeholder="Actor (user id)" maxlength="450" /></div>
+    <div class="col-md-3">
+        <select class="form-select" name="ProjectId" aria-label="Project">
+            <option value="">Any project</option>
+            @foreach (var project in Model.Projects)
+            {
+                <option value="@project.Id" selected="@(filter.ProjectId == project.Id)">@project.ProjectCode</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="EntityName" aria-label="Entity">
+            <option value="">Any entity</option>
+            @foreach (var entity in Model.Entities) { <option value="@entity" selected="@(filter.EntityName == entity)">@entity</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="Operation" aria-label="Action">
+            <option value="">Any action</option>
+            @foreach (var action in Model.Actions) { <option value="@action" selected="@(filter.Operation == action)">@action</option> }
+        </select>
+    </div>
+    <div class="col-md-3"><label class="form-label small m-0" for="From">From (UTC)</label><input class="form-control" type="date" id="From" name="From" value="@filter.From?.ToString("yyyy-MM-dd")" /></div>
+    <div class="col-md-3"><label class="form-label small m-0" for="To">To (UTC)</label><input class="form-control" type="date" id="To" name="To" value="@filter.To?.ToString("yyyy-MM-dd")" /></div>
+    <div class="col-auto align-self-end"><button class="btn btn-outline-secondary" type="submit">Filter</button> <a class="btn btn-link" asp-action="Index">Reset</a></div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>When (UTC)</th><th>Action</th><th>Entity</th><th>Actor</th><th>IP</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var log in Model.Items)
+            {
+                <tr>
+                    <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td><span class="badge text-bg-secondary">@log.Action</span></td>
+                    <td>@log.EntityName <span class="text-muted small">@log.EntityId</span></td>
+                    <td>@(log.UserId ?? "-")</td>
+                    <td>@(log.IpAddress ?? "-")</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#auditModal"
+                                data-title="@log.Action @log.EntityName @log.EntityId" data-old="@log.OldValuesJson" data-new="@log.NewValuesJson">Details</button>
+                    </td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="6" class="text-muted">No event matches.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="mt-3"><partial name="_Pager" model="Model.Pager" /></div>
+
+<div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title fs-5" id="auditModalLabel" data-audit-title></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6"><h3 class="fs-6">Before</h3><pre class="json" data-audit-old></pre></div>
+                    <div class="col-md-6"><h3 class="fs-6">After</h3><pre class="json" data-audit-new></pre></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

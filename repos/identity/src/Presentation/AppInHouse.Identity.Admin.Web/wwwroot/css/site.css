@@ -4,19 +4,57 @@ html {
 
 @media (min-width: 768px) {
   html {
-    font-size: 16px;
+    font-size: 15px;
   }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
-}
-
 body {
-  margin-bottom: 60px;
+  background-color: #f4f6f9;
+}
+
+.sidebar {
+  min-height: calc(100vh - 56px);
+  border-right: 1px solid #dee2e6;
+}
+
+.sidebar .nav-link {
+  color: #343a40;
+}
+
+.sidebar .nav-link.active {
+  font-weight: 600;
+  color: #0d6efd;
+}
+
+.stat-card .display-6 {
+  font-weight: 600;
+}
+
+.matrix th, .matrix td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.matrix th:first-child, .matrix td:first-child {
+  text-align: left;
+}
+
+.matrix .module-row th {
+  background-color: #e9ecef;
+  text-align: left;
+}
+
+pre.json {
+  max-height: 50vh;
+  overflow: auto;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  padding: .5rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.secret-box {
+  font-family: SFMono-Regular, Consolas, monospace;
+  word-break: break-all;
 }

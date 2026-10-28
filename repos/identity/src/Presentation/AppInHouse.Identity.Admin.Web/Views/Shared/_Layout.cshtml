@@ -1,46 +1,77 @@
-﻿<!DOCTYPE html>
+﻿@using AppInHouse.Identity.Application.Admin.Security
+@inject IAdminAuthorizer Authorizer
+@{
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var caller = signedIn ? await Authorizer.GetCallerAsync() : null;
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    string Active(params string[] names) => names.Contains(controller, StringComparer.OrdinalIgnoreCase) ? "active" : "";
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - AppInHouse.Identity.Admin.Web</title>
+    <title>@ViewData["Title"] - AppInHouse Identity Admin</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/AppInHouse.Identity.Admin.Web.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">AppInHouse.Identity.Admin.Web</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        </li>
+    <nav class="navbar navbar-dark bg-dark px-3">
+        <a class="navbar-brand" asp-controller="Home" asp-action="Index">AppInHouse Identity Admin</a>
+        @if (signedIn)
+        {
+            <form asp-controller="Account" asp-action="Logout" method="post" class="d-flex align-items-center gap-3 m-0">
+                <span class="text-light small">@(User.FindFirst("name")?.Value ?? User.FindFirst("email")?.Value ?? User.FindFirst("sub")?.Value)</span>
+                <button type="submit" class="btn btn-outline-light btn-sm">Sign out</button>
+            </form>
+        }
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            @if (caller is { IsAnyAdmin: true })
+            {
+                <nav class="col-md-2 d-md-block bg-light sidebar py-3" aria-label="Main">
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a class="nav-link @Active("Home")" asp-controller="Home" asp-action="Index">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link @Active("Projects")" asp-controller="Projects" asp-action="Index">Projects</a></li>
+                        @if (caller.IsGlobalAdmin)
+                        {
+                            <li class="nav-item"><a class="nav-link @Active("Clients")" asp-controller="Clients" asp-action="Index">Clients</a></li>
+                            <li class="nav-item"><a class="nav-link @Active("Users")" asp-controller="Users" asp-action="Index">Users</a></li>
+                        }
+                        <li class="nav-item mt-3 text-uppercase small text-muted px-3">RBAC Studio</li>
+                        <li class="nav-item"><a class="nav-link @Active("Roles")" asp-controller="Roles" asp-action="Index">Roles</a></li>
+                        <li class="nav-item"><a class="nav-link @Active("Permissions")" asp-controller="Permissions" asp-action="Index">Permissions</a></li>
+                        @if (caller.IsGlobalAdmin)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Roles" asp-action="Matrix">Role matrix</a></li>
+                        }
+                        <li class="nav-item mt-3 text-uppercase small text-muted px-3">Security</li>
+                        <li class="nav-item"><a class="nav-link @Active("AuditLogs")" asp-controller="AuditLogs" asp-action="Index">Audit trail</a></li>
                     </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
+                </nav>
+            }
+            <main role="main" class="@(caller is { IsAnyAdmin: true } ? "col-md-10" : "col-12") px-md-4 py-3">
+                @RenderBody()
+            </main>
+        </div>
     </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - AppInHouse.Identity.Admin.Web - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-        </div>
-    </footer>
+    <div class="toast-container position-fixed top-0 end-0 p-3" aria-live="polite">
+        @if (TempData["Success"] is string success)
+        {
+            <div class="toast align-items-center text-bg-success border-0" role="status" data-bs-autohide="true" data-bs-delay="6000">
+                <div class="d-flex"><div class="toast-body">@success</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
+            </div>
+        }
+        @if (TempData["Error"] is string error)
+        {
+            <div class="toast align-items-center text-bg-danger border-0" role="alert" data-bs-autohide="false">
+                <div class="d-flex"><div class="toast-body">@error</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
+            </div>
+        }
+    </div>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

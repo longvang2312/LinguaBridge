@@ -1,0 +1,30 @@
+@using AppInHouse.Identity.Application.Admin.Clients
+@model ClientFormViewModel
+@{
+    ViewData["Title"] = "Edit client";
+    var confidential = Model.Form.Type is ClientApplicationType.Web or ClientApplicationType.Machine;
+}
+
+<h1 class="h3 mb-3">Edit client <code>@Model.Form.ClientId</code></h1>
+<form asp-action="Edit" asp-route-id="@Model.Id" method="post" class="card card-body mb-4" style="max-width: 60rem">
+    <partial name="_ClientForm" model="Model" />
+    <div>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a class="btn btn-link" asp-action="Index">Back</a>
+    </div>
+</form>
+
+@if (confidential)
+{
+    <div class="card border-warning" style="max-width: 60rem">
+        <div class="card-header">Client secret</div>
+        <div class="card-body">
+            <p>The secret is stored as a hash and cannot be displayed. Rotating it generates a new one, shown once, and the current secret stops working immediately.</p>
+            <form asp-action="RotateSecret" asp-route-id="@Model.Id" method="post" data-confirm="Rotate the secret? Applications using the current one will stop working.">
+                <button type="submit" class="btn btn-warning">Rotate secret</button>
+            </form>
+        </div>
+    </div>
+}
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

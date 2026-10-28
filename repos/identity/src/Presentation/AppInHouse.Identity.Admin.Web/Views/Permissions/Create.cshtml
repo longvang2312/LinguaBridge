@@ -1,0 +1,39 @@
+@model PermissionFormViewModel
+@{
+    ViewData["Title"] = "New permission";
+}
+
+<h1 class="h3 mb-3">New permission</h1>
+<form asp-action="Create" method="post" class="card card-body" style="max-width: 40rem">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="mb-3">
+        <label asp-for="Form.PermissionCode" class="form-label">Code</label>
+        <input asp-for="Form.PermissionCode" class="form-control" autocomplete="off" placeholder="orders.view" />
+        <span asp-validation-for="Form.PermissionCode" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Form.DisplayName" class="form-label">Display name</label>
+        <input asp-for="Form.DisplayName" class="form-control" />
+        <span asp-validation-for="Form.DisplayName" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Form.Module" class="form-label">Module</label>
+        <input asp-for="Form.Module" class="form-control" placeholder="Users, Roles, Clients, Projects..." />
+        <span asp-validation-for="Form.Module" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Form.ProjectId" class="form-label">Owning project</label>
+        <select asp-for="Form.ProjectId" class="form-select">
+            @if (Model.IsGlobalAdmin) { <option value="">Global (every project)</option> }
+            @foreach (var project in Model.Projects.Where(p => p.IsActive))
+            {
+                <option value="@project.Id" selected="@(Model.Form.ProjectId == project.Id)">@project.ProjectCode - @project.Name</option>
+            }
+        </select>
+        <span asp-validation-for="Form.ProjectId" class="text-danger"></span>
+    </div>
+    <div>
+        <button type="submit" class="btn btn-primary">Create</button>
+        <a class="btn btn-link" asp-action="Index">Cancel</a>
+    </div>
+</form>

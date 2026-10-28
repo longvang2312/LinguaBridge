@@ -1,0 +1,36 @@
+@using AppInHouse.Identity.Application.Admin.Users
+@model CreateUserRequest
+@{
+    ViewData["Title"] = "New user";
+}
+
+<h1 class="h3 mb-3">New user</h1>
+<form asp-action="Create" method="post" class="card card-body" style="max-width: 40rem" autocomplete="off">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="mb-3">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="FullName" class="form-label">Full name</label>
+        <input asp-for="FullName" class="form-control" />
+        <span asp-validation-for="FullName" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Password" class="form-label"></label>
+        <input asp-for="Password" type="password" class="form-control" autocomplete="new-password" />
+        <span asp-validation-for="Password" class="text-danger"></span>
+    </div>
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="EmailConfirmed" value="true" id="EmailConfirmed" checked="@Model.EmailConfirmed" />
+        <input type="hidden" name="EmailConfirmed" value="false" />
+        <label class="form-check-label" for="EmailConfirmed">Email already confirmed</label>
+    </div>
+    <div>
+        <button type="submit" class="btn btn-primary">Create</button>
+        <a class="btn btn-link" asp-action="Index">Cancel</a>
+    </div>
+</form>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

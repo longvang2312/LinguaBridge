@@ -75,6 +75,11 @@ public interface IClientAdminService
 {
     Task<PagedResult<ClientDto>> ListAsync(PagingQuery query, CancellationToken cancellationToken = default);
 
+    Task<ClientDto> GetAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>The names of the scopes a client may be allowed to request.</summary>
+    Task<IReadOnlyList<string>> ListScopesAsync(CancellationToken cancellationToken = default);
+
     Task<CreatedClientDto> CreateAsync(CreateClientRequest request, CancellationToken cancellationToken = default);
 
     Task<ClientDto> UpdateAsync(string id, UpdateClientRequest request, CancellationToken cancellationToken = default);

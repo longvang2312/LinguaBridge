@@ -1,0 +1,35 @@
+@model ClientListViewModel
+@{
+    ViewData["Title"] = "Clients";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 m-0">Clients</h1>
+    <a class="btn btn-primary" asp-action="Create">New client</a>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Client id</th><th>Name</th><th>Type</th><th>Redirect URIs</th><th>Scopes</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var client in Model.Items)
+            {
+                <tr>
+                    <td><code>@client.ClientId</code></td>
+                    <td>@client.DisplayName</td>
+                    <td><span class="badge text-bg-info">@client.Type</span> @(client.IsConfidential ? "confidential" : "public")</td>
+                    <td class="small">@foreach (var uri in client.RedirectUris) { <div>@uri</div> }</td>
+                    <td class="small">@string.Join(", ", client.Scopes)</td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@client.Id">Edit</a></td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="6" class="text-muted">No client found.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="mt-3"><partial name="_Pager" model="Model.Pager" /></div>

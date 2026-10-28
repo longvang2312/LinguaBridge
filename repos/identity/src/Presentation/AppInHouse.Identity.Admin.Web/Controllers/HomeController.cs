@@ -1,31 +1,26 @@
 using System.Diagnostics;
+using AppInHouse.Identity.Admin.Web.Infrastructure;
+using AppInHouse.Identity.Admin.Web.ViewModels;
+using AppInHouse.Identity.Application.Admin.Dashboard;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AppInHouse.Identity.Admin.Web.Models;
 
 namespace AppInHouse.Identity.Admin.Web.Controllers;
 
-public class HomeController : Controller
+public class HomeController : PortalController
 {
-    private readonly ILogger<HomeController> _logger;
+    private readonly IDashboardService _dashboard;
 
-    public HomeController(ILogger<HomeController> logger)
-    {
-        _logger = logger;
-    }
+    public HomeController(IDashboardService dashboard) => _dashboard = dashboard;
 
-    public IActionResult Index()
-    {
-        return View();
-    }
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+        => View(await _dashboard.GetAsync(cancellationToken));
 
-    public IActionResult Privacy()
-    {
-        return View();
-    }
+    [AllowAnonymous]
+    public IActionResult AccessDenied() => View();
 
+    [AllowAnonymous]
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
-    {
-        return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-    }
+        => View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
 }

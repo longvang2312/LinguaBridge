@@ -1,0 +1,86 @@
+@model ProjectDetailsViewModel
+@{
+    var project = Model.Project;
+    ViewData["Title"] = project.ProjectCode;
+}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1 class="h3 m-0">@project.Name <code class="fs-6">@project.ProjectCode</code></h1>
+        <p class="text-muted m-0">@project.Description</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-action="Edit" asp-route-id="@project.Id">Edit</a>
+        @if (Model.IsGlobalAdmin)
+        {
+            <form asp-action="SetStatus" asp-route-id="@project.Id" method="post"
+                  data-confirm="@(project.IsActive ? "Lock this project? Its users lose access to it." : "Activate this project?")">
+                <input type="hidden" name="isActive" value="@((!project.IsActive).ToString().ToLowerInvariant())" />
+                <button type="submit" class="btn @(project.IsActive ? "btn-outline-warning" : "btn-outline-success")">@(project.IsActive ? "Lock" : "Activate")</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (!project.IsActive)
+{
+    <div class="alert alert-warning">This project is locked: nobody is authorized in it.</div>
+}
+
+<div class="card mb-4">
+    <div class="card-header">Add a member</div>
+    <div class="card-body">
+        <form asp-action="AssignUser" asp-route-id="@project.Id" method="post" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="UserId">User id</label>
+                <input class="form-control" id="UserId" name="UserId" maxlength="450" required autocomplete="off" />
+            </div>
+            @if (Model.IsGlobalAdmin)
+            {
+                <div class="col-auto form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="IsProjectAdmin" name="IsProjectAdmin" value="true" />
+                    <label class="form-check-label" for="IsProjectAdmin">Project administrator</label>
+                </div>
+            }
+            <div class="col-auto"><button type="submit" class="btn btn-primary">Assign</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Members (@Model.Members.Count)</div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>User</th><th>Role in project</th><th>Roles</th><th>Direct permissions</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var member in Model.Members)
+            {
+                <tr>
+                    <td>@member.Email<div class="small text-muted">@member.FullName</div></td>
+                    <td>
+                        @if (member.IsProjectAdmin) { <span class="badge text-bg-primary">Project admin</span> }
+                        @if (member.IsBlocked) { <span class="badge text-bg-danger">Blocked</span> }
+                    </td>
+                    <td>
+                        @foreach (var roleId in member.RoleIds)
+                        {
+                            <span class="badge text-bg-secondary">@(Model.RoleNames.TryGetValue(roleId, out var name) ? name : roleId)</span>
+                        }
+                    </td>
+                    <td>
+                        @foreach (var direct in member.DirectPermissions)
+                        {
+                            <span class="badge @(direct.IsRevoked ? "text-bg-danger" : "text-bg-success")">@(direct.IsRevoked ? "-" : "+")@direct.PermissionCode</span>
+                        }
+                    </td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" asp-action="Member" asp-route-id="@project.Id" asp-route-userId="@member.UserId">Access</a></td>
+                </tr>
+            }
+            @if (Model.Members.Count == 0)
+            {
+                <tr><td colspan="5" class="text-muted">No member yet.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

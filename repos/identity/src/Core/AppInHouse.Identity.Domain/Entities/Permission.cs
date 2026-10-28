@@ -39,6 +39,16 @@ public class Permission
 
     public Project? Project { get; private set; }
 
+    /// <summary>Changes the descriptive fields; the code and the owning project are immutable.</summary>
+    public void UpdateDetails(string displayName, string module)
+    {
+        var newDisplayName = Guard.Required(displayName, DisplayNameMaxLength, nameof(displayName));
+        var newModule = Guard.Required(module, ModuleMaxLength, nameof(module));
+
+        DisplayName = newDisplayName;
+        Module = newModule;
+    }
+
     public void Activate() => IsActive = true;
 
     public void Deactivate() => IsActive = false;

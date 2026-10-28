@@ -1,6 +1,7 @@
 using AppInHouse.Identity.Application.Abstractions;
 using AppInHouse.Identity.Application.Admin.Audit;
 using AppInHouse.Identity.Application.Admin.Clients;
+using AppInHouse.Identity.Application.Admin.Dashboard;
 using AppInHouse.Identity.Application.Admin.Permissions;
 using AppInHouse.Identity.Application.Admin.Projects;
 using AppInHouse.Identity.Application.Admin.Roles;
@@ -41,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleAdminService, RoleAdminService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<IClientAdminService, ClientAdminService>();
+        services.AddScoped<IDashboardService, DashboardService>();
         return services;
     }
 }

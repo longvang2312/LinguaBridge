@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Presentation\AppInHouse.Identity.Admin.Api\AppInHouse.Identity.Admin.Api.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\AppInHouse.Identity.Admin.Web\AppInHouse.Identity.Admin.Web.csproj" />
     <ProjectReference Include="..\..\src\Presentation\AppInHouse.Identity.STS\AppInHouse.Identity.STS.csproj" />
     <ProjectReference Include="..\..\src\Core\AppInHouse.Identity.Application\AppInHouse.Identity.Application.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\AppInHouse.Identity.Infrastructure.Caching\AppInHouse.Identity.Infrastructure.Caching.csproj" />

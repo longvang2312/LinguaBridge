@@ -1,0 +1,116 @@
+@model UserDetailsViewModel
+@{
+    var user = Model.User;
+    ViewData["Title"] = user.Email;
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-action="Index">Users</a></li>
+    <li class="breadcrumb-item active">@user.Email</li>
+</ol></nav>
+
+<h1 class="h3 mb-3">
+    @user.Email
+    @if (!user.IsActive) { <span class="badge text-bg-secondary">Inactive</span> }
+    @if (user.IsLockedOut) { <span class="badge text-bg-danger">Locked@(user.LockoutEnd is { } end && end.Year < 9000 ? $" until {end:yyyy-MM-dd HH:mm} UTC" : "")</span> }
+</h1>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <form asp-action="Update" asp-route-id="@user.Id" method="post" class="card mb-4">
+            <div class="card-header">Account</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label" for="FullName">Full name</label>
+                    <input class="form-control" id="FullName" name="FullName" value="@user.FullName" maxlength="150" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="IsActive">Status</label>
+                    <select class="form-select" id="IsActive" name="IsActive" disabled="@Model.IsCurrentUser">
+                        <option value="true" selected="@user.IsActive">Active</option>
+                        <option value="false" selected="@(!user.IsActive)">Inactive</option>
+                    </select>
+                    @if (Model.IsCurrentUser)
+                    {
+                        <input type="hidden" name="IsActive" value="true" />
+                        <div class="form-text">You cannot deactivate your own account.</div>
+                    }
+                </div>
+            </div>
+            <div class="card-footer"><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+
+        <div class="card mb-4">
+            <div class="card-header">Lock</div>
+            <div class="card-body">
+                @if (Model.IsCurrentUser)
+                {
+                    <p class="text-muted m-0">You cannot lock your own account.</p>
+                }
+                else if (user.IsLockedOut)
+                {
+                    <form asp-action="Unlock" asp-route-id="@user.Id" method="post"><button type="submit" class="btn btn-success">Unlock</button></form>
+                }
+                else
+                {
+                    <form asp-action="Lock" asp-route-id="@user.Id" method="post" class="row g-2 align-items-end"
+                          data-confirm="Lock this account? Its tokens stop being valid.">
+                        <div class="col"><label class="form-label" for="lockedUntil">Until (optional)</label><input class="form-control" type="datetime-local" id="lockedUntil" name="lockedUntil" /></div>
+                        <div class="col-auto"><button type="submit" class="btn btn-warning">Lock</button></div>
+                    </form>
+                }
+            </div>
+        </div>
+
+        <form asp-action="ResetPassword" asp-route-id="@user.Id" method="post" class="card" autocomplete="off">
+            <div class="card-header">Change password</div>
+            <div class="card-body">
+                <label class="form-label" for="NewPassword">New password</label>
+                <input class="form-control" type="password" id="NewPassword" name="NewPassword" maxlength="128" required autocomplete="new-password" />
+            </div>
+            <div class="card-footer"><button type="submit" class="btn btn-danger">Change password</button></div>
+        </form>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Projects</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var membership in Model.Projects)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>
+                            <a asp-controller="Projects" asp-action="Member" asp-route-id="@membership.ProjectId" asp-route-userId="@user.Id">@membership.ProjectCode</a>
+                            <span class="text-muted">@membership.ProjectName</span>
+                        </span>
+                        <span>
+                            @if (membership.IsProjectAdmin) { <span class="badge text-bg-primary">Project admin</span> }
+                            @if (membership.IsBlocked) { <span class="badge text-bg-danger">Blocked</span> }
+                        </span>
+                    </li>
+                }
+                @if (Model.Projects.Count == 0) { <li class="list-group-item text-muted">Not assigned to any project.</li> }
+            </ul>
+            @if (Model.AssignableProjects.Count > 0)
+            {
+                <form asp-action="AssignProject" asp-route-id="@user.Id" method="post" class="card-body border-top row g-2 align-items-end">
+                    <div class="col-12 col-md">
+                        <label class="form-label" for="projectId">Assign to project</label>
+                        <select class="form-select" id="projectId" name="projectId">
+                            @foreach (var project in Model.AssignableProjects)
+                            {
+                                <option value="@project.Id">@project.ProjectCode - @project.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-auto form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="isProjectAdmin" name="isProjectAdmin" value="true" />
+                        <input type="hidden" name="isProjectAdmin" value="false" />
+                        <label class="form-check-label" for="isProjectAdmin">Project administrator</label>
+                    </div>
+                    <div class="col-auto"><button type="submit" class="btn btn-primary">Assign</button></div>
+                </form>
+            }
+        </div>
+    </div>
+</div>

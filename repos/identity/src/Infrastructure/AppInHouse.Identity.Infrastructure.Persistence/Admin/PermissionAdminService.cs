@@ -110,6 +110,25 @@ public sealed class PermissionAdminService : IPermissionAdminService
         return ToDto(permission);
     }
 
+    public async Task<PermissionDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var caller = await _authorizer.GetCallerAsync(cancellationToken);
+        caller.RequireAnyAdmin();
+
+        var permission = await _auth.Permissions.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (permission is null)
+        {
+            // Do not tell non-global callers which ids exist.
+            throw caller.IsGlobalAdmin ? new NotFoundException("The permission was not found.") : new ForbiddenException();
+        }
+
+        // Global permissions are readable by every administrator; a project's own ones only by its administrators.
+        if (permission.ProjectId is { } owner)
+            caller.RequireProjectAdmin(owner);
+
+        return ToDto(permission);
+    }
+
     public async Task<PermissionDto> UpdateAsync(Guid id, UpdatePermissionRequest request, CancellationToken cancellationToken = default)
     {
         var caller = await _authorizer.GetCallerAsync(cancellationToken);
@@ -138,10 +157,7 @@ public sealed class PermissionAdminService : IPermissionAdminService
         var before = Snapshot(permission);
         var activeChanged = permission.IsActive != request.IsActive;
 
-        // The domain entity exposes no setters for these descriptive fields; EF writes them via the property entries.
-        var entry = _auth.Entry(permission);
-        entry.Property(p => p.DisplayName).CurrentValue = displayName;
-        entry.Property(p => p.Module).CurrentValue = module;
+        permission.UpdateDetails(displayName, module);
         if (request.IsActive == true)
             permission.Activate();
         else

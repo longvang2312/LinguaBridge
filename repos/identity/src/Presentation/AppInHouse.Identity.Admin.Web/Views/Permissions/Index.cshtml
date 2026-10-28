@@ -1,0 +1,56 @@
+@model PermissionListViewModel
+@{
+    ViewData["Title"] = "Permissions";
+    var projectCodes = Model.Projects.ToDictionary(p => p.Id, p => p.ProjectCode);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 m-0">Permissions</h1>
+    <a class="btn btn-primary" asp-action="Create">New permission</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input class="form-control" name="Search" value="@Model.Query.Search" placeholder="Code or name" maxlength="100" /></div>
+    <div class="col-md-3"><input class="form-control" name="Module" value="@Model.Query.Module" placeholder="Module (Users, Roles, ...)" maxlength="50" /></div>
+    <div class="col-md-3">
+        <select class="form-select" name="ProjectId">
+            <option value="">Any project</option>
+            @foreach (var project in Model.Projects)
+            {
+                <option value="@project.Id" selected="@(Model.Query.ProjectId == project.Id)">@project.ProjectCode</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Filter</button></div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Module</th><th>Code</th><th>Name</th><th>Scope</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var permission in Model.Items.OrderBy(p => p.Module).ThenBy(p => p.PermissionCode))
+            {
+                <tr>
+                    <td>@permission.Module</td>
+                    <td><code>@permission.PermissionCode</code></td>
+                    <td>@permission.DisplayName</td>
+                    <td>@(permission.ProjectId is { } owner ? (projectCodes.TryGetValue(owner, out var code) ? code : "project") : "Global")</td>
+                    <td>@if (permission.IsActive) { <span class="badge text-bg-success">Active</span> } else { <span class="badge text-bg-secondary">Inactive</span> }</td>
+                    <td class="text-end">
+                        @if (permission.IsGlobal ? Model.IsGlobalAdmin : true)
+                        {
+                            <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@permission.Id">Edit</a>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="6" class="text-muted">No permission found.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="mt-3"><partial name="_Pager" model="Model.Pager" /></div>
