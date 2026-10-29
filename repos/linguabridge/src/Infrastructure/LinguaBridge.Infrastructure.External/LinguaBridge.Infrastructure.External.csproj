@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Core\LinguaBridge.Application\LinguaBridge.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.AiTutor\LinguaBridge.Modules.AiTutor.csproj" />
   </ItemGroup>
 
 </Project>

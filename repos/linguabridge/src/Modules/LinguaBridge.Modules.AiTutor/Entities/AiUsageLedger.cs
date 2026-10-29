@@ -31,6 +31,24 @@ public class AiUsageLedger : BaseEntity
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>The provider label of a row that has been reserved but not yet settled.</summary>
+    public const string PendingProvider = "Pending";
+
+    /// <summary>
+    /// Replaces the estimate held by a reservation with what the call really used. The row keeps its creation time,
+    /// so it stays on the day it was reserved.
+    /// </summary>
+    public void Settle(string modelProvider, int promptTokens, int completionTokens, decimal estimatedCostUsd)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(estimatedCostUsd);
+
+        ModelProvider = Guard.Required(modelProvider, ModelProviderMaxLength, nameof(modelProvider));
+        PromptTokens = Guard.NonNegative(promptTokens, nameof(promptTokens));
+        CompletionTokens = Guard.NonNegative(completionTokens, nameof(completionTokens));
+        TotalTokens = checked(promptTokens + completionTokens);
+        EstimatedCostUsd = estimatedCostUsd;
+    }
+
     public Guid UserId { get; private set; }
 
     /// <summary>E.g. <c>TextExplanation</c>, <c>Roleplay</c>, <c>SpeechToText</c>.</summary>

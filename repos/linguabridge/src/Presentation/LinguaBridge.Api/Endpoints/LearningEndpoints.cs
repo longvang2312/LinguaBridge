@@ -135,7 +135,7 @@ public static class LearningEndpoints
     /// A token that is valid but names no learner (for example a service's client_credentials token, whose subject is
     /// not a user id) cannot own attempts or cards, so it is refused rather than given an empty account.
     /// </summary>
-    private static Guid? RequireLearner(ICurrentUser user, out IResult? denied)
+    internal static Guid? RequireLearner(ICurrentUser user, out IResult? denied)
     {
         if (user.UserId is { } userId)
         {

@@ -1,5 +1,7 @@
+using LinguaBridge.Infrastructure.Persistence.AiTutor;
 using LinguaBridge.Infrastructure.Persistence.Content;
 using LinguaBridge.Infrastructure.Persistence.Learning;
+using LinguaBridge.Modules.AiTutor.Abstractions;
 using LinguaBridge.Modules.Content.Abstractions;
 using LinguaBridge.Modules.Learning.Abstractions;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +38,10 @@ public static class DependencyInjection
         services.AddScoped<ILearningRepository, LearningRepository>();
         services.AddScoped<ILessonSource, LessonSource>();
         services.AddScoped<ILearningReadModel, LearningReadModel>();
+
+        services.AddScoped<IAiTutorRepository, AiTutorRepository>();
+        services.AddScoped<IUserEntitlementSource, UserEntitlementSource>();
+        services.AddScoped<ILearnerLevelSource, LearnerLevelSource>();
 
         return services;
     }

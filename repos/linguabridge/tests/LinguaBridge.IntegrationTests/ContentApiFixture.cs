@@ -1,4 +1,5 @@
 using LinguaBridge.Infrastructure.Persistence;
+using LinguaBridge.Modules.AiTutor.Abstractions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
 
@@ -20,6 +22,9 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
 {
     public static readonly Guid AdminId = Guid.Parse("a0a0a0a0-0000-4000-8000-000000000001");
     public static readonly Guid LearnerId = Guid.Parse("b1b1b1b1-0000-4000-8000-000000000002");
+
+    /// <summary>The AI model. The real providers are replaced so no test calls (or pays for) OpenAI.</summary>
+    public FakeLlm Llm { get; } = new();
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
 
@@ -49,6 +54,7 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
             }));
 
         builder.ConfigureTestServices(services =>
+        {
             services.AddAuthentication(options =>
                 {
                     options.DefaultScheme = TestAuthHandler.SchemeName;
@@ -56,7 +62,11 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
                     options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
                     options.DefaultForbidScheme = TestAuthHandler.SchemeName;
                 })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { }));
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+            services.RemoveAll<ILlmProvider>();
+            services.AddSingleton<ILlmProvider>(Llm);
+        });
     }
 
     public HttpClient Anonymous() => CreateClient();
@@ -83,5 +93,37 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
         if (roles.Length > 0)
             client.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, string.Join(',', roles));
         return client;
+    }
+}
+
+/// <summary>A model that answers from a script and remembers what it was asked.</summary>
+public sealed class FakeLlm : ILlmProvider
+{
+    public const string JsonReply = """{"reply_text":"Tell me about yourself.","pinyin_or_ipa":"/tel mi/","translation":"Hay ke ve ban than.","grammar_tips":"Good start."}""";
+
+    private readonly List<LlmRequest> _requests = [];
+
+    public IReadOnlyList<LlmRequest> Requests
+    {
+        get
+        {
+            lock (_requests)
+                return [.. _requests];
+        }
+    }
+
+    /// <summary>What the model says next; replace it to script a plain-text or failing model, and restore it afterwards.</summary>
+    public Func<LlmRequest, LlmResponse> Respond { get; set; } = _ => new LlmResponse(JsonReply, 120, 30, 0.00004m, "OpenAI_gpt-4o-mini");
+
+    /// <summary>How long the model takes to answer; a slow model is what lets concurrent requests overlap.</summary>
+    public TimeSpan Latency { get; set; } = TimeSpan.Zero;
+
+    public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken ct = default)
+    {
+        lock (_requests)
+            _requests.Add(request);
+        if (Latency > TimeSpan.Zero)
+            await Task.Delay(Latency, ct);
+        return Respond(request);
     }
 }
