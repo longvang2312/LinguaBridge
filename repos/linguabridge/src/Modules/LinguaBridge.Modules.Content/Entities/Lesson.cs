@@ -34,6 +34,24 @@ public class Lesson : AggregateRoot
 
     public IReadOnlyCollection<LessonTranslation> Translations => _translations.AsReadOnly();
 
+    /// <summary>Draft or Review to Published; from then on learners of a published course can see it.</summary>
+    public void Publish()
+    {
+        if (Status is not (ContentStatus.Draft or ContentStatus.Review))
+            throw new InvalidOperationException($"Only a draft or in-review lesson can be published (status is {Status}).");
+
+        Status = ContentStatus.Published;
+    }
+
+    /// <summary>Hides the lesson from learners. Archived is final.</summary>
+    public void Archive()
+    {
+        if (Status == ContentStatus.Archived)
+            throw new InvalidOperationException("The lesson is already archived.");
+
+        Status = ContentStatus.Archived;
+    }
+
     /// <summary>Adds the translation for <paramref name="baseLanguage"/>, or replaces the existing one.</summary>
     public void SetTranslation(BaseLanguage baseLanguage, string title, string? guideText = null)
     {

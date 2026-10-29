@@ -66,6 +66,7 @@ app.MapGet("/health", (IDateTimeProvider clock) => Results.Ok(new HealthResponse
     .AllowAnonymous();
 
 app.MapMeEndpoints();
+app.MapContentEndpoints();
 
 app.Run();
 

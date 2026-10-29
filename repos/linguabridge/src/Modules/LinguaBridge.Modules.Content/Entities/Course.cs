@@ -40,6 +40,55 @@ public class Course : AggregateRoot
 
     public IReadOnlyCollection<CourseTranslation> Translations => _translations.AsReadOnly();
 
+    /// <summary>Changes the level and thumbnail. Code and target language are identity and never change. Not allowed once archived.</summary>
+    public void UpdateDetails(LanguageLevel level, string? thumbnailUrl)
+    {
+        EnsureNotArchived();
+        if (!level.AppliesTo(TargetLanguage))
+            throw new ArgumentException($"Level {level} does not belong to target language {TargetLanguage}.", nameof(level));
+
+        Level = level;
+        ThumbnailUrl = Guard.Optional(thumbnailUrl, ThumbnailUrlMaxLength, nameof(thumbnailUrl));
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Draft to Review.</summary>
+    public void SubmitForReview()
+    {
+        if (Status != ContentStatus.Draft)
+            throw new InvalidOperationException($"Only a draft course can be submitted for review (status is {Status}).");
+
+        Status = ContentStatus.Review;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Draft or Review to Published. Whether the course has anything to show is the caller's rule: it needs the lessons.</summary>
+    public void Publish()
+    {
+        if (Status is not (ContentStatus.Draft or ContentStatus.Review))
+            throw new InvalidOperationException($"Only a draft or in-review course can be published (status is {Status}).");
+
+        Status = ContentStatus.Published;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Takes the course out of circulation from any other state. Archived is final.</summary>
+    public void Archive()
+    {
+        EnsureNotArchived();
+
+        Status = ContentStatus.Archived;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public bool IsArchived => Status == ContentStatus.Archived;
+
+    private void EnsureNotArchived()
+    {
+        if (IsArchived)
+            throw new InvalidOperationException("An archived course cannot be changed.");
+    }
+
     /// <summary>Adds the translation for <paramref name="baseLanguage"/>, or replaces the existing one.</summary>
     public void SetTranslation(BaseLanguage baseLanguage, string title, string? description = null)
     {

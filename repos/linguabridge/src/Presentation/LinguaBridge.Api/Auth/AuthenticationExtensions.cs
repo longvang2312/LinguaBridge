@@ -44,7 +44,10 @@ public static class AuthenticationExtensions
         {
             // Deny by default: anything without an explicit policy still needs an authenticated caller.
             options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
+            options.AddPolicy(Policies.Admin, policy => policy.RequireAuthenticatedUser().AddRequirements(new AdminRequirement()));
         });
+        services.AddScoped<IAuthorizationHandler, AdminAuthorizationHandler>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();

@@ -1,6 +1,7 @@
 using LinguaBridge.Application;
 using LinguaBridge.Application.Messaging;
 using LinguaBridge.Application.Modules;
+using LinguaBridge.Infrastructure.Persistence;
 using LinguaBridge.Modules.AiTutor;
 using LinguaBridge.Modules.Billing;
 using LinguaBridge.Modules.Content;
@@ -17,11 +18,14 @@ public class ModuleRegistrationTests
     [Fact]
     public void All_modules_register_and_container_validates()
     {
+        // Persistence supplies the storage behind the modules' repository and read-model interfaces (Content needs it).
         var services = new ServiceCollection()
+            .AddSingleton(EmptyConfiguration)
             .AddContentModule(EmptyConfiguration)
             .AddLearningModule(EmptyConfiguration)
             .AddAiTutorModule(EmptyConfiguration)
-            .AddBillingModule(EmptyConfiguration);
+            .AddBillingModule(EmptyConfiguration)
+            .AddInfrastructurePersistence(EmptyConfiguration);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         using var scope = provider.CreateScope();

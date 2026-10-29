@@ -1,3 +1,5 @@
+using LinguaBridge.Infrastructure.Persistence.Content;
+using LinguaBridge.Modules.Content.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,20 +10,26 @@ namespace LinguaBridge.Infrastructure.Persistence;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers <see cref="LinguaBridgeDbContext"/> on PostgreSQL. The connection is opened lazily, so the host
-    /// starts without a database; the first query fails if <c>ConnectionStrings:LinguaBridgeDb</c> is not set.
+    /// Registers <see cref="LinguaBridgeDbContext"/> on PostgreSQL plus the storage behind each module's
+    /// repository and read-model interfaces. The connection is opened lazily, so the host starts without a
+    /// database; the first query fails if <c>ConnectionStrings:LinguaBridgeDb</c> is not set.
     /// </summary>
     public static IServiceCollection AddInfrastructurePersistence(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.TryAddSingleton(new PersistenceOptions
+        // Read when first needed, not now: configuration added by the host after this point (tests, containers)
+        // is only merged into the final IConfiguration at build time.
+        services.TryAddSingleton(serviceProvider => new PersistenceOptions
         {
-            ConnectionString = configuration.GetConnectionString(PersistenceOptions.ConnectionStringName),
+            ConnectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(PersistenceOptions.ConnectionStringName),
         });
 
         services.AddDbContext<LinguaBridgeDbContext>((serviceProvider, options) =>
             options.UseNpgsql(serviceProvider.GetRequiredService<PersistenceOptions>().ConnectionString));
+
+        services.AddScoped<IContentRepository, ContentRepository>();
+        services.AddScoped<IContentReadModel, ContentReadModel>();
 
         return services;
     }
