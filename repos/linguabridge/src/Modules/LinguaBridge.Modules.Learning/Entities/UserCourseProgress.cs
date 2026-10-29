@@ -28,6 +28,18 @@ public class UserCourseProgress
     public bool IsCompleted { get; private set; }
     public DateTimeOffset LastAccessedAt { get; private set; }
 
+    /// <summary>
+    /// Sets the counts from facts rather than adding one, so recording the same completion twice (a double click,
+    /// a retry) cannot over-count. The completed count never exceeds the total.
+    /// </summary>
+    public void Update(int completedLessonsCount, int totalLessonsCount)
+    {
+        TotalLessonsCount = Guard.NonNegative(totalLessonsCount, nameof(totalLessonsCount));
+        CompletedLessonsCount = Math.Min(Guard.NonNegative(completedLessonsCount, nameof(completedLessonsCount)), TotalLessonsCount);
+        IsCompleted = TotalLessonsCount > 0 && CompletedLessonsCount >= TotalLessonsCount;
+        LastAccessedAt = DateTimeOffset.UtcNow;
+    }
+
     public void RecordLessonCompleted()
     {
         if (CompletedLessonsCount < TotalLessonsCount)

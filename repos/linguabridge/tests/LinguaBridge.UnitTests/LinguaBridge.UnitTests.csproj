@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\Modules\LinguaBridge.Modules.AiTutor\LinguaBridge.Modules.AiTutor.csproj" />
     <ProjectReference Include="..\..\src\Modules\LinguaBridge.Modules.Billing\LinguaBridge.Modules.Billing.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\LinguaBridge.Infrastructure.Persistence\LinguaBridge.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\LinguaBridge.Infrastructure.External\LinguaBridge.Infrastructure.External.csproj" />
   </ItemGroup>
 
 </Project>

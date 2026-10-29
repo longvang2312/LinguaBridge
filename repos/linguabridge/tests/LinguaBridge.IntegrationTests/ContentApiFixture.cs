@@ -65,6 +65,17 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
 
     public HttpClient Admin() => As(AdminId, "GlobalAdmin");
 
+    /// <summary>A specific learner, so a test can run as two different people.</summary>
+    public HttpClient LearnerAs(Guid userId) => As(userId);
+
+    /// <summary>A token whose subject is not a user id, like the one a service gets from client_credentials.</summary>
+    public HttpClient WithSubject(string subject)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, subject);
+        return client;
+    }
+
     private HttpClient As(Guid userId, params string[] roles)
     {
         var client = CreateClient();

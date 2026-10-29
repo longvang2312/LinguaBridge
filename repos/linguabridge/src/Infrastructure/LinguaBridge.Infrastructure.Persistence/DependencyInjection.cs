@@ -1,5 +1,7 @@
 using LinguaBridge.Infrastructure.Persistence.Content;
+using LinguaBridge.Infrastructure.Persistence.Learning;
 using LinguaBridge.Modules.Content.Abstractions;
+using LinguaBridge.Modules.Learning.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +32,10 @@ public static class DependencyInjection
 
         services.AddScoped<IContentRepository, ContentRepository>();
         services.AddScoped<IContentReadModel, ContentReadModel>();
+
+        services.AddScoped<ILearningRepository, LearningRepository>();
+        services.AddScoped<ILessonSource, LessonSource>();
+        services.AddScoped<ILearningReadModel, LearningReadModel>();
 
         return services;
     }

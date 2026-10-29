@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.*" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Core\LinguaBridge.Domain\LinguaBridge.Domain.csproj" />
     <ProjectReference Include="..\..\Core\LinguaBridge.Application\LinguaBridge.Application.csproj" />
   </ItemGroup>

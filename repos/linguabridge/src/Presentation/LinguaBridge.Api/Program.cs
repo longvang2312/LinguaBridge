@@ -67,6 +67,7 @@ app.MapGet("/health", (IDateTimeProvider clock) => Results.Ok(new HealthResponse
 
 app.MapMeEndpoints();
 app.MapContentEndpoints();
+app.MapLearningEndpoints();
 
 app.Run();
 

@@ -40,6 +40,8 @@ public class ExerciseAttempt : AggregateRoot
     public QuestionResponse AddResponse(Guid questionId, bool isCorrect, int timeSpentMs, Guid? selectedOptionId = null, string? userInputText = null)
     {
         EnsureNotCompleted();
+        if (_responses.Any(r => r.QuestionId == questionId))
+            throw new InvalidOperationException("The question has already been answered in this attempt.");
 
         var response = new QuestionResponse(Id, questionId, isCorrect, timeSpentMs, selectedOptionId, userInputText);
         _responses.Add(response);

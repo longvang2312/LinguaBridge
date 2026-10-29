@@ -206,9 +206,9 @@ public static class ContentEndpoints
     // ---- Helpers ------------------------------------------------------------------------------------------
 
     /// <summary>Null when the code is present but not a supported language.</summary>
-    private static BaseLanguage? ParseBaseLanguage(string? code) =>
+    internal static BaseLanguage? ParseBaseLanguage(string? code) =>
         ContentParsing.TryParseBaseLanguage(string.IsNullOrWhiteSpace(code) ? DefaultBaseLanguage : code, out var language) ? language : null;
 
-    private static IResult InvalidBaseLanguage() =>
+    internal static IResult InvalidBaseLanguage() =>
         Error.Validation("baseLanguage", "'baseLanguage' must be 'vi' or 'en'.").ToProblem();
 }
