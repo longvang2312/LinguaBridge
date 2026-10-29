@@ -1,5 +1,7 @@
+using LinguaBridge.Application.Messaging;
 using LinguaBridge.Infrastructure.Persistence;
 using LinguaBridge.Modules.AiTutor.Abstractions;
+using LinguaBridge.Modules.Billing.Events;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -26,6 +28,12 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
     /// <summary>The AI model. The real providers are replaced so no test calls (or pays for) OpenAI.</summary>
     public FakeLlm Llm { get; } = new();
 
+    public const string VnPaySecret = "test-vnpay-hash-secret";
+    public const string StripeSecret = "whsec_test_signing_secret";
+
+    /// <summary>Every <see cref="EntitlementUpgradedEvent"/> the host published, as another module would receive it.</summary>
+    public EventRecorder Upgrades { get; } = new();
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
 
     async Task IAsyncLifetime.InitializeAsync()
@@ -51,6 +59,8 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:LinguaBridgeDb"] = _postgres.GetConnectionString(),
+                ["Billing:Webhooks:VNPay:SecretKey"] = VnPaySecret,
+                ["Billing:Webhooks:Stripe:SecretKey"] = StripeSecret,
             }));
 
         builder.ConfigureTestServices(services =>
@@ -63,6 +73,8 @@ public sealed class ContentApiFixture : WebApplicationFactory<Program>, IAsyncLi
                     options.DefaultForbidScheme = TestAuthHandler.SchemeName;
                 })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+            services.AddSingleton<IIntegrationEventHandler<EntitlementUpgradedEvent>>(Upgrades);
 
             services.RemoveAll<ILlmProvider>();
             services.AddSingleton<ILlmProvider>(Llm);
@@ -125,5 +137,24 @@ public sealed class FakeLlm : ILlmProvider
         if (Latency > TimeSpan.Zero)
             await Task.Delay(Latency, ct);
         return Respond(request);
+    }
+}
+
+/// <summary>A subscriber that remembers what it was told.</summary>
+public sealed class EventRecorder : IIntegrationEventHandler<EntitlementUpgradedEvent>
+{
+    private readonly List<EntitlementUpgradedEvent> _events = [];
+
+    public IReadOnlyList<EntitlementUpgradedEvent> ForUser(Guid userId)
+    {
+        lock (_events)
+            return _events.Where(e => e.UserId == userId).ToList();
+    }
+
+    public Task HandleAsync(EntitlementUpgradedEvent integrationEvent, CancellationToken cancellationToken = default)
+    {
+        lock (_events)
+            _events.Add(integrationEvent);
+        return Task.CompletedTask;
     }
 }

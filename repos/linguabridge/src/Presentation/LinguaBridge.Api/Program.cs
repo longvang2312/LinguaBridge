@@ -69,6 +69,7 @@ app.MapMeEndpoints();
 app.MapContentEndpoints();
 app.MapLearningEndpoints();
 app.MapAiTutorEndpoints();
+app.MapBillingEndpoints();
 
 app.Run();
 
