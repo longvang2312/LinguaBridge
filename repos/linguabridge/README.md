@@ -1,14 +1,17 @@
 # LinguaBridge Backend
 ## Modular Monolith API cho nền tảng học Tiếng Anh – Tiếng Trung & Giao Tiếp Thương Mại (.NET 10)
 
-Tài liệu khởi chạy sơ bộ cho backend LinguaBridge. Thiết kế đầy đủ xem tại [docs/architecture/language_learning_platform_design.md](../../docs/architecture/language_learning_platform_design.md).
+Tài liệu khởi chạy sơ bộ cho backend LinguaBridge. 
+- Hướng dẫn cấu hình & khởi chạy chi tiết toàn bộ hệ sinh thái: [docs/guides/RUN_AND_SETUP_GUIDE.md](../../docs/guides/RUN_AND_SETUP_GUIDE.md)
+- Thiết kế kiến trúc đầy đủ: [docs/architecture/language_learning_platform_design.md](../../docs/architecture/language_learning_platform_design.md).
 
 ---
 
 ## 1. Yêu Cầu Môi Trường
 
 - **.NET 10 SDK** (`dotnet --list-sdks` phải có `10.0.x`).
-- **PostgreSQL** — chưa bắt buộc ở giai đoạn này: chưa có DbContext nào, API khởi chạy được khi chưa có database.
+- **PostgreSQL 16/17** (Local hoặc Docker `localhost:5432`) với database `LinguaBridge`.
+- **Docker Desktop** (khuyến nghị để chạy Testcontainers khi test).
 
 ---
 

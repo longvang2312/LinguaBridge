@@ -1,0 +1,276 @@
+# HƯỚNG DẪN CẤU HÌNH VÀ KHỞI CHẠY DỰ ÁN (SETUP & RUN GUIDE)
+## Hệ Sinh Thái AppInHouse: Identity STS & LinguaBridge Platform
+
+Tài liệu này hướng dẫn chi tiết từng bước từ cài đặt môi trường, cấu hình cơ sở dữ liệu, thiết lập secret cho đến thứ tự khởi chạy toàn bộ các dịch vụ trong repository **AppInHouse**.
+
+---
+
+## 1. Bản Đồ Dịch Vụ & Cổng Khởi Chạy (Services & Ports Map)
+
+Toàn bộ hệ thống được đồng bộ hóa theo chuẩn cổng Skoruba và phân bổ cổng riêng biệt, tránh xung đột:
+
+| Dịch vụ / Ứng dụng | Project Path | Giao thức & Cổng | Mô tả / Chức năng |
+| :--- | :--- | :--- | :--- |
+| **Identity STS** | `repos/identity/src/Presentation/AppInHouse.Identity.STS` | `https://localhost:44310`<br>`http://localhost:5001` | Máy chủ cấp phát mã xác thực OpenIddict (OIDC), cấp token JWT/Introspection |
+| **Identity Admin Web** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Web` | `https://localhost:44303`<br>`http://localhost:5000` | Web Portal quản trị người dùng, vai trò, OIDC clients & scopes |
+| **Identity Admin API** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Api` | `https://localhost:44302`<br>`http://localhost:5002` | REST API quản trị phục vụ cho Admin Portal (Swagger) |
+| **LinguaBridge API** | `repos/linguabridge/src/Presentation/LinguaBridge.Api` | `https://localhost:44320`<br>`http://localhost:5020` | Modular Monolith API (.NET 10) phục vụ học ngoại ngữ, AI Tutor & Billing |
+| **SQL Server** | LocalDB / SQLEXPRESS / Docker | `localhost:1433` | Cơ sở dữ liệu cho cụm Identity (`AppInHouse.Identity`) |
+| **PostgreSQL** | Local / Docker | `localhost:5432` | Cơ sở dữ liệu cho LinguaBridge (`LinguaBridge` gồm 5 schemas) |
+
+---
+
+## 2. Yêu Cầu Môi Trường (Prerequisites)
+
+Trước khi bắt đầu, hãy đảm bảo máy tính đã cài đặt các công cụ sau:
+
+1. **.NET SDK**:
+   - Bắt buộc cài đặt **.NET 10 SDK** (phiên bản `10.0.102` trở lên).
+   - SDK .NET 10 tự động tương thích và biên dịch được cả các project target `net8.0` (Identity) và `net10.0` (LinguaBridge).
+   - Kiểm tra bằng lệnh: `dotnet --info`.
+2. **EF Core CLI Tools (`dotnet-ef`)**:
+   - Cài đặt công cụ EF Core toàn cục:
+     ```bash
+     dotnet tool install --global dotnet-ef --version 10.*
+     ```
+   - Nếu đã cài bản cũ, cập nhật bằng: `dotnet tool update --global dotnet-ef`.
+3. **Hệ Quản Trị Cơ Sở Dữ Liệu**:
+   - **PostgreSQL 16/17**: Dành cho LinguaBridge.
+   - **SQL Server**: (SQL Server Developer, Express hoặc LocalDB) dành cho Identity.
+4. **Docker Desktop** (Khuyến nghị):
+   - Cần bật Docker khi chạy bộ kiểm thử Integration Tests (Testcontainers tự động kích hoạt PostgreSQL container).
+   - Có thể dùng Docker để chạy cả SQL Server và PostgreSQL local nếu máy chưa cài trực tiếp.
+
+---
+
+## 3. Cài Đặt & Khởi Tạo Cơ Sở Dữ Liệu
+
+### 3.1. Chạy CSDL Bằng Docker (Nhanh nhất)
+
+Nếu máy chưa cài sẵn SQL Server và PostgreSQL, bạn có thể khởi chạy nhanh bằng 2 lệnh Docker:
+
+```bash
+# 1. Khởi chạy PostgreSQL (Port 5432) cho LinguaBridge:
+docker run -d --name appinhouse-postgres \
+  -e POSTGRES_DB=LinguaBridge \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 postgres:17-alpine
+
+# 2. Khởi chạy SQL Server (Port 1433) cho Identity:
+docker run -d --name appinhouse-sqlserver \
+  -e "ACCEPT_EULA=Y" \
+  -e "MSSQL_SA_PASSWORD=Abc@1234" \
+  -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+```
+
+### 3.2. Cấu Hình Chuỗi Kết Nối (Connection Strings)
+
+- **Identity**: Kiểm tra file `repos/identity/src/Presentation/AppInHouse.Identity.STS/appsettings.json`:
+  ```json
+  "ConnectionStrings": {
+    "IdentityDb": "Server=localhost;Database=AppInHouse.Identity;User Id=sa;Password=Abc@1234;MultipleActiveResultSets=true;TrustServerCertificate=True"
+  }
+  ```
+- **LinguaBridge**: Kiểm tra file `repos/linguabridge/src/Presentation/LinguaBridge.Api/appsettings.Development.json`:
+  ```json
+  "ConnectionStrings": {
+    "LinguaBridgeDb": "Host=localhost;Port=5432;Database=LinguaBridge;Username=postgres;Password=postgres"
+  }
+  ```
+
+### 3.3. Áp Dụng Migration Vào Database
+
+#### A. Database Identity (SQL Server)
+Identity đã tích hợp sẵn cơ chế **Auto-Migration & Seeding** khi khởi chạy. Bạn chỉ cần khởi chạy `AppInHouse.Identity.STS` hoặc `AppInHouse.Identity.Admin.Web`, hệ thống sẽ tự động tạo bảng và nạp dữ liệu mẫu (Admin account, Default Scopes, Clients).
+
+#### B. Database LinguaBridge (PostgreSQL)
+Chạy lệnh EF Core Migration để tạo 5 schemas (`content`, `learning`, `srs`, `ai`, `billing`) và 18 bảng:
+
+```bash
+dotnet ef database update \
+  --project repos/linguabridge/src/Infrastructure/LinguaBridge.Infrastructure.Persistence \
+  --startup-project repos/linguabridge/src/Infrastructure/LinguaBridge.Infrastructure.Persistence
+```
+
+---
+
+## 4. Thiết Lập Cấu Hình Bí Mật (Secrets & Configuration)
+
+Trong môi trường Development, các cấu hình dev mặc định đã được thiết lập sẵn trong `appsettings.Development.json`. Nếu chạy môi trường Production hoặc muốn kết nối dịch vụ thật, hãy cấu hình theo bảng sau:
+
+### 4.1. Cấu Hình Tích Hợp Identity STS ↔ LinguaBridge
+Hai dịch vụ kết nối với nhau qua cơ chế OpenIddict Introspection. Secret được đồng bộ như sau:
+- **Tại STS** (`repos/identity/.../STS/appsettings.Development.json`):
+  ```json
+  "Seeding": {
+    "LinguaBridgeApiClientSecret": "dev-linguabridge-api-secret-change-me"
+  }
+  ```
+- **Tại LinguaBridge** (`repos/linguabridge/.../Api/appsettings.Development.json`):
+  ```json
+  "Authentication": {
+    "Authority": "https://localhost:44310",
+    "ClientId": "linguabridge_api",
+    "ClientSecret": "dev-linguabridge-api-secret-change-me",
+    "Audience": "linguabridge_api"
+  }
+  ```
+
+### 4.2. Cấu Hình AI Tutor (Module AiTutor)
+Đặt trong `repos/linguabridge/src/Presentation/LinguaBridge.Api/appsettings.json` (hoặc dùng `dotnet user-secrets`):
+```json
+"OpenAI": {
+  "ApiKey": "sk-proj-YOUR_OPENAI_API_KEY",
+  "Model": "gpt-4o-mini",
+  "MaxOutputTokens": 600,
+  "TimeoutSeconds": 30
+},
+"AiTutor": {
+  "FreeDailyRequests": 10
+}
+```
+
+### 4.3. Cấu Hình Cổng Thanh Toán (Module Billing Webhooks)
+Đặt trong `repos/linguabridge/src/Presentation/LinguaBridge.Api/appsettings.Development.json`:
+```json
+"Billing": {
+  "Webhooks": {
+    "VNPay": {
+      "SecretKey": "dev-vnpay-hash-secret-change-me"
+    },
+    "Stripe": {
+      "SecretKey": "whsec_dev_change_me",
+      "ToleranceSeconds": 300
+    }
+  }
+}
+```
+
+---
+
+## 5. Hướng Dẫn Khởi Chạy Ứng Dụng (Run & Launch)
+
+### Cách 1: Khởi Chạy Bằng Visual Studio (Thuận Tiện Nhất)
+
+1. Mở file solution gốc [AppInHouse.sln](../../AppInHouse.sln) bằng Visual Studio 2022 / 2025.
+2. Chuột phải vào **Solution 'AppInHouse'** trên cửa sổ Solution Explorer → Chọn **Configure Startup Projects...**
+3. Chọn tùy chọn **Multiple startup projects**:
+   - `AppInHouse.Identity.STS`: Chọn **Start**
+   - `AppInHouse.Identity.Admin.Web`: Chọn **Start**
+   - `LinguaBridge.Api`: Chọn **Start**
+4. Nhấn **F5** (hoặc **Ctrl + F5** để chạy không debug). Cả 3 ứng dụng sẽ đồng thời khởi chạy.
+
+---
+
+### Cách 2: Khởi Chạy Bằng Terminal / Command Line
+
+Mở các cửa sổ Terminal riêng biệt tại thư mục gốc workspace `e:\Projects\AppInHouse`:
+
+#### Terminal 1: Khởi Chạy Identity STS
+```bash
+dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.STS --launch-profile https
+```
+> Trực quan hóa tại: `https://localhost:44310`  
+> Discovery doc: `https://localhost:44310/.well-known/openid-configuration`
+
+#### Terminal 2: Khởi Chạy Identity Admin Web Portal
+```bash
+dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.Admin.Web --launch-profile https
+```
+> Giao diện quản trị: `https://localhost:44303`  
+> Tài khoản mặc định: `admin` / `P@ssword123!`
+
+#### Terminal 3: Khởi Chạy LinguaBridge API
+```bash
+dotnet run --project repos/linguabridge/src/Presentation/LinguaBridge.Api --launch-profile https
+```
+> Healthcheck: `https://localhost:44320/health`  
+> Swagger UI: `https://localhost:44320/swagger`
+
+---
+
+## 6. Kiểm Thử Hệ Thống (Testing & Verification)
+
+### 6.1. Chạy Toàn Bộ Unit & Integration Tests
+
+```bash
+# 1. Chạy toàn bộ 690 test của LinguaBridge (gồm cả PostgreSQL Testcontainers):
+dotnet test repos/linguabridge/LinguaBridge.sln
+
+# Nếu máy không bật Docker, bỏ qua các test cần PostgreSQL container:
+dotnet test repos/linguabridge/LinguaBridge.sln --filter "Category!=Integration"
+
+# 2. Chạy toàn bộ 456 test của cụm Identity:
+dotnet test repos/identity/AppInHouse.Identity.sln
+```
+
+### 6.2. Smoke Test Thủ Công Bằng `curl` Hoặc Browser
+
+1. **Kiểm tra Healthcheck**:
+   ```bash
+   curl -k https://localhost:44320/health
+   # Kết quả mong đợi:
+   # {"status":"Healthy","module":"LinguaBridge.Api","timestamp":"..."}
+   ```
+2. **Kiểm tra cơ chế Deny-By-Default (401 Unauthorized)**:
+   ```bash
+   curl -k -i https://localhost:44320/api/v1/me
+   # Kết quả mong đợi: HTTP/1.1 401 Unauthorized
+   ```
+3. **Kiểm tra Danh sách Khóa học công khai**:
+   ```bash
+   curl -k -i https://localhost:44320/api/v1/content/courses
+   # Kết quả mong đợi: HTTP/1.1 200 OK (Trả về mảng JSON rỗng [] hoặc danh sách khóa học Published)
+   ```
+4. **Kiểm tra Danh sách Gói cước thanh toán**:
+   ```bash
+   curl -k -i https://localhost:44320/api/v1/billing/plans
+   # Kết quả mong đợi: HTTP/1.1 200 OK
+   ```
+
+---
+
+## 7. Tổng Hợp Các Endpoint API Chính Của LinguaBridge
+
+| Phân hệ | Phương thức | Đường dẫn URL | Quyền hạn | Mục đích sử dụng |
+| :--- | :--- | :--- | :--- | :--- |
+| **System** | `GET` | `/health` | Anonymous | Kiểm tra trạng thái máy chủ |
+| **Auth** | `GET` | `/api/v1/me` | Bearer Token | Lấy thông tin user hiện tại (`userId`, `clientId`) |
+| **Content** | `GET` | `/api/v1/content/courses` | Bearer (Learner) | Xem các khóa học đã Publish |
+| | `GET` | `/api/v1/content/courses/admin` | `GlobalAdmin` | Xem tất cả khóa học (Draft, Review, Archived) |
+| | `POST` | `/api/v1/content/courses` | `GlobalAdmin` | Tạo khóa học mới |
+| | `PUT` | `/api/v1/content/courses/{id}/publish` | `GlobalAdmin` | Duyệt xuất bản khóa học |
+| | `GET` | `/api/v1/content/lessons/{id}/preview` | `GlobalAdmin` | Xem trước bài học và câu hỏi |
+| **Learning** | `GET` | `/api/v1/learning/lessons/{id}/quiz` | Bearer (Learner) | Lấy câu hỏi làm bài (giấu đáp án `isCorrect`) |
+| | `POST` | `/api/v1/learning/attempts` | Bearer (Learner) | Bắt đầu bài làm mới |
+| | `POST` | `/api/v1/learning/attempts/{id}/responses` | Bearer (Learner) | Gửi câu trả lời & nhận kết quả đúng/sai |
+| | `PUT` | `/api/v1/learning/attempts/{id}/complete` | Bearer (Learner) | Hoàn thành bài làm & nhận điểm XP |
+| | `GET` | `/api/v1/learning/srs/due` | Bearer (Learner) | Danh sách thẻ từ vựng cần ôn hôm nay |
+| | `POST` | `/api/v1/learning/srs/review` | Bearer (Learner) | Đánh giá thẻ SRS (Rating 1 - 4) |
+| | `GET` | `/api/v1/learning/progress/{courseId}` | Bearer (Learner) | Xem tiến độ học khóa học |
+| **AI Tutor** | `POST` | `/api/v1/ai/sessions` | Bearer (Learner) | Tạo phiên hội thoại với AI Tutor |
+| | `POST` | `/api/v1/ai/sessions/{id}/messages` | Bearer (Learner) | Nhắn tin & nhận phản hồi từ AI |
+| | `GET` | `/api/v1/ai/sessions/{id}/messages` | Bearer (Learner) | Xem lịch sử trò chuyện |
+| | `GET` | `/api/v1/ai/quota` | Bearer (Learner) | Kiểm tra hạn mức token/lượt còn lại hôm nay |
+| **Billing** | `GET` | `/api/v1/billing/plans` | Anonymous | Xem bảng giá gói cước |
+| | `POST` | `/api/v1/billing/plans` | `GlobalAdmin` | Tạo gói cước mới |
+| | `GET` | `/api/v1/billing/entitlement` | Bearer (Learner) | Xem trạng thái VIP & ngày hết hạn |
+| | `POST` | `/api/v1/billing/webhooks/{provider}` | Gateway Signature | Nhận Webhook thanh toán an toàn (Idempotent) |
+
+---
+
+## 8. Xử Lý Các Sự Cố Thường Gặp (Troubleshooting)
+
+1. **Lỗi `MSB3027 / MSB3026` (Cannot copy file because it is locked)**:
+   - *Nguyên nhân*: Visual Studio hoặc terminal đang chạy tiến trình `AppInHouse.Identity.STS`, khóa file DLL trong thư mục `bin/`.
+   - *Khắc phục*: Tắt các ứng dụng đang chạy trước khi chạy lệnh `dotnet build AppInHouse.sln`.
+2. **Lỗi `503 Service Unavailable` khi gọi AI Tutor**:
+   - *Nguyên nhân*: Chưa cung cấp `OpenAI:ApiKey` trong cấu hình.
+   - *Khắc phục*: Đặt key qua biến môi trường `OpenAI__ApiKey=sk-...` hoặc bổ sung vào `appsettings.json`.
+3. **Lỗi `500 Server Error (Timeout 35s)` khi gọi API có Bearer Token**:
+   - *Nguyên nhân*: Máy chủ Identity STS (`https://localhost:44310`) chưa được bật, khiến `LinguaBridge.Api` không thể kết nối để introspect token.
+   - *Khắc phục*: Khởi chạy `AppInHouse.Identity.STS` trước khi gọi các endpoint có yêu cầu xác thực.
+4. **Lỗi `429 Too Many Requests (ai.quota_exhausted)`**:
+   - *Nguyên nhân*: Học viên tài khoản miễn phí đã dùng hết 10 lượt tương tác AI trong ngày (tính theo UTC).
+   - *Khắc phục*: Chờ sang ngày mới hoặc nâng cấp tài khoản lên gói VIP qua Webhook.
