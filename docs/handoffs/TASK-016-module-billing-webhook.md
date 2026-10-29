@@ -35,7 +35,7 @@ Xây dựng lớp **Application + API** cho Module Billing:
 ### 3.1. Webhook Flow (Idempotent)
 
 ```text
-Gateway POST /api/billing/webhooks/{provider}
+Gateway POST /api/v1/billing/webhooks/{provider}
     │
     ▼
 [1] Lưu vào WebhookInbox (INSERT, UNIQUE constraint)
@@ -54,14 +54,14 @@ Gateway POST /api/billing/webhooks/{provider}
 [4] Cập nhật WebhookInbox.Status = Processed / Failed
 ```
 
-### 3.2. API Endpoints
+### 3.2. API Endpoints (Quy ước tiền tố `/api/v1/billing/...`)
 
 | Method | Path | Auth | Mô tả |
 |---|---|---|---|
-| `GET` | `/api/billing/plans` | Anonymous | Danh sách subscription plans |
-| `POST` | `/api/billing/plans` | Admin | Tạo plan mới |
-| `GET` | `/api/billing/entitlement` | Bearer | Tier hiện tại của user đang đăng nhập |
-| `POST` | `/api/billing/webhooks/{provider}` | Signature check | Nhận webhook từ gateway |
+| `GET` | `/api/v1/billing/plans` | Anonymous | Danh sách subscription plans |
+| `POST` | `/api/v1/billing/plans` | Admin (`GlobalAdmin`) | Tạo plan mới |
+| `GET` | `/api/v1/billing/entitlement` | Bearer | Tier hiện tại của user đang đăng nhập |
+| `POST` | `/api/v1/billing/webhooks/{provider}` | Signature check | Nhận webhook từ gateway (Idempotent) |
 
 ### 3.3. Signature Verification (Webhook Security)
 
