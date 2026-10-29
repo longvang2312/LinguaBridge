@@ -48,16 +48,19 @@ Output: (NewEaseFactor, NewIntervalDays, NewRepetitions, NextReviewDate)
 
 **Yêu cầu test**: SM-2 Engine phải có ít nhất **20 unit tests** bao gồm: rating lần đầu, sau nhiều lần đúng, rating "Again" reset, giới hạn EaseFactor min 1.3, chuyển State từ `Learning → Review → Graduated`.
 
-### 3.2. API Endpoints
+### 3.2. API Endpoints (Quy ước thống nhất tiền tố `/api/v1/learning/...`)
 
 | Method | Path | Mô tả |
 |---|---|---|
-| `POST` | `/api/learning/attempts` | Bắt đầu exercise attempt cho một Lesson |
-| `POST` | `/api/learning/attempts/{id}/responses` | Submit câu trả lời |
-| `PUT` | `/api/learning/attempts/{id}/complete` | Kết thúc bài học, nhận XP và score |
-| `GET` | `/api/learning/srs/due` | Lấy danh sách thẻ cần ôn hôm nay |
-| `POST` | `/api/learning/srs/review` | Submit đánh giá thẻ SRS (Rating 1-4) |
-| `GET` | `/api/learning/progress/{courseId}` | Tiến độ học khóa học |
+| `GET` | `/api/v1/learning/lessons/{lessonId}/quiz` | Lấy danh sách câu hỏi làm bài (DTO **tuyệt đối không chứa `isCorrect`**) |
+| `POST` | `/api/v1/learning/attempts` | Bắt đầu exercise attempt cho một Lesson (Lesson phải `Published`) |
+| `POST` | `/api/v1/learning/attempts/{id}/responses` | Submit câu trả lời (server tự đối chiếu đáp án đúng/sai, trả kết quả tức thì) |
+| `PUT` | `/api/v1/learning/attempts/{id}/complete` | Kết thúc bài học, tính điểm, ghi nhận XP và cập nhật `UserCourseProgress` |
+| `GET` | `/api/v1/learning/srs/due` | Lấy danh sách thẻ từ vựng cần ôn hôm nay (`NextReviewDate <= today`) |
+| `POST` | `/api/v1/learning/srs/review` | Submit đánh giá thẻ SRS (Rating 1-4) |
+| `GET` | `/api/v1/learning/progress/{courseId}` | Tiến độ học khóa học của học viên hiện tại |
+
+> **Lưu ý bảo mật (Security note)**: Endpoint lấy câu hỏi cho học viên (`/quiz`) phải dùng DTO riêng (`LearnerQuestionDto`), giấu toàn bộ trường `isCorrect` của các options để ngăn chặn học viên xem trước đáp án qua DevTools. Việc chấm điểm đúng/sai được thực hiện nghiêm ngặt ở server khi nhận `POST /responses`.
 
 ### 3.3. Acceptance Criteria Từ Tài Liệu Thiết Kế
 
