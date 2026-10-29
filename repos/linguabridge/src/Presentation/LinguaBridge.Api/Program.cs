@@ -1,3 +1,5 @@
+using LinguaBridge.Api.Auth;
+using LinguaBridge.Api.Endpoints;
 using LinguaBridge.Application.Abstractions;
 using LinguaBridge.Infrastructure.External;
 using LinguaBridge.Infrastructure.Persistence;
@@ -17,6 +19,7 @@ builder.Services.AddAiTutorModule(configuration);
 builder.Services.AddBillingModule(configuration);
 builder.Services.AddInfrastructurePersistence(configuration);
 builder.Services.AddInfrastructureExternal(configuration);
+builder.Services.AddLinguaBridgeAuthentication();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -27,9 +30,23 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "Backend for LinguaBridge: English and Chinese learning with business communication.",
     });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Access token issued by the Identity STS for the linguabridge_api scope.",
+    });
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = [],
+    });
 });
 
 var app = builder.Build();
+
+app.Configuration.EnsureAuthenticationConfigured(app.Environment);
 
 if (app.Environment.IsDevelopment() || configuration.GetValue<bool>("Swagger:Enabled"))
 {
@@ -39,9 +56,16 @@ if (app.Environment.IsDevelopment() || configuration.GetValue<bool>("Swagger:Ena
 
 app.UseHttpsRedirection();
 
+// Swagger (above) is middleware, so the fallback policy never sees it; endpoints below are protected by default.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapGet("/health", (IDateTimeProvider clock) => Results.Ok(new HealthResponse("Healthy", "LinguaBridge.Api", clock.UtcNow)))
     .WithName("GetHealth")
-    .WithTags("Health");
+    .WithTags("Health")
+    .AllowAnonymous();
+
+app.MapMeEndpoints();
 
 app.Run();
 

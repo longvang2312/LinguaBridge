@@ -17,6 +17,8 @@ public class DbSeeder
     public const string GlobalAdminRole = AuthorizationConstants.GlobalAdminRole;
     public const string AdminApiScope = "identity_admin_api";
     public const string AdminApiResourceClientId = AdminApiScope;
+    public const string LinguaBridgeApiScope = "linguabridge_api";
+    public const string LinguaBridgeApiResourceClientId = LinguaBridgeApiScope;
     public const string AdminPortalClientId = "admin-portal";
     public const string InternalServiceClientId = "internal-service";
 
@@ -100,7 +102,7 @@ public class DbSeeder
 
     private async Task SeedScopesAsync(CancellationToken cancellationToken)
     {
-        var scopes = new[]
+        var scopes = new List<OpenIddictScopeDescriptor>
         {
             new OpenIddictScopeDescriptor { Name = Scopes.OpenId, DisplayName = "OpenID" },
             new OpenIddictScopeDescriptor { Name = Scopes.Profile, DisplayName = "User profile" },
@@ -113,6 +115,17 @@ public class DbSeeder
                 Resources = { AdminApiScope },
             },
         };
+
+        // Like its resource-server client, only seeded when the LinguaBridge API is configured to introspect.
+        if (!string.IsNullOrWhiteSpace(_options.LinguaBridgeApiClientSecret))
+        {
+            scopes.Add(new OpenIddictScopeDescriptor
+            {
+                Name = LinguaBridgeApiScope,
+                DisplayName = "LinguaBridge API",
+                Resources = { LinguaBridgeApiScope },
+            });
+        }
 
         foreach (var descriptor in scopes)
         {
@@ -131,6 +144,9 @@ public class DbSeeder
 
         if (!string.IsNullOrWhiteSpace(_options.AdminApiClientSecret))
             await CreateClientIfMissingAsync(BuildAdminApiResourceServer(), cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(_options.LinguaBridgeApiClientSecret))
+            await CreateClientIfMissingAsync(BuildLinguaBridgeApiResourceServer(), cancellationToken);
     }
 
     private async Task CreateClientIfMissingAsync(OpenIddictApplicationDescriptor descriptor, CancellationToken cancellationToken)
@@ -200,6 +216,16 @@ public class DbSeeder
         ClientId = AdminApiResourceClientId,
         ClientSecret = _options.AdminApiClientSecret,
         DisplayName = "Identity Admin API",
+        ClientType = ClientTypes.Confidential,
+        Permissions = { Permissions.Endpoints.Introspection },
+    };
+
+    /// <summary>The LinguaBridge API as a resource server; same shape as the Admin API (client id = audience of its scope).</summary>
+    private OpenIddictApplicationDescriptor BuildLinguaBridgeApiResourceServer() => new()
+    {
+        ClientId = LinguaBridgeApiResourceClientId,
+        ClientSecret = _options.LinguaBridgeApiClientSecret,
+        DisplayName = "LinguaBridge API",
         ClientType = ClientTypes.Confidential,
         Permissions = { Permissions.Endpoints.Introspection },
     };

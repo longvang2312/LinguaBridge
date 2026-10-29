@@ -69,6 +69,25 @@ dotnet test repos/linguabridge/LinguaBridge.sln
 
 Các project LinguaBridge cũng nằm trong thư mục ảo `LinguaBridge` của `AppInHouse.sln`.
 
+Các test `PostgresMigrationTests` cần Docker (Testcontainers). Khi không có Docker, bỏ qua bằng:
+
+```bash
+dotnet test repos/linguabridge/LinguaBridge.sln --filter "Category!=Integration"
+```
+
+### Migration (EF Core)
+
+Dùng `LinguaBridge.Infrastructure.Persistence` làm **cả** project lẫn startup project (đã có `IDesignTimeDbContextFactory`, không cần chạy host):
+
+```bash
+dotnet ef migrations add <TenMigration> \
+  --project repos/linguabridge/src/Infrastructure/LinguaBridge.Infrastructure.Persistence \
+  --startup-project repos/linguabridge/src/Infrastructure/LinguaBridge.Infrastructure.Persistence \
+  --output-dir Migrations
+```
+
+Cần `dotnet-ef` 10.x (`dotnet tool install --global dotnet-ef --version 10.*`). Unit test `Model_has_no_changes_missing_from_the_migrations` sẽ fail nếu sửa model mà quên tạo migration.
+
 ---
 
 ## 4. Khởi Chạy API
@@ -98,3 +117,24 @@ Hoặc trong Visual Studio: chọn `LinguaBridge.Api` làm Startup Project, prof
 |---|---|
 | `ConnectionStrings:LinguaBridgeDb` | Chuỗi kết nối PostgreSQL (mỗi module dùng schema riêng). `appsettings.Development.json` trỏ tới `localhost:5432`. |
 | `Swagger:Enabled` | Bật Swagger ngoài môi trường Development. |
+| `Authentication:Authority` | URL gốc của Identity STS (dev: `https://localhost:44310`). **Bắt buộc** ngoài Development. |
+| `Authentication:ClientId` / `Audience` | `linguabridge_api` — client resource-server và audience của scope cùng tên. |
+| `Authentication:ClientSecret` | Secret introspection. **Bắt buộc** ngoài Development; lấy từ biến môi trường / user-secrets, không commit. |
+
+---
+
+## 5. Authentication
+
+`LinguaBridge.Api` không tự phát token. Access token do **AppInHouse Identity STS** phát hành (và mã hóa), nên API xác thực bằng **OpenIddict Validation ở chế độ introspection** — mỗi request có token sẽ gọi STS một lần để hỏi token còn hiệu lực không — giống `AppInHouse.Identity.Admin.Api`. (`AddJwtBearer` không đọc được token mã hóa.)
+
+- **Deny-by-default**: mọi endpoint yêu cầu đăng nhập (`FallbackPolicy`), trừ `GET /health` (`AllowAnonymous`) và Swagger (middleware, đứng trước auth).
+- **Fail fast**: ngoài Development, thiếu `Authentication:Authority` hoặc `Authentication:ClientSecret` thì host không khởi động.
+- **`ICurrentUser`** (`LinguaBridge.Application.Abstractions`): `IsAuthenticated`, `UserId` (claim `sub`, `null` nếu không phải Guid, vd. token `client_credentials`), `ClientId`, `IsInRole(string)`. Chỉ chứa danh tính; quyền lợi Free/Vip tra trong module Billing, không đọc từ token.
+- **`GET /api/v1/me`** → `{ userId, clientId, isAuthenticated }`; 401 khi không có token.
+
+### Chạy thử với STS thật
+
+1. Chạy STS (`https://localhost:44310`). Seeder tạo scope + client `linguabridge_api` khi `Seeding:LinguaBridgeApiClientSecret` có giá trị (đã đặt sẵn trong `appsettings.Development.json` của STS). Seeder bỏ qua dữ liệu đã tồn tại, nên DB dev cũ cần seed lại (xóa DB hoặc thêm thủ công).
+2. Chạy `LinguaBridge.Api`, lấy token từ STS cho scope `linguabridge_api`, rồi bấm **Authorize** trong Swagger và dán token.
+
+> Scope `linguabridge_api` chưa được cấp cho client nào (`admin-portal`, `internal-service`); client học viên (mobile/web, PKCE) sẽ làm ở task riêng.

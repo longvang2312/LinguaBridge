@@ -23,6 +23,12 @@ public class DbSeederOptions
     /// </summary>
     public string AdminApiClientSecret { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Secret of the <c>linguabridge_api</c> resource-server client the LinguaBridge API uses to introspect access tokens.
+    /// Optional: the scope and client are only seeded when a secret is configured.
+    /// </summary>
+    public string LinguaBridgeApiClientSecret { get; set; } = string.Empty;
+
     public List<string> AdminPortalRedirectUris { get; set; } = new();
     public List<string> AdminPortalPostLogoutRedirectUris { get; set; } = new();
 }

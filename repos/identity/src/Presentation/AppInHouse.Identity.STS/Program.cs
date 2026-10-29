@@ -54,7 +54,7 @@ builder.Services.AddOpenIddict()
                .AllowRefreshTokenFlow();
 
         // Advertised in the discovery document (the scope store is only used for validation).
-        options.RegisterScopes(Scopes.Email, Scopes.Profile, Scopes.OfflineAccess, DbSeeder.AdminApiScope);
+        options.RegisterScopes(Scopes.Email, Scopes.Profile, Scopes.OfflineAccess, DbSeeder.AdminApiScope, DbSeeder.LinguaBridgeApiScope);
 
         var encryptionThumbprint = configuration["OpenIddict:EncryptionCertificateThumbprint"];
         var signingThumbprint = configuration["OpenIddict:SigningCertificateThumbprint"];
