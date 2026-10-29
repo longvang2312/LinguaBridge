@@ -74,15 +74,17 @@ WHERE user_id = @userId AND created_at >= CURRENT_DATE;
 - Quota mặc định Freemium: **10 lượt / ngày** (cấu hình qua `appsettings`).
 - Quota VIP: lấy từ `billing.user_entitlements` → `billing.subscription_plans.ai_daily_token_quota`.
 
-### 3.4. API Endpoints
+### 3.4. API Endpoints (Quy ước tiền tố `/api/v1/ai/...`)
 
 | Method | Path | Mô tả |
 |---|---|---|
-| `POST` | `/api/ai/sessions` | Tạo ChatSession mới |
-| `POST` | `/api/ai/sessions/{id}/messages` | Gửi tin nhắn → nhận phản hồi AI |
-| `GET` | `/api/ai/sessions/{id}/messages` | Lịch sử hội thoại |
-| `DELETE` | `/api/ai/sessions/{id}` | Kết thúc session |
-| `GET` | `/api/ai/quota` | Quota còn lại hôm nay |
+| `POST` | `/api/v1/ai/sessions` | Tạo ChatSession mới |
+| `POST` | `/api/v1/ai/sessions/{id}/messages` | Gửi tin nhắn → nhận phản hồi AI |
+| `GET` | `/api/v1/ai/sessions/{id}/messages` | Lịch sử hội thoại của session |
+| `DELETE` | `/api/v1/ai/sessions/{id}` | Kết thúc session |
+| `GET` | `/api/v1/ai/quota` | Quota token còn lại hôm nay |
+
+> **Lưu ý về Entitlement**: Vì Module Billing sẽ hoàn thiện ở TASK-016, Module AiTutor khai báo port/abstraction để lấy hạn mức của user (ví dụ `IUserEntitlementSource`). Nếu user chưa có bản ghi trong bảng `billing.user_entitlements`, mặc định áp dụng gói **Freemium** (10 lượt tương tác / ngày).
 
 ### 3.5. Structured JSON Parse & Graceful Fallback
 
