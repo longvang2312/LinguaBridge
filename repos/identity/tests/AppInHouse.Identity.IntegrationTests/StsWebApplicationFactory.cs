@@ -16,7 +16,7 @@ public class StsWebApplicationFactory : WebApplicationFactory<Program>
     public const string AdminPassword = "Admin@AppInHouse123!";
     public const string InternalServiceSecret = "integration-test-internal-service-secret";
     public const string AdminApiClientSecret = "integration-test-admin-api-secret";
-    public const string AdminPortalRedirectUri = "https://localhost:7111/signin-oidc";
+    public const string AdminPortalRedirectUri = "https://localhost:44303/signin-oidc";
 
     private readonly string _databaseName = Guid.NewGuid().ToString();
 
@@ -35,7 +35,7 @@ public class StsWebApplicationFactory : WebApplicationFactory<Program>
                 ["Seeding:InternalServiceSecret"] = InternalServiceSecret,
                 ["Seeding:AdminApiClientSecret"] = AdminApiClientSecret,
                 ["Seeding:AdminPortalRedirectUris:0"] = AdminPortalRedirectUri,
-                ["Seeding:AdminPortalPostLogoutRedirectUris:0"] = "https://localhost:7111/signout-callback-oidc",
+                ["Seeding:AdminPortalPostLogoutRedirectUris:0"] = "https://localhost:44303/signout-callback-oidc",
             }));
 
         builder.ConfigureTestServices(services =>

@@ -124,7 +124,7 @@ Khi khởi động lần đầu, hệ thống sẽ tự động khởi tạo d�
   1. `admin-portal`:
      * Dành cho: Giao diện Web Quản trị (Admin Portal UI).
      * Loại flow: **Authorization Code Flow + PKCE**.
-     * Redirect URI: `https://localhost:7111/signin-oidc`
+     * Redirect URI: `https://localhost:44303/signin-oidc`
   2. `internal-service`:
      * Dành cho: Microservices, Machine-to-Machine.
      * Loại flow: **Client Credentials Flow**.
@@ -140,28 +140,28 @@ Hệ thống bao gồm 3 ứng dụng web độc lập phối hợp với nhau:
 
 ### 5.1. Khởi chạy bằng .NET CLI (3 Cửa Sổ Terminal Riêng Biệt)
 
-**Terminal 1 — Security Token Service (STS) (Port: 7046 HTTPS / 5001 HTTP)**:
+**Terminal 1 — Security Token Service (STS) (Port: 44310 HTTPS / 5001 HTTP)**:
 ```bash
 dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.STS
 ```
-* **Discovery Document**: [https://localhost:7046/.well-known/openid-configuration](https://localhost:7046/.well-known/openid-configuration)
-* **Trang Đăng Nhập**: [https://localhost:7046/Account/Login](https://localhost:7046/Account/Login)
+* **Discovery Document**: [https://localhost:44310/.well-known/openid-configuration](https://localhost:44310/.well-known/openid-configuration)
+* **Trang Đăng Nhập**: [https://localhost:44310/Account/Login](https://localhost:44310/Account/Login)
 
 ---
 
-**Terminal 2 — Admin REST API (Port: 7192 HTTPS / 5192 HTTP)**:
+**Terminal 2 — Admin REST API (Port: 44302 HTTPS / 5002 HTTP)**:
 ```bash
 dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.Admin.Api
 ```
-* **Swagger OpenAPI UI**: [https://localhost:7192/swagger](https://localhost:7192/swagger)
+* **Swagger OpenAPI UI**: [https://localhost:44302/swagger](https://localhost:44302/swagger)
 
 ---
 
-**Terminal 3 — Admin Web Portal UI (Port: 7111 HTTPS / 5111 HTTP)**:
+**Terminal 3 — Admin Web Portal UI (Port: 44303 HTTPS / 5000 HTTP)**:
 ```bash
 dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.Admin.Web
 ```
-* **Giao Diện Quản Trị**: [https://localhost:7111](https://localhost:7111)
+* **Giao Diện Quản Trị**: [https://localhost:44303](https://localhost:44303)
 
 ---
 
@@ -178,7 +178,7 @@ dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.Admin.W
 
 ## 6. Hướng Dẫn Sử Dụng Giao Diện Admin Portal (Skoruba-Style)
 
-Truy cập [https://localhost:7111](https://localhost:7111) và đăng nhập bằng tài khoản `admin@appinhouse.local` / `Admin@AppInHouse123!`:
+Truy cập [https://localhost:44303](https://localhost:44303) và đăng nhập bằng tài khoản `admin@appinhouse.local` / `Admin@AppInHouse123!`:
 
 1. **Dashboard Tổng Quan**:
    * Xem thống kê nhanh số lượng Dự án, Clients, Người dùng, Vai trò, Quyền hạn và các sự kiện bảo mật gần nhất.
@@ -220,7 +220,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
-        options.Authority = "https://localhost:7046"; // Địa chỉ STS
+        options.Authority = "https://localhost:44310"; // Địa chỉ STS
         options.Audience = "identity_admin_api";
         options.RequireHttpsMetadata = false; // bật true trên production
     });
