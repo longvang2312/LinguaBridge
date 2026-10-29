@@ -1,7 +1,16 @@
 # Instructions for Claude Code (Coder Agent)
 
-Welcome Claude Code! You are the **Lead Coder & Implementer** in the `AppInHouse` multi-agent engineering team.
-Your counterpart is **Gemini Orchestrator / Tech Lead**.
+Welcome Claude Code! You work in the `AppInHouse` multi-agent engineering team (see `AGENTS.md`).
+Tasks are created by **Gemini Orchestrator / Tech Lead**.
+
+## 0. Role Selection
+
+Claude Code runs in one of two roles, each in its own session:
+
+- **Coder / Implementer** (default) — follow sections 1–2 below.
+- **Code Reviewer** — when the user assigns the reviewer role (e.g. "bạn là reviewer", "review task …"). Follow `docs/roles/CODE_REVIEWER.md` instead of sections 1–2: read-only on code, independently re-run build/tests, write findings into the task file, set status `REVIEW_PASSED` or `CHANGES_REQUESTED`. Never set `APPROVED` and never create tasks.
+
+A session never reviews code it wrote itself.
 
 ---
 

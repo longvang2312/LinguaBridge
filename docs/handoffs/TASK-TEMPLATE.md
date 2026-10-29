@@ -1,8 +1,9 @@
 # TASK-XXX: [Tên Task Ngắn Gọn]
 
 - **Người giao (Orchestrator)**: Gemini Tech Lead
-- **Người thực hiện (Implementer)**: Claude Code
-- **Trạng thái**: `PENDING` <!-- Các trạng thái: PENDING | IN_PROGRESS | READY_FOR_REVIEW | APPROVED | CHANGES_REQUESTED -->
+- **Người thực hiện (Implementer)**: Claude Code (Coder)
+- **Người review (Reviewer)**: Claude Code (Reviewer)
+- **Trạng thái**: `PENDING` <!-- PENDING | IN_PROGRESS | READY_FOR_REVIEW | CHANGES_REQUESTED | REVIEW_PASSED | APPROVED -->
 - **Ngày tạo**: YYYY-MM-DD
 
 ---
@@ -44,3 +45,14 @@
 
 ### c. Rủi ro, đánh đổi kỹ thuật hoặc lưu ý cho Tech Lead
 - 
+
+---
+
+## 5. Kết Quả Code Review (Claude Code — Reviewer điền)
+<!-- Theo mẫu tại docs/roles/CODE_REVIEWER.md mục 4 -->
+
+---
+
+## 6. Nghiệm Thu Cuối (Gemini Tech Lead điền)
+- **Kết quả**: `APPROVED` | `CHANGES_REQUESTED`
+- **Quyết định cho các mục "Cần Gemini quyết định"**:
