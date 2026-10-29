@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\LinguaBridge.Application\LinguaBridge.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.Content\LinguaBridge.Modules.Content.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.Learning\LinguaBridge.Modules.Learning.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.AiTutor\LinguaBridge.Modules.AiTutor.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.Billing\LinguaBridge.Modules.Billing.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\LinguaBridge.Infrastructure.Persistence\LinguaBridge.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\LinguaBridge.Infrastructure.External\LinguaBridge.Infrastructure.External.csproj" />
+  </ItemGroup>
+
+</Project>

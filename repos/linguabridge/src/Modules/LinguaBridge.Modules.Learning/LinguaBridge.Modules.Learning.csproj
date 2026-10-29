@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\LinguaBridge.Domain\LinguaBridge.Domain.csproj" />
+    <ProjectReference Include="..\..\Core\LinguaBridge.Application\LinguaBridge.Application.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.*" />
+    <!-- Direct reference so consumers get the same EF Core version as Design (which is private) pulls in here. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.*">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\LinguaBridge.Domain\LinguaBridge.Domain.csproj" />
+    <ProjectReference Include="..\..\Core\LinguaBridge.Application\LinguaBridge.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.Content\LinguaBridge.Modules.Content.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.Learning\LinguaBridge.Modules.Learning.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.AiTutor\LinguaBridge.Modules.AiTutor.csproj" />
+    <ProjectReference Include="..\..\Modules\LinguaBridge.Modules.Billing\LinguaBridge.Modules.Billing.csproj" />
+  </ItemGroup>
+
+</Project>
