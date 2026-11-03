@@ -21,6 +21,13 @@ public class DbSeeder
     public const string LinguaBridgeApiResourceClientId = LinguaBridgeApiScope;
     public const string AdminPortalClientId = "admin-portal";
     public const string InternalServiceClientId = "internal-service";
+    public const string LinguaBridgeAppClientId = "linguabridge-app";
+
+    private static readonly string[] DefaultLinguaBridgeAppRedirectUris =
+    [
+        "http://localhost:3000/callback",
+        "http://localhost:5173/callback",
+    ];
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<ApplicationRole> _roleManager;
@@ -146,7 +153,38 @@ public class DbSeeder
             await CreateClientIfMissingAsync(BuildAdminApiResourceServer(), cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(_options.LinguaBridgeApiClientSecret))
+        {
             await CreateClientIfMissingAsync(BuildLinguaBridgeApiResourceServer(), cancellationToken);
+
+            if (_options.LinguaBridgeAppEnabled)
+                await CreateClientIfMissingAsync(BuildLinguaBridgeApp(), cancellationToken);
+
+            await EnsureInternalServiceMayUseLinguaBridgeAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// A database seeded before the LinguaBridge API existed already has <c>internal-service</c>, and creating clients only
+    /// when missing would leave it without the new scope for good. This adds that one permission to the existing client and
+    /// nothing else: its secret, its other permissions and anything an administrator edited are left as they are. (If an
+    /// administrator removes this permission, the next start grants it again.)
+    /// </summary>
+    private async Task EnsureInternalServiceMayUseLinguaBridgeAsync(CancellationToken cancellationToken)
+    {
+        var application = await _applicationManager.FindByClientIdAsync(InternalServiceClientId, cancellationToken);
+        if (application is null)
+            return;
+
+        var permission = Permissions.Prefixes.Scope + LinguaBridgeApiScope;
+        if (await _applicationManager.HasPermissionAsync(application, permission, cancellationToken))
+            return;
+
+        var descriptor = new OpenIddictApplicationDescriptor();
+        await _applicationManager.PopulateAsync(descriptor, application, cancellationToken);
+        descriptor.Permissions.Add(permission);
+        await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
+
+        _logger.LogInformation("Granted client {ClientId} the scope {Scope}.", InternalServiceClientId, LinguaBridgeApiScope);
     }
 
     private async Task CreateClientIfMissingAsync(OpenIddictApplicationDescriptor descriptor, CancellationToken cancellationToken)
@@ -193,19 +231,61 @@ public class DbSeeder
     }
 
     /// <summary>Confidential client for service-to-service calls (Client Credentials).</summary>
-    private OpenIddictApplicationDescriptor BuildInternalService() => new()
+    private OpenIddictApplicationDescriptor BuildInternalService()
     {
-        ClientId = InternalServiceClientId,
-        ClientSecret = _options.InternalServiceSecret,
-        DisplayName = "Internal Service",
-        ClientType = ClientTypes.Confidential,
-        Permissions =
+        var descriptor = new OpenIddictApplicationDescriptor
         {
-            Permissions.Endpoints.Token,
-            Permissions.GrantTypes.ClientCredentials,
-            Permissions.Prefixes.Scope + AdminApiScope,
-        },
-    };
+            ClientId = InternalServiceClientId,
+            ClientSecret = _options.InternalServiceSecret,
+            DisplayName = "Internal Service",
+            ClientType = ClientTypes.Confidential,
+            Permissions =
+            {
+                Permissions.Endpoints.Token,
+                Permissions.GrantTypes.ClientCredentials,
+                Permissions.Prefixes.Scope + AdminApiScope,
+            },
+        };
+
+        // Only where the LinguaBridge scope exists (it is seeded when the LinguaBridge API is configured).
+        if (!string.IsNullOrWhiteSpace(_options.LinguaBridgeApiClientSecret))
+            descriptor.Permissions.Add(Permissions.Prefixes.Scope + LinguaBridgeApiScope);
+
+        return descriptor;
+    }
+
+    /// <summary>The learners' app: a public client using Authorization Code + PKCE (and refresh tokens).</summary>
+    private OpenIddictApplicationDescriptor BuildLinguaBridgeApp()
+    {
+        var descriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = LinguaBridgeAppClientId,
+            DisplayName = "LinguaBridge Student Client",
+            ClientType = ClientTypes.Public,
+            ConsentType = ConsentTypes.Implicit,
+            Permissions =
+            {
+                Permissions.Endpoints.Authorization,
+                Permissions.Endpoints.Token,
+                Permissions.Endpoints.Logout,
+                Permissions.GrantTypes.AuthorizationCode,
+                Permissions.GrantTypes.RefreshToken,
+                Permissions.ResponseTypes.Code,
+                Permissions.Scopes.Profile,
+                Permissions.Scopes.Email,
+                Permissions.Prefixes.Scope + Scopes.OpenId,
+                Permissions.Prefixes.Scope + Scopes.OfflineAccess,
+                Permissions.Prefixes.Scope + LinguaBridgeApiScope,
+            },
+            Requirements = { Requirements.Features.ProofKeyForCodeExchange },
+        };
+
+        IEnumerable<string> redirectUris = _options.LinguaBridgeAppRedirectUris.Count > 0 ? _options.LinguaBridgeAppRedirectUris : DefaultLinguaBridgeAppRedirectUris;
+        foreach (var uri in redirectUris)
+            descriptor.RedirectUris.Add(new Uri(uri));
+
+        return descriptor;
+    }
 
     /// <summary>
     /// The Admin API as a resource server. OpenIddict only lets a client introspect tokens issued for it (its client id

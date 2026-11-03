@@ -29,6 +29,16 @@ public class DbSeederOptions
     /// </summary>
     public string LinguaBridgeApiClientSecret { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Whether to seed the <c>linguabridge-app</c> public client (Authorization Code + PKCE) for the learners' app.
+    /// Off unless asked for, and only meaningful together with <see cref="LinguaBridgeApiClientSecret"/> because the client
+    /// asks for the <c>linguabridge_api</c> scope, which only exists then.
+    /// </summary>
+    public bool LinguaBridgeAppEnabled { get; set; }
+
+    /// <summary>Redirect addresses of <c>linguabridge-app</c>. When empty the local development ones are used (ports 3000 and 5173).</summary>
+    public List<string> LinguaBridgeAppRedirectUris { get; set; } = new();
+
     public List<string> AdminPortalRedirectUris { get; set; } = new();
     public List<string> AdminPortalPostLogoutRedirectUris { get; set; } = new();
 }

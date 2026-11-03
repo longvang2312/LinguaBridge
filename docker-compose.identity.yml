@@ -5,8 +5,9 @@
 #   docker compose -f docker-compose.identity.yml down          # keeps the volumes (database, keys)
 #   docker compose -f docker-compose.identity.yml down -v       # also deletes them
 #
-# Host ports: STS 5001, Admin API 5002, Admin Web 5000, SQL Server 1433.
-# SQL Server, Admin API and Admin Web are published on the loopback address only, so other machines on the network cannot
+# Host ports: STS 5001, Admin API 5002, Admin Web 5000, SQL Server 1433, PostgreSQL (LinguaBridge) 5432.
+# The LinguaBridge API itself is not part of this file: run it on the host (dotnet run) against the database below and the STS.
+# SQL Server, Admin API, Admin Web and PostgreSQL are published on the loopback address only, so other machines on the network cannot
 # reach them (the database has a known sa password). Set IDENTITY_BIND_ADDRESS=0.0.0.0 to open them on purpose.
 # The STS is the exception and is open to the network, see its comment below.
 # Every value below that looks like ${NAME:-default} can be overridden from the shell or a .env file.
@@ -49,6 +50,29 @@ services:
       start_period: 20s
     networks: [identity-network]
 
+  # The LinguaBridge database. The LinguaBridge API runs on the host and connects to localhost:5432 (appsettings.Development.json);
+  # create or update its tables with: dotnet ef database update (see docs/handoffs/TASK-020).
+  linguabridge-db:
+    image: postgres:16-alpine
+    container_name: linguabridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-LinguaBridge}
+    ports:
+      # Loopback only, like the other databases; a PostgreSQL installed on the host may own 5432 (see LINGUABRIDGE_DB_PORT).
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${LINGUABRIDGE_DB_PORT:-5432}:5432"
+    volumes:
+      - linguabridge-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks: [identity-network]
+
   # A new named volume belongs to root, but the services run as the unprivileged "app" user (uid 1654) and could not
   # write their keys into it. This one-shot container hands the volumes over, then exits.
   identity-volume-init:
@@ -76,6 +100,9 @@ services:
       Seeding__Enabled: "true"
       Seeding__AdminPassword: ${ADMIN_PASSWORD:-Admin@AppInHouse123!}
       Seeding__AdminApiClientSecret: ${ADMIN_API_CLIENT_SECRET:-dev-identity-admin-api-secret-change-me}
+      # The learners' app client (linguabridge-app, Authorization Code + PKCE). The LinguaBridge API's own secret and scope
+      # come from the STS's appsettings.Development.json.
+      Seeding__LinguaBridgeAppEnabled: "true"
       # The portal's redirect addresses: the Docker one first, then the ones used when running outside Docker.
       Seeding__AdminPortalRedirectUris__0: ${ADMIN_WEB_URL:-http://localhost:5000}/signin-oidc
       Seeding__AdminPortalRedirectUris__1: https://localhost:44303/signin-oidc
@@ -180,6 +207,7 @@ networks:
     driver: bridge
 
 volumes:
+  linguabridge-db-data:
   identity-db-data:
   identity-dataprotection-keys:
   identity-sts-certificates:
