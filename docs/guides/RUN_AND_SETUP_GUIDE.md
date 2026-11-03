@@ -13,7 +13,7 @@ Toàn bộ hệ thống được đồng bộ hóa theo chuẩn cổng Skoruba v
 | :--- | :--- | :--- | :--- |
 | **Identity STS** | `repos/identity/src/Presentation/AppInHouse.Identity.STS` | `https://localhost:44310`<br>`http://localhost:5001` | Máy chủ cấp phát mã xác thực OpenIddict (OIDC), cấp token JWT/Introspection |
 | **Identity Admin Web** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Web` | `https://localhost:44303`<br>`http://localhost:5000` | Web Portal quản trị người dùng, vai trò, OIDC clients & scopes |
-| **Identity Admin API** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Api` | `https://localhost:44302`<br>`http://localhost:5002` | REST API quản trị phục vụ cho Admin Portal (Swagger) |
+| **Identity Admin API** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Api` | `https://localhost:44302`<br>`http://localhost:5002` | REST API quản trị (Swagger) cho các client khác; Admin Web **không** gọi API này mà dùng trực tiếp cùng các use case trên cùng CSDL |
 | **LinguaBridge API** | `repos/linguabridge/src/Presentation/LinguaBridge.Api` | `https://localhost:44320`<br>`http://localhost:5020` | Modular Monolith API (.NET 10) phục vụ học ngoại ngữ, AI Tutor & Billing |
 | **SQL Server** | LocalDB / SQLEXPRESS / Docker | `localhost:1433` | Cơ sở dữ liệu cho cụm Identity (`AppInHouse.Identity`) |
 | **PostgreSQL** | Local / Docker | `localhost:5432` | Cơ sở dữ liệu cho LinguaBridge (`LinguaBridge` gồm 5 schemas) |
@@ -179,7 +179,7 @@ dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.STS --l
 dotnet run --project repos/identity/src/Presentation/AppInHouse.Identity.Admin.Web --launch-profile https
 ```
 > Giao diện quản trị: `https://localhost:44303`  
-> Tài khoản mặc định: `admin` / `P@ssword123!`
+> Tài khoản mặc định (do seeder tạo ở môi trường Development): `admin@appinhouse.local` / `Admin@AppInHouse123!`
 
 #### Terminal 3: Khởi Chạy LinguaBridge API
 ```bash
@@ -187,6 +187,61 @@ dotnet run --project repos/linguabridge/src/Presentation/LinguaBridge.Api --laun
 ```
 > Healthcheck: `https://localhost:44320/health`  
 > Swagger UI: `https://localhost:44320/swagger`
+
+---
+
+### Cách 3: Chạy Cụm Identity Bằng Docker Desktop (Docker Compose)
+
+Chạy toàn bộ Identity Platform (SQL Server 2022 + STS + Admin API + Admin Web) trong container, không cần cài SQL Server hay .NET 8 trên máy. Cấu hình nằm ở `docker-compose.identity.yml` (thư mục gốc workspace). LinguaBridge **không** nằm trong compose này, vẫn chạy theo Cách 1 hoặc 2.
+
+**Yêu cầu**: Docker Desktop đang chạy và có kết nối mạng ở lần đầu (tải image SQL Server ~1.6 GB và các image .NET).
+
+#### Chạy, dừng, xoá dữ liệu
+```powershell
+.\scripts\docker-identity-up.ps1                 # build image, khởi động, đợi tới khi cả 4 service "healthy", rồi in các URL
+.\scripts\docker-identity-up.ps1 -NoBuild        # dùng lại image đã build
+.\scripts\docker-identity-down.ps1               # dừng, GIỮ dữ liệu (CSDL, key, chứng chỉ) cho lần chạy sau
+.\scripts\docker-identity-down.ps1 -RemoveData   # dừng và XOÁ dữ liệu (hỏi xác nhận; thêm -Force để bỏ qua)
+.\scripts\verify-identity-e2e.ps1                # kiểm tra toàn trình (xem bên dưới)
+```
+Lần chạy đầu mất vài phút (build + tải image); các lần sau khoảng nửa phút. Cũng có thể dùng trực tiếp `docker compose -f docker-compose.identity.yml up -d --build` và `down`.
+
+#### Bảng cổng và URL
+
+| Dịch vụ | URL trên máy host | Ghi chú |
+| :--- | :--- | :--- |
+| **STS** | `http://host.docker.internal:5001` | Discovery: `/.well-known/openid-configuration`. **Luôn dùng tên `host.docker.internal`**, không dùng `localhost` (xem mục dưới) |
+| **Admin Web** | `http://localhost:5000` | Giao diện quản trị |
+| **Admin API** | `http://localhost:5002/swagger` | Swagger (môi trường Development) |
+| **SQL Server** | `localhost,1433` hoặc `localhost,14330` | User `sa`, database `AppInHouse_Identity`. Script tự chuyển sang **14330** nếu cổng 1433 đang bị chiếm (ví dụ SQL Server cài sẵn trên máy). Trong mạng Docker các service luôn nối `identity-db:1433` |
+
+Đổi cổng/địa chỉ bằng biến môi trường (hoặc file `.env` cạnh compose): `IDENTITY_DB_PORT`, `IDENTITY_BIND_ADDRESS`, `SA_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_API_CLIENT_SECRET`, `IDENTITY_AUTHORITY`, `ADMIN_WEB_URL`. Mọi giá trị mặc định chỉ dành cho phát triển.
+
+#### Tài khoản đăng nhập mẫu
+`admin@appinhouse.local` / `Admin@AppInHouse123!` (do seeder tạo; đổi bằng `ADMIN_PASSWORD` trước lần chạy đầu tiên). Mật khẩu này công khai trong repository.
+
+#### Vì sao phải dùng `host.docker.internal` (cơ chế issuer)
+Mỗi token do STS cấp mang một **issuer**, và OpenIddict lấy issuer từ *tên máy trong request* (Host header). Admin API xác thực token bằng cách hỏi lại STS ở một địa chỉ cố định và chỉ chấp nhận token có issuer **đúng bằng chuỗi đó**. Trình duyệt, Admin Web, Admin API và người dùng Swagger/Postman đều phải gọi STS bằng *cùng một địa chỉ*. `localhost` không dùng được: bên trong container, `localhost` là chính container đó. Docker Desktop phân giải `host.docker.internal` trỏ về máy host cả trong container lẫn trên host (qua file `hosts`), nên địa chỉ chung là `http://host.docker.internal:5001`.
+
+Hệ quả cần nhớ:
+- Khi đăng nhập Admin Web, trình duyệt được chuyển sang `http://host.docker.internal:5001/Account/Login` (không phải `localhost:5001`). Nếu trang này không mở được, xem mục Troubleshooting số 6.
+- Lấy token qua `http://localhost:5001/connect/token` thì **Admin API trả 401** vì issuer là `localhost`. Hãy lấy token qua `http://host.docker.internal:5001/connect/token`.
+- Lấy token thử bằng dòng lệnh:
+  ```powershell
+  curl.exe -s -X POST http://host.docker.internal:5001/connect/token -d grant_type=client_credentials -d client_id=internal-service -d client_secret=dev-internal-service-secret-change-me -d scope=identity_admin_api
+  ```
+  Token dịch vụ này được Admin API chấp nhận nhưng nhận **403** ở các API quản trị (nó không phải người dùng quản trị). Muốn có 200 cần token của người dùng quản trị (luồng authorization code, xem mục 4 của `scripts/verify-identity-e2e.ps1`).
+
+#### Kiểm tra toàn trình
+`.\scripts\verify-identity-e2e.ps1` (cần stack đang chạy) tự thực hiện, không cần trình duyệt: discovery + JWKS; token dịch vụ (401 / 401 / 403); đăng nhập Admin Web qua STS (login → `/signin-oidc` → Dashboard → Users, Roles, Clients; sai mật khẩu và truy cập ẩn danh bị chặn); token người dùng quản trị (authorization code + PKCE) gọi Admin API `users`, `roles`, `clients`, `permissions` → 200. Thoát mã 0 nếu mọi mục đạt, mã 1 nếu có mục lỗi và liệt kê các mục lỗi. Script mô phỏng trình duyệt qua HTTP; bạn cũng nên tự thử một lần bằng trình duyệt thật: mở `http://localhost:5000`, đăng nhập bằng tài khoản mẫu, xem Dashboard, Users, Roles, Clients.
+
+#### Dữ liệu được giữ ở đâu
+Ba volume Docker: `identity-db-data` (CSDL), `identity-dataprotection-keys` (khoá Data Protection) và `identity-sts-certificates` (chứng chỉ ký/mã hoá token của STS). `down` giữ cả ba; `down -RemoveData` xoá hết, token và phiên đăng nhập cũ không còn hiệu lực.
+
+#### Bảo mật khi chạy bằng Docker
+- SQL Server, Admin API và Admin Web chỉ lắng nghe trên `127.0.0.1` của máy bạn (đặt `IDENTITY_BIND_ADDRESS=0.0.0.0` nếu thật sự muốn mở ra mạng).
+- **STS (cổng 5001) mở ra cả mạng cục bộ**, vì `host.docker.internal` trỏ tới địa chỉ mạng của máy chứ không phải `127.0.0.1`. Ai cùng mạng có thể thử đăng nhập bằng tài khoản mẫu có mật khẩu công khai. Chỉ chạy trên mạng tin cậy hoặc đổi `ADMIN_PASSWORD`.
+- Cấu hình này là **chế độ Development** (Swagger bật, không yêu cầu HTTPS, chứng chỉ phát triển, mật khẩu/secret mẫu). Không dùng cho môi trường thật.
 
 ---
 
@@ -274,3 +329,15 @@ dotnet test repos/identity/AppInHouse.Identity.sln
 4. **Lỗi `429 Too Many Requests (ai.quota_exhausted)`**:
    - *Nguyên nhân*: Học viên tài khoản miễn phí đã dùng hết 10 lượt tương tác AI trong ngày (tính theo UTC).
    - *Khắc phục*: Chờ sang ngày mới hoặc nâng cấp tài khoản lên gói VIP qua Webhook.
+5. **Admin API trả `401 Unauthorized` dù token vừa lấy từ STS (chạy bằng Docker)**:
+   - *Nguyên nhân*: token được lấy qua `http://localhost:5001`, nên issuer là `localhost`; Admin API chỉ chấp nhận issuer `http://host.docker.internal:5001`.
+   - *Khắc phục*: lấy token qua `http://host.docker.internal:5001/connect/token` (xem Cách 3).
+6. **Không mở được `http://host.docker.internal:5001` trên trình duyệt**:
+   - *Nguyên nhân*: Docker Desktop chưa thêm tên `*.docker.internal` vào file `hosts` của Windows.
+   - *Khắc phục*: bật Settings → General → *Add the \*.docker.internal names to the host's /etc/hosts file* rồi khởi động lại Docker Desktop; hoặc thêm dòng `127.0.0.1 host.docker.internal` vào `C:\Windows\System32\drivers\etc\hosts`.
+7. **Cổng 1433 đã bị chiếm khi chạy cụm Identity bằng Docker**:
+   - *Nguyên nhân*: máy đã có SQL Server cài sẵn. Docker vẫn có thể bind được cổng, khi đó có hai tiến trình cùng nghe 1433 và kết nối `localhost,1433` có thể vào nhầm SQL Server của máy.
+   - *Khắc phục*: dùng `docker-identity-up.ps1` (tự chọn cổng 14330) hoặc đặt `IDENTITY_DB_PORT=14330`, rồi kết nối tới `localhost,14330`.
+8. **`docker-identity-up.ps1` báo "Not healthy after ... s"**:
+   - *Nguyên nhân*: STS đang migrate/seed CSDL hoặc SQL Server chưa sẵn sàng (máy chậm, lần chạy đầu).
+   - *Khắc phục*: chạy `docker compose -f docker-compose.identity.yml logs --tail=100` xem service nào lỗi; tăng `-TimeoutSeconds`.
