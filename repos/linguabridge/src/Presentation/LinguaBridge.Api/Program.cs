@@ -7,6 +7,7 @@ using LinguaBridge.Modules.AiTutor;
 using LinguaBridge.Modules.Billing;
 using LinguaBridge.Modules.Content;
 using LinguaBridge.Modules.Learning;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,6 +48,17 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 app.Configuration.EnsureAuthenticationConfigured(app.Environment);
+
+// Opt-in, like the Identity STS: containers create the schema themselves instead of needing `dotnet ef` on the host.
+// Runs before the host starts listening, so "port open" means "database ready". A failure stops the start.
+if (configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Migrations");
+    logger.LogInformation("Applying database migrations (Database:MigrateOnStartup is true).");
+    await scope.ServiceProvider.GetRequiredService<LinguaBridgeDbContext>().Database.MigrateAsync();
+    logger.LogInformation("Database migrations applied.");
+}
 
 if (app.Environment.IsDevelopment() || configuration.GetValue<bool>("Swagger:Enabled"))
 {

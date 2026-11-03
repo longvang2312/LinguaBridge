@@ -1,0 +1,25 @@
+# Build output: always rebuilt inside the image, and a stale obj/ would poison the restore layer.
+**/bin/
+**/obj/
+**/TestResults/
+
+# Editor, VCS and local-only files
+**/.vs/
+**/.vscode/
+**/.idea/
+**/.git/
+.gitignore
+**/*.user
+**/*.suo
+
+# Secrets and local environment: never bake these into an image layer.
+**/.env
+**/.env.*
+**/secrets.json
+
+# Not needed to build the API (tests are not part of the image)
+tests/
+**/node_modules/
+**/Dockerfile*
+**/.dockerignore
+*.md
