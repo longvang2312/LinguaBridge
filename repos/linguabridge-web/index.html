@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LinguaBridge - Học tiếng Anh &amp; tiếng Trung giao tiếp</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ctext y=%2712.5%27 font-size=%2713%27%3E%F0%9F%8C%90%3C/text%3E%3C/svg%3E">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="/assets/css/style.css" rel="stylesheet">
+</head>
+<body data-page="home">
+  <div id="navbar"></div>
+
+  <main class="container py-4">
+    <!-- Signed out -->
+    <section id="hero" class="d-none">
+      <div class="hero mb-5">
+        <span class="badge text-bg-warning mb-3">Tiếng Anh &amp; Tiếng Trung</span>
+        <h1 class="display-5 fw-bold">Giao tiếp công việc tự tin<br>bằng hai ngoại ngữ</h1>
+        <p class="lead mt-3">Bài học ngắn theo tình huống thực tế, ôn từ vựng bằng thẻ ghi nhớ thông minh (SRS) và luyện nói cùng gia sư AI.</p>
+        <button id="hero-login" class="btn btn-warning btn-lg mt-3 px-4"><i class="bi bi-box-arrow-in-right me-2"></i>Đăng Nhập Ngay</button>
+      </div>
+      <div class="row g-4">
+        <div class="col-md-4"><div class="card lb-card h-100"><div class="card-body">
+          <span class="feature-icon mb-3"><i class="bi bi-journal-richtext"></i></span>
+          <h2 class="h5">Khóa học theo cấp độ</h2><p class="text-secondary mb-0">Lộ trình từ cơ bản đến nâng cao cho tiếng Anh và tiếng Trung, hiển thị bằng tiếng Việt.</p>
+        </div></div></div>
+        <div class="col-md-4"><div class="card lb-card h-100"><div class="card-body">
+          <span class="feature-icon mb-3"><i class="bi bi-layers"></i></span>
+          <h2 class="h5">Ôn tập thông minh</h2><p class="text-secondary mb-0">Thẻ lật 3D và thuật toán lặp lại ngắt quãng SM-2 nhắc bạn đúng lúc sắp quên.</p>
+        </div></div></div>
+        <div class="col-md-4"><div class="card lb-card h-100"><div class="card-body">
+          <span class="feature-icon mb-3"><i class="bi bi-lightning-charge"></i></span>
+          <h2 class="h5">Tích lũy XP</h2><p class="text-secondary mb-0">Hoàn thành bài học để nhận điểm kinh nghiệm và theo dõi tiến độ mỗi ngày.</p>
+        </div></div></div>
+      </div>
+    </section>
+
+    <!-- Signed in -->
+    <section id="dashboard" class="d-none">
+      <h1 class="h3 mb-1">Xin chào, <span id="welcome-name"></span></h1>
+      <p class="text-secondary">Đây là tiến độ học tập của bạn hôm nay.</p>
+      <div id="dashboard-error"></div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3"><div class="card lb-card h-100"><div class="card-body">
+          <i class="bi bi-person-badge stat-icon"></i>
+          <div class="small text-secondary mt-2">Học viên</div>
+          <div class="fw-semibold text-truncate" id="stat-user">...</div>
+          <div class="small text-secondary text-truncate" id="stat-user-id"></div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><a href="/flashcards.html" class="text-decoration-none"><div class="card lb-card h-100"><div class="card-body">
+          <i class="bi bi-layers stat-icon"></i>
+          <div class="small text-secondary mt-2">Từ cần ôn hôm nay</div>
+          <div class="stat-value text-body" id="stat-due">...</div>
+          <div class="small text-primary">Ôn tập ngay <i class="bi bi-arrow-right"></i></div>
+        </div></div></a></div>
+        <div class="col-6 col-lg-3"><div class="card lb-card h-100"><div class="card-body">
+          <i class="bi bi-journal-richtext stat-icon"></i>
+          <div class="small text-secondary mt-2">Khóa học</div>
+          <div class="stat-value" id="stat-courses">...</div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card lb-card h-100"><div class="card-body">
+          <i class="bi bi-gem stat-icon"></i>
+          <div class="small text-secondary mt-2">Gói học</div>
+          <div class="stat-value" id="stat-tier">...</div>
+        </div></div></div>
+      </div>
+
+      <div class="card lb-card mb-4"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h2 class="h6 mb-0"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Tiến độ học tập</h2>
+          <span class="small text-secondary" id="xp-text">...</span>
+        </div>
+        <div class="progress xp-progress xp-progress-lg" role="progressbar" aria-label="Tiến độ tổng" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" id="xp-bar" style="width:0"></div>
+        </div>
+      </div></div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Khóa học của bạn</h2>
+        <a href="/courses.html" class="btn btn-sm btn-outline-primary">Xem tất cả</a>
+      </div>
+      <div class="row g-3" id="course-list"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+  <script type="module" src="/assets/js/app.js"></script>
+</body>
+</html>
