@@ -5,8 +5,6 @@ import { config } from './config.js';
 
 const TOKENS_KEY = 'lb.tokens';
 const FLOW_KEY = 'lb.flow';
-// Set by logout in localStorage (shared by every tab) until the next successful sign-in; see forceLoginPending().
-const FORCE_LOGIN_KEY = 'lb.forceLogin';
 const EXPIRY_MARGIN_SECONDS = 30;
 
 // ---- Small helpers -------------------------------------------------------------------------------------------------
@@ -81,13 +79,6 @@ async function requestToken(parameters) {
 
 // ---- Sign in / out -------------------------------------------------------------------------------------------------
 
-const forceLoginPending = () => {
-  try { return localStorage.getItem(FORCE_LOGIN_KEY) === '1'; } catch { return false; }
-};
-const setForceLogin = (on) => {
-  try { if (on) localStorage.setItem(FORCE_LOGIN_KEY, '1'); else localStorage.removeItem(FORCE_LOGIN_KEY); } catch { /* no storage: only the login page's own button can force it */ }
-};
-
 export const LOGIN_PAGE = '/login.html';
 const HOME_PAGE = '/index.html';
 
@@ -113,9 +104,7 @@ export const loginPageUrl = (returnTo = window.location.pathname + window.locati
 
 /**
  * Sends the browser to the STS login page. After signing in the STS returns to /callback, which sends the learner on to
- * returnTo. The STS must ask for credentials even if its own session is still alive (prompt=login) when forceLogin is
- * set or when the learner signed out and has not signed in since: the STS session outlives our tokens, so without this
- * anyone (another tab, the next person at the machine) would get back into the account with no password.
+ * returnTo. With forceLogin the STS must ask for credentials even if its own session is still alive (prompt=login).
  */
 export async function login(returnTo = window.location.pathname + window.location.search, { forceLogin = false } = {}) {
   const verifier = randomString(48);
@@ -132,7 +121,7 @@ export async function login(returnTo = window.location.pathname + window.locatio
     code_challenge: await codeChallengeFor(verifier),
     code_challenge_method: 'S256',
   });
-  if (forceLogin || forceLoginPending()) query.set('prompt', 'login');
+  if (forceLogin) query.set('prompt', 'login');
   window.location.assign(`${config.stsUrl}/connect/authorize?${query}`);
 }
 
@@ -162,20 +151,53 @@ export async function completeLogin(search = window.location.search) {
   if (idClaims && idClaims.nonce !== flow.nonce) throw new Error('id_token không khớp nonce.');
 
   storeTokenResponse(response, null);
-  setForceLogin(false); // the learner has just proved who they are
   return safeReturnUrl(flow.returnTo);
 }
 
+// The STS only redirects to a post_logout_redirect_uri registered exactly as written (no query string allowed), so the
+// page to come back to travels in the standard `state` parameter, which the STS echoes back.
+const LOGOUT_STATE_PREFIX = 'lb-logout.';
+const logoutStateFor = (returnTo) => LOGOUT_STATE_PREFIX + base64Url(new TextEncoder().encode(safeReturnUrl(returnTo)));
+
 /**
- * Forgets the tokens here and shows the login page, which remembers where the learner was (returnTo) and says they
- * signed out. The STS's own session is replaced by the next sign-in rather than ended (the linguabridge-app client has
- * no post_logout_redirect_uri, so the STS logout page would strand the learner there). Instead a flag shared by all tabs
- * (localStorage) makes every sign-in ask the STS for credentials (prompt=login) until someone has signed in again.
+ * On the login page, turns the STS's answer to a logout (/login.html?state=lb-logout.<returnUrl>) into the address the
+ * page works with (/login.html?returnUrl=<returnUrl>&loggedOut=1). Runs when this module loads, before the page's own
+ * code reads the address.
+ */
+function restoreLogoutLanding() {
+  if (window.location.pathname !== LOGIN_PAGE) return;
+  const state = new URLSearchParams(window.location.search).get('state');
+  if (!state?.startsWith(LOGOUT_STATE_PREFIX)) return;
+  let returnTo = null;
+  try {
+    const bytes = Uint8Array.from(atob(state.slice(LOGOUT_STATE_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+    returnTo = new TextDecoder().decode(bytes);
+  } catch { /* a state we did not make: ignore it */ }
+  window.history.replaceState(null, '', loginPageUrl(returnTo ?? undefined, { loggedOut: returnTo !== null }));
+}
+restoreLogoutLanding();
+
+/**
+ * Single sign-out (OpenID Connect RP-Initiated Logout): forgets the tokens here, then sends the browser to the STS
+ * logout endpoint with the id_token as proof of who is asking. The STS ends its own session and redirects straight to
+ * post_logout_redirect_uri, the login page, which says the learner signed out and remembers where they were (returnTo).
+ * Without an id_token (nothing to prove with) the STS would only show its confirmation page, so go to the login page
+ * directly; that page then asks the STS for credentials again.
  */
 export function logout(returnTo = window.location.pathname + window.location.search) {
+  const idToken = read(TOKENS_KEY)?.idToken;
   clearSession();
-  setForceLogin(true);
-  window.location.assign(loginPageUrl(returnTo, { loggedOut: true }));
+
+  if (!idToken) {
+    window.location.assign(loginPageUrl(returnTo, { loggedOut: true }));
+    return;
+  }
+  const query = new URLSearchParams({
+    id_token_hint: idToken,
+    post_logout_redirect_uri: `${window.location.origin}${LOGIN_PAGE}`,
+    state: logoutStateFor(returnTo),
+  });
+  window.location.assign(`${config.stsUrl}/connect/logout?${query}`);
 }
 
 export function clearSession() {

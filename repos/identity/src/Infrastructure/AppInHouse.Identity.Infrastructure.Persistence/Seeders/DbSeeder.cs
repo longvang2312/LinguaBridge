@@ -23,6 +23,13 @@ public class DbSeeder
     public const string InternalServiceClientId = "internal-service";
     public const string LinguaBridgeAppClientId = "linguabridge-app";
 
+    private static readonly string[] DefaultLinguaBridgeAppPostLogoutRedirectUris =
+    [
+        "http://localhost:3000/login.html",
+        "http://localhost:5173/login.html",
+        "http://localhost:3000/callback",
+    ];
+
     private static readonly string[] DefaultLinguaBridgeAppRedirectUris =
     [
         "http://localhost:3000/callback",
@@ -157,7 +164,10 @@ public class DbSeeder
             await CreateClientIfMissingAsync(BuildLinguaBridgeApiResourceServer(), cancellationToken);
 
             if (_options.LinguaBridgeAppEnabled)
+            {
                 await CreateClientIfMissingAsync(BuildLinguaBridgeApp(), cancellationToken);
+                await EnsureLinguaBridgeAppHasPostLogoutRedirectsAsync(cancellationToken);
+            }
 
             await EnsureInternalServiceMayUseLinguaBridgeAsync(cancellationToken);
         }
@@ -185,6 +195,36 @@ public class DbSeeder
         await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
 
         _logger.LogInformation("Granted client {ClientId} the scope {Scope}.", InternalServiceClientId, LinguaBridgeApiScope);
+    }
+
+    private IEnumerable<string> LinguaBridgeAppPostLogoutRedirectUris() =>
+        _options.LinguaBridgeAppPostLogoutRedirectUris.Count > 0 ? _options.LinguaBridgeAppPostLogoutRedirectUris : DefaultLinguaBridgeAppPostLogoutRedirectUris;
+
+    /// <summary>
+    /// A <c>linguabridge-app</c> seeded before logout addresses existed has none, and without one the STS cannot send the
+    /// browser back after a logout. This adds the configured addresses that are missing, and nothing else: the ones an
+    /// administrator added or removed stay as they are, except that a configured one that was removed comes back.
+    /// </summary>
+    private async Task EnsureLinguaBridgeAppHasPostLogoutRedirectsAsync(CancellationToken cancellationToken)
+    {
+        var application = await _applicationManager.FindByClientIdAsync(LinguaBridgeAppClientId, cancellationToken);
+        if (application is null)
+            return;
+
+        var existing = await _applicationManager.GetPostLogoutRedirectUrisAsync(application, cancellationToken);
+        var missing = LinguaBridgeAppPostLogoutRedirectUris()
+            .Where(uri => !existing.Contains(uri, StringComparer.Ordinal))
+            .ToList();
+        if (missing.Count == 0)
+            return;
+
+        var descriptor = new OpenIddictApplicationDescriptor();
+        await _applicationManager.PopulateAsync(descriptor, application, cancellationToken);
+        foreach (var uri in missing)
+            descriptor.PostLogoutRedirectUris.Add(new Uri(uri));
+        await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
+
+        _logger.LogInformation("Added {Count} post-logout redirect address(es) to client {ClientId}.", missing.Count, LinguaBridgeAppClientId);
     }
 
     private async Task CreateClientIfMissingAsync(OpenIddictApplicationDescriptor descriptor, CancellationToken cancellationToken)
@@ -283,6 +323,8 @@ public class DbSeeder
         IEnumerable<string> redirectUris = _options.LinguaBridgeAppRedirectUris.Count > 0 ? _options.LinguaBridgeAppRedirectUris : DefaultLinguaBridgeAppRedirectUris;
         foreach (var uri in redirectUris)
             descriptor.RedirectUris.Add(new Uri(uri));
+        foreach (var uri in LinguaBridgeAppPostLogoutRedirectUris())
+            descriptor.PostLogoutRedirectUris.Add(new Uri(uri));
 
         return descriptor;
     }

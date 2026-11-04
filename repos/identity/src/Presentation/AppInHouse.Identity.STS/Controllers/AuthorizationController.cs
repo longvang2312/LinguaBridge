@@ -136,16 +136,55 @@ public class AuthorizationController : Controller
         return Ok(claims);
     }
 
+    /// <summary>
+    /// RP-initiated logout. A request that says where to go next (post_logout_redirect_uri, which OpenIddict has checked
+    /// against the registered addresses) and carries an id_token_hint that is genuine AND belongs to the user signed in
+    /// here is signed out at once and redirected, without a confirmation page. Anything else gets the confirmation page.
+    /// OpenIddict silently ignores a hint it cannot validate (garbage, unsigned, expired keys), and any site could hold an
+    /// id_token of its own, so "a hint is present" proves nothing: without the subject check any web page could log any
+    /// visitor out of the STS (logout CSRF) and, with it, out of every application that relies on it.
+    /// </summary>
     [HttpGet("~/connect/logout")]
-    public IActionResult Logout() => View("~/Views/Account/Logout.cshtml");
+    public async Task<IActionResult> Logout()
+    {
+        var request = HttpContext.GetOpenIddictServerRequest();
+        if (!string.IsNullOrEmpty(request?.IdTokenHint)
+            && !string.IsNullOrEmpty(request.PostLogoutRedirectUri)
+            && await HintBelongsToSignedInUserAsync())
+            return await EndSessionAsync();
+
+        return View("~/Views/Account/Logout.cshtml");
+    }
+
+    /// <summary>
+    /// True when the id_token_hint was validated by OpenIddict (signature, issuer, not tampered with) and its subject is
+    /// the user whose Identity cookie this browser holds. With no cookie session there is nothing to end, but nothing to
+    /// protect either, so a validated hint alone is enough to redirect.
+    /// </summary>
+    private async Task<bool> HintBelongsToSignedInUserAsync()
+    {
+        var hint = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var hintSubject = hint.Succeeded ? hint.Principal?.GetClaim(Claims.Subject) : null;
+        if (string.IsNullOrEmpty(hintSubject))
+            return false;
+
+        var session = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        if (!session.Succeeded)
+            return true;
+
+        return string.Equals(_userManager.GetUserId(session.Principal!), hintSubject, StringComparison.Ordinal);
+    }
 
     [HttpPost("~/connect/logout")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> LogoutPost()
+    public Task<IActionResult> LogoutPost() => EndSessionAsync();
+
+    private async Task<IActionResult> EndSessionAsync()
     {
+        // Ends the STS's own session (the Identity cookie): without this the next /connect/authorize signs the user straight back in.
         await _signInManager.SignOutAsync();
 
-        // Lets OpenIddict redirect to the client's post_logout_redirect_uri (when valid) or to "/".
+        // Lets OpenIddict redirect to the client's post_logout_redirect_uri (when valid, with its state) or to "/".
         return SignOut(
             authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
             properties: new AuthenticationProperties { RedirectUri = "/" });

@@ -39,6 +39,9 @@ public class DbSeederOptions
     /// <summary>Redirect addresses of <c>linguabridge-app</c>. When empty the local development ones are used (ports 3000 and 5173).</summary>
     public List<string> LinguaBridgeAppRedirectUris { get; set; } = new();
 
+    /// <summary>Where <c>linguabridge-app</c> may send the browser after a logout. When empty the local development pages are used.</summary>
+    public List<string> LinguaBridgeAppPostLogoutRedirectUris { get; set; } = new();
+
     public List<string> AdminPortalRedirectUris { get; set; } = new();
     public List<string> AdminPortalPostLogoutRedirectUris { get; set; } = new();
 }
