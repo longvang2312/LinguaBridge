@@ -7,6 +7,7 @@ Web client for learners: HTML5, CSS3, Bootstrap 5.3 (CDN) and vanilla JavaScript
 | `index.html` | Signed out: hero and a sign-in button. Signed in: dashboard (learner from `/api/v1/me`, cards due today, plan, progress bar, course list). |
 | `courses.html` | Published courses per language (English / Chinese) with title, level, description, code; a modal lists a course's lessons and your progress. |
 | `flashcards.html` | SRS review: 3D flip card, four rating buttons (keyboard: `Space` flips, `1`-`4` rate). |
+| `login.html` | Dedicated sign-in page: remembers where the learner was, shows "signed out" after a logout. |
 | `callback.html` | OIDC redirect target: exchanges the code for tokens. Served at `/callback`. |
 
 ## Run
@@ -26,8 +27,9 @@ Open the site at **http://localhost:3000** exactly, not `127.0.0.1`: the STS onl
 1. `login()` creates a random `code_verifier`, derives `code_challenge = BASE64URL(SHA-256(verifier))` with `crypto.subtle`, plus `state` and `nonce`, keeps them in `sessionStorage`, and redirects to `{STS}/connect/authorize` (client `linguabridge-app`, scope `openid profile email offline_access linguabridge_api`).
 2. After the STS login page it returns to `/callback`. `completeLogin()` checks `state`, exchanges the code (with the verifier) at the token endpoint, checks the id_token `nonce`, and stores access, id and refresh tokens in `sessionStorage` (gone when the tab closes).
 3. `assets/js/api.js` adds `Authorization: Bearer <token>` to every call. A token about to expire is refreshed first; a 401 triggers one refresh and one retry, then a new sign-in (silent when the STS session is still alive).
-4. Logout clears the tokens and opens the STS logout page (`/connect/logout?id_token_hint=...`). The STS asks for confirmation there; its session (and so a silent next sign-in without a password) ends only after the learner presses "Sign out".
-5. Loop guard: after a 401 the app signs in again at most once per minute. If the API still refuses the fresh token (for example API and STS configured with different addresses or secrets), the page shows an error instead of redirecting forever. Any successful API call resets the guard.
+4. Every sign-in button leads to `login.html?returnUrl=<current page>`; its button starts the flow with that address, and `/callback` sends the learner back to it. The address is checked (`safeReturnUrl`): only paths on this site are accepted, anything else (another origin, `//host`, the login/callback pages) falls back to the home page.
+5. Logout clears the tokens, sets a flag in `localStorage` (shared by every tab) and goes to `login.html?returnUrl=<current page>&loggedOut=1`, which says the learner signed out; signing in again returns to the page they left. The STS session is not ended (the client has no `post_logout_redirect_uri`), so while the flag is set EVERY sign-in (any tab, any button) adds `prompt=login` and the STS asks for the password again; a successful sign-in clears the flag.
+6. Loop guard: after a 401 the app signs in again at most once per minute. If the API still refuses the fresh token (for example API and STS configured with different addresses or secrets), the page shows an error instead of redirecting forever. Any successful API call resets the guard.
 
 The STS address in `assets/js/config.js` must be `http://host.docker.internal:5001`: the API only accepts tokens issued through the address it was configured with.
 

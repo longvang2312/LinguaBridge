@@ -124,6 +124,9 @@ Lỗi thật tìm ra nhờ kiểm thử: proxy ban đầu biến 401 của API t
 - **Minor (đã sửa)**: README và comment trong `auth.js` nay mô tả đúng việc đăng xuất: STS hiện trang xác nhận, phiên STS chỉ kết thúc khi bấm "Sign out" ở đó. Dashboard hiện số thẻ đến hạn chính xác (không còn "100+"), với tooltip nói mỗi lượt hiển thị tối đa 100 thẻ.
 - Không đổi: các quyết định ngoài whitelist (CORS, post_logout_redirect_uri, SRI, refresh token trong `sessionStorage`, test tự động cho web) chờ Tech Lead. Đã dọn web server và stack Docker.
 
+### e. (Đã được thay thế bởi TASK-023)
+Mục này từng mô tả một thay đổi đăng xuất làm theo yêu cầu của người dùng sau TASK-022 (đăng xuất → thẳng trang đăng nhập STS với `prompt=login`, chưa qua review). Hành vi đó **không còn đúng**: luồng đăng xuất hiện do [TASK-023](TASK-023-login-page-and-return-url.md) quy định (trang `login.html`, ghi nhớ return URL, cờ buộc nhập lại mật khẩu).
+
 ---
 
 ## 6. Kết Quả Code Review (Claude Code — Reviewer)

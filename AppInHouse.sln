@@ -55,6 +55,29 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LinguaBridge.IntegrationTes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LinguaBridge.UnitTests", "repos\linguabridge\tests\LinguaBridge.UnitTests\LinguaBridge.UnitTests.csproj", "{80E23898-84BA-4927-9793-CC66EBA14104}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LinguaBridge.Web", "LinguaBridge.Web", "{1C00512B-9F2D-42FD-B460-1932F68BAF69}"
+	ProjectSection(SolutionItems) = preProject
+		repos\linguabridge-web\index.html = repos\linguabridge-web\index.html
+		repos\linguabridge-web\courses.html = repos\linguabridge-web\courses.html
+		repos\linguabridge-web\flashcards.html = repos\linguabridge-web\flashcards.html
+		repos\linguabridge-web\callback.html = repos\linguabridge-web\callback.html
+		repos\linguabridge-web\README.md = repos\linguabridge-web\README.md
+		scripts\start-web.ps1 = scripts\start-web.ps1
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "css", "css", "{A8A530FD-4AF9-4FDD-8B9A-D33D55A259B8}"
+	ProjectSection(SolutionItems) = preProject
+		repos\linguabridge-web\assets\css\style.css = repos\linguabridge-web\assets\css\style.css
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "js", "js", "{439618A1-7E91-4B4B-B3E2-B963F9D95245}"
+	ProjectSection(SolutionItems) = preProject
+		repos\linguabridge-web\assets\js\config.js = repos\linguabridge-web\assets\js\config.js
+		repos\linguabridge-web\assets\js\auth.js = repos\linguabridge-web\assets\js\auth.js
+		repos\linguabridge-web\assets\js\api.js = repos\linguabridge-web\assets\js\api.js
+		repos\linguabridge-web\assets\js\app.js = repos\linguabridge-web\assets\js\app.js
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -382,5 +405,8 @@ Global
 		{30DF6D3A-E720-4C38-AD01-145B6A334A5B} = {B7E04821-7BFC-B8D5-3CA7-757341022F43}
 		{EB70A43E-0392-453B-A931-F083B1065FD4} = {B7E04821-7BFC-B8D5-3CA7-757341022F43}
 		{80E23898-84BA-4927-9793-CC66EBA14104} = {B7E04821-7BFC-B8D5-3CA7-757341022F43}
+		{1C00512B-9F2D-42FD-B460-1932F68BAF69} = {B7E04821-7BFC-B8D5-3CA7-757341022F43}
+		{A8A530FD-4AF9-4FDD-8B9A-D33D55A259B8} = {1C00512B-9F2D-42FD-B460-1932F68BAF69}
+		{439618A1-7E91-4B4B-B3E2-B963F9D95245} = {1C00512B-9F2D-42FD-B460-1932F68BAF69}
 	EndGlobalSection
 EndGlobal

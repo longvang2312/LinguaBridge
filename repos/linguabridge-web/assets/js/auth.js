@@ -5,6 +5,8 @@ import { config } from './config.js';
 
 const TOKENS_KEY = 'lb.tokens';
 const FLOW_KEY = 'lb.flow';
+// Set by logout in localStorage (shared by every tab) until the next successful sign-in; see forceLoginPending().
+const FORCE_LOGIN_KEY = 'lb.forceLogin';
 const EXPIRY_MARGIN_SECONDS = 30;
 
 // ---- Small helpers -------------------------------------------------------------------------------------------------
@@ -79,10 +81,45 @@ async function requestToken(parameters) {
 
 // ---- Sign in / out -------------------------------------------------------------------------------------------------
 
-/** Sends the browser to the STS login page. After signing in the STS returns to /callback. */
-export async function login(returnTo = window.location.pathname + window.location.search) {
+const forceLoginPending = () => {
+  try { return localStorage.getItem(FORCE_LOGIN_KEY) === '1'; } catch { return false; }
+};
+const setForceLogin = (on) => {
+  try { if (on) localStorage.setItem(FORCE_LOGIN_KEY, '1'); else localStorage.removeItem(FORCE_LOGIN_KEY); } catch { /* no storage: only the login page's own button can force it */ }
+};
+
+export const LOGIN_PAGE = '/login.html';
+const HOME_PAGE = '/index.html';
+
+/**
+ * A return address is only ever a path on this site. Anything else (another origin, "//host", "/\host", a scheme) would
+ * make the login page an open redirect, and the login and callback pages themselves would loop, so both fall back to home.
+ */
+export function safeReturnUrl(value, fallback = HOME_PAGE) {
+  if (typeof value !== 'string' || value === '') return fallback;
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.origin !== window.location.origin) return fallback;
+    if (url.pathname === LOGIN_PAGE || url.pathname === '/callback' || url.pathname === '/callback.html') return fallback;
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return fallback;
+  }
+}
+
+/** The address of the login page that brings the learner back to returnTo afterwards. */
+export const loginPageUrl = (returnTo = window.location.pathname + window.location.search, { loggedOut = false } = {}) =>
+  `${LOGIN_PAGE}?returnUrl=${encodeURIComponent(safeReturnUrl(returnTo))}${loggedOut ? '&loggedOut=1' : ''}`;
+
+/**
+ * Sends the browser to the STS login page. After signing in the STS returns to /callback, which sends the learner on to
+ * returnTo. The STS must ask for credentials even if its own session is still alive (prompt=login) when forceLogin is
+ * set or when the learner signed out and has not signed in since: the STS session outlives our tokens, so without this
+ * anyone (another tab, the next person at the machine) would get back into the account with no password.
+ */
+export async function login(returnTo = window.location.pathname + window.location.search, { forceLogin = false } = {}) {
   const verifier = randomString(48);
-  const flow = { verifier, state: randomString(16), nonce: randomString(16), returnTo };
+  const flow = { verifier, state: randomString(16), nonce: randomString(16), returnTo: safeReturnUrl(returnTo) };
   write(FLOW_KEY, flow);
 
   const query = new URLSearchParams({
@@ -95,6 +132,7 @@ export async function login(returnTo = window.location.pathname + window.locatio
     code_challenge: await codeChallengeFor(verifier),
     code_challenge_method: 'S256',
   });
+  if (forceLogin || forceLoginPending()) query.set('prompt', 'login');
   window.location.assign(`${config.stsUrl}/connect/authorize?${query}`);
 }
 
@@ -124,18 +162,20 @@ export async function completeLogin(search = window.location.search) {
   if (idClaims && idClaims.nonce !== flow.nonce) throw new Error('id_token không khớp nonce.');
 
   storeTokenResponse(response, null);
-  return flow.returnTo || '/index.html';
+  setForceLogin(false); // the learner has just proved who they are
+  return safeReturnUrl(flow.returnTo);
 }
 
 /**
- * Forgets the tokens here, then opens the STS logout page. The STS asks for confirmation there: the STS session (and so
- * a silent next sign-in) only ends once the learner presses "Sign out" on that page.
+ * Forgets the tokens here and shows the login page, which remembers where the learner was (returnTo) and says they
+ * signed out. The STS's own session is replaced by the next sign-in rather than ended (the linguabridge-app client has
+ * no post_logout_redirect_uri, so the STS logout page would strand the learner there). Instead a flag shared by all tabs
+ * (localStorage) makes every sign-in ask the STS for credentials (prompt=login) until someone has signed in again.
  */
-export function logout() {
-  const idToken = read(TOKENS_KEY)?.idToken;
+export function logout(returnTo = window.location.pathname + window.location.search) {
   clearSession();
-  const query = idToken ? `?id_token_hint=${encodeURIComponent(idToken)}` : '';
-  window.location.assign(`${config.stsUrl}/connect/logout${query}`);
+  setForceLogin(true);
+  window.location.assign(loginPageUrl(returnTo, { loggedOut: true }));
 }
 
 export function clearSession() {

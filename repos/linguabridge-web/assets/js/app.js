@@ -1,7 +1,7 @@
 // Screen logic. Every page loads this module and names itself with <body data-page="...">.
 
 import { config } from './config.js';
-import { completeLogin, currentUser, isSignedIn, login, logout } from './auth.js';
+import { completeLogin, currentUser, isSignedIn, login, loginPageUrl, logout, safeReturnUrl } from './auth.js';
 import { api, ApiError, AuthLoopError } from './api.js';
 
 // ---- Helpers -------------------------------------------------------------------------------------------------------
@@ -61,7 +61,7 @@ function renderNavbar(page) {
               <option value="vi">Tiếng Việt</option>
               <option value="en">English</option>
             </select>
-            ${user
+            ${page === 'login' ? '' : user
               ? `<span class="navbar-text text-white-50 small" id="user-label"><i class="bi bi-person-circle me-1"></i>${esc(user.email ?? user.name)}</span>
                  <button class="btn btn-outline-light btn-sm" id="logout-button"><i class="bi bi-box-arrow-right me-1"></i>Đăng xuất</button>`
               : `<button class="btn btn-warning btn-sm" id="login-button"><i class="bi bi-box-arrow-in-right me-1"></i>Đăng nhập</button>`}
@@ -76,8 +76,8 @@ function renderNavbar(page) {
     try { localStorage.setItem(LANGUAGE_KEY, select.value); } catch { /* the choice just is not remembered */ }
     window.location.reload();
   });
-  $('#login-button')?.addEventListener('click', () => login());
-  $('#logout-button')?.addEventListener('click', () => logout());
+  $('#login-button')?.addEventListener('click', () => window.location.assign(loginPageUrl()));
+  $('#logout-button')?.addEventListener('click', () => logout(window.location.pathname + window.location.search));
 }
 
 // ---- Home / dashboard ----------------------------------------------------------------------------------------------
@@ -92,7 +92,7 @@ async function initHome() {
   const dashboard = $('#dashboard');
   if (!isSignedIn()) {
     hero.classList.remove('d-none');
-    $('#hero-login').addEventListener('click', () => login('/index.html'));
+    $('#hero-login').addEventListener('click', () => window.location.assign(loginPageUrl('/index.html')));
     return;
   }
   dashboard.classList.remove('d-none');
@@ -355,7 +355,7 @@ async function initFlashcards() {
 async function initCallback() {
   try {
     const returnTo = await completeLogin();
-    window.location.replace(returnTo.startsWith('/') ? returnTo : '/index.html');
+    window.location.replace(safeReturnUrl(returnTo));
   } catch (e) {
     $('#callback-status').innerHTML = `${alertHtml(e.message)}<a class="btn btn-primary" href="/index.html">Về trang chủ</a>`;
   }
@@ -371,10 +371,33 @@ function showSignInPrompt(selector) {
       <p class="text-secondary">Đăng nhập bằng tài khoản AppInHouse để xem nội dung này.</p>
       <button class="btn btn-primary" id="prompt-login"><i class="bi bi-box-arrow-in-right me-1"></i>Đăng nhập ngay</button>
     </div>`;
-  $('#prompt-login').addEventListener('click', () => login());
+  $('#prompt-login').addEventListener('click', () => window.location.assign(loginPageUrl()));
 }
 
-const pages = { home: initHome, courses: initCourses, flashcards: initFlashcards, callback: initCallback };
+function initLogin() {
+  const params = new URLSearchParams(window.location.search);
+  const returnUrl = safeReturnUrl(params.get('returnUrl'));
+  const loggedOut = params.get('loggedOut') === '1';
+
+  // Already signed in (for example the learner opened this page by hand): nothing to ask, go where they were headed.
+  if (isSignedIn() && !loggedOut) {
+    window.location.replace(returnUrl);
+    return;
+  }
+
+  if (loggedOut) {
+    $('#logout-alert').innerHTML = `
+      <div class="alert alert-success d-flex align-items-center gap-2 mb-3" role="alert">
+        <i class="bi bi-check-circle-fill"></i>
+        <div>Bạn đã đăng xuất thành công. Vui lòng đăng nhập lại để tiếp tục học tập.</div>
+      </div>`;
+  }
+
+  // After a logout the STS session may still be alive, so make it ask for the password again.
+  $('#btn-login-oidc').addEventListener('click', () => login(returnUrl, { forceLogin: loggedOut }));
+}
+
+const pages = { home: initHome, courses: initCourses, flashcards: initFlashcards, callback: initCallback, login: initLogin };
 const page = document.body.dataset.page;
 if (page !== 'callback') renderNavbar(page);
 pages[page]?.();
