@@ -235,6 +235,7 @@ async function openLessons(course) {
             </div>
             <span class="badge text-bg-light border">${esc(t(`lessonType.${lesson.lessonType}`))}</span>
             <span class="badge text-bg-warning"><i class="bi bi-lightning-charge-fill"></i> ${esc(t('common.xp', { n: lesson.xpReward }))}</span>
+            <a class="btn btn-sm btn-primary" data-start-lesson href="/lesson.html?lessonId=${encodeURIComponent(lesson.id)}&courseId=${encodeURIComponent(course.id)}"><i class="bi bi-play-fill"></i> ${esc(t('lesson.start'))}</a>
           </li>`).join('')}</ol>`);
   } catch (error) {
     body.innerHTML = alertHtml(describeError(error));
@@ -351,6 +352,326 @@ async function initFlashcards() {
   await load();
 }
 
+
+// ---- Lesson player -------------------------------------------------------------------------------------------------
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function initLesson() {
+  const params = new URLSearchParams(window.location.search);
+  const lessonId = params.get('lessonId');
+  const courseId = GUID.test(params.get('courseId') ?? '') ? params.get('courseId') : null;
+
+  // Not signed in: sign in first and come back to this very lesson (the address keeps its query string).
+  if (!isSignedIn()) {
+    window.location.replace(loginPageUrl());
+    return;
+  }
+
+  const loading = $('#quiz-loading');
+  const errorBox = $('#quiz-error');
+  const questionBox = $('#quiz-question');
+  const completeBox = $('#quiz-complete');
+  const answerBar = $('#answer-bar');
+  const feedback = $('#feedback');
+  const checkButton = $('#check-button');
+
+  const showFatal = (message, { retry = false } = {}) => {
+    loading.classList.add('d-none');
+    questionBox.classList.add('d-none');
+    answerBar.classList.add('d-none');
+    errorBox.innerHTML = `${alertHtml(message)}<div class="d-flex gap-2">
+      ${retry ? `<button class="btn btn-primary" id="quiz-retry">${esc(t('quiz.retry'))}</button>` : ''}
+      <a class="btn btn-outline-secondary" href="${esc(backToLessonsUrl())}">${esc(t('quiz.done.toLessons'))}</a></div>`;
+    $('#quiz-retry')?.addEventListener('click', () => window.location.reload());
+  };
+
+  // Where "back" goes: the lessons modal of this course, on the tab of its language when it is known.
+  let courseLanguage = null;
+  const backToLessonsUrl = () => (courseId
+    ? `/courses.html?course=${encodeURIComponent(courseId)}${courseLanguage ? `&lang=${courseLanguage}` : ''}`
+    : '/courses.html');
+
+  if (!GUID.test(lessonId ?? '')) {
+    showFatal(t('quiz.invalid'));
+    return;
+  }
+
+  const state = { quiz: null, attemptId: null, index: 0, selectedOptionId: null, phase: 'answering', busy: false, shownAt: 0, finished: false };
+
+  // ---- Leaving -------------------------------------------------------------------------------------------------------
+  const leave = () => { window.location.assign(backToLessonsUrl()); };
+  $('#exit-button').addEventListener('click', () => {
+    if (state.finished || !state.quiz) { leave(); return; }   // nothing to lose yet
+    bootstrap.Modal.getOrCreateInstance($('#exit-modal')).show();
+  });
+  $('#exit-confirm').addEventListener('click', leave);
+
+  // ---- Loading ----------------------------------------------------------------------------------------------------------
+  try {
+    // The quiz first: it answers "not found" before an attempt is created for a lesson that cannot be played.
+    const quiz = await api.quiz(lessonId, baseLanguage());
+    state.quiz = { ...quiz, questions: [...quiz.questions].sort((a, b) => a.orderIndex - b.orderIndex) };
+    const attempt = await api.startAttempt(lessonId);
+    state.attemptId = attempt.attemptId;
+  } catch (error) {
+    showFatal(error instanceof ApiError && error.status === 404 ? t('quiz.notFound') : describeError(error), { retry: !(error instanceof ApiError && error.status === 404) });
+    return;
+  }
+
+  // Optional extras for the top bar and the way back; the lesson works without them.
+  if (courseId) {
+    api.course(courseId, baseLanguage()).then((detail) => { courseLanguage = detail?.course?.targetLanguage ?? null; }).catch(() => {});
+  }
+
+  loading.classList.add('d-none');
+  $('#quiz-xp').textContent = t('quiz.xpMax', { n: state.quiz.xpReward });
+  answerBar.classList.remove('d-none');
+
+  if (state.quiz.questions.length === 0) {
+    questionBox.innerHTML = `<div class="quiz-card text-center text-secondary">${esc(t('quiz.noQuestions'))}</div>`;
+    questionBox.classList.remove('d-none');
+    await finishLesson();
+    return;
+  }
+  showQuestion();
+
+  // ---- One question ------------------------------------------------------------------------------------------------------
+  function currentQuestion() { return state.quiz.questions[state.index]; }
+  function isChoice(q) { return Array.isArray(q.options) && q.options.length > 0; }
+
+  function updateProgress() {
+    const total = state.quiz.questions.length;
+    $('#quiz-position').textContent = t('quiz.position', { n: Math.min(state.index + 1, total), total });
+    const percent = Math.round((state.index * 100) / total);
+    $('#quiz-bar').style.width = `${percent}%`;
+    $('.quiz-progress').setAttribute('aria-valuenow', String(percent));
+  }
+
+  function setCheckState({ label, enabled, kind = 'primary' }) {
+    checkButton.textContent = label;
+    checkButton.disabled = !enabled;
+    checkButton.className = `btn btn-${kind} btn-lg w-100 fw-semibold`;
+  }
+
+  function showQuestion() {
+    const q = currentQuestion();
+    state.phase = 'answering';
+    state.selectedOptionId = null;
+    state.shownAt = Date.now();
+    feedback.classList.add('d-none');
+    feedback.innerHTML = '';
+    answerBar.classList.remove('is-correct', 'is-wrong');
+    updateProgress();
+
+    const typeLabel = t(`quiz.type.${q.questionType}`);
+    let body;
+    if (isChoice(q)) {
+      // The question is the target text; its translation (when there is one) is a hint under it.
+      body = `
+        <div class="quiz-type mb-2">${esc(typeLabel)}</div>
+        <div class="quiz-target">${esc(q.targetText ?? q.promptTranslation ?? '')}</div>
+        ${q.pinyinOrIpa ? `<div class="quiz-ipa mt-1">${esc(q.pinyinOrIpa)}</div>` : ''}
+        ${q.promptTranslation && q.targetText ? `<div class="text-secondary mt-2">${esc(t('quiz.hint', { text: q.promptTranslation }))}</div>` : ''}
+        <div class="d-grid gap-2 mt-4" id="quiz-options" role="group" aria-label="${esc(typeLabel)}">
+          ${q.options.slice().sort((a, b) => a.orderIndex - b.orderIndex).map((option, i) => `
+            <button type="button" class="quiz-option" data-option-id="${esc(option.id)}">
+              <span class="quiz-key">${i + 1}</span>
+              <span>${esc(option.text)}${option.pinyinOrIpa ? ` <span class="text-secondary small">${esc(option.pinyinOrIpa)}</span>` : ''}</span>
+            </button>`).join('')}
+        </div>
+        <div class="small text-secondary mt-3">${esc(t('quiz.optionHint', { n: q.options.length }))}</div>`;
+    } else {
+      // Typed answers: the target text is the answer, so the only thing shown is what to say, in the learner's language.
+      body = `
+        <div class="quiz-type mb-2">${esc(typeLabel)}</div>
+        <div class="quiz-prompt">${esc(q.promptTranslation ?? q.targetText ?? '')}</div>
+        <label class="visually-hidden" for="answer-input">${esc(t('quiz.inputLabel'))}</label>
+        <input id="answer-input" class="form-control quiz-input mt-4" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="${esc(t('quiz.inputPlaceholder'))}" maxlength="500">`;
+    }
+
+    questionBox.innerHTML = `<div class="quiz-card">${body}</div>`;
+    questionBox.classList.remove('d-none');
+    setCheckState({ label: t('quiz.check'), enabled: false });
+
+    if (isChoice(q)) {
+      questionBox.querySelectorAll('[data-option-id]').forEach((button) => button.addEventListener('click', () => selectOption(button.dataset.optionId)));
+    } else {
+      const input = $('#answer-input');
+      input.addEventListener('input', () => { if (state.phase === 'answering') checkButton.disabled = input.value.trim() === ''; });
+      input.focus();
+    }
+  }
+
+  function selectOption(optionId) {
+    if (state.phase !== 'answering' || state.busy) return;
+    state.selectedOptionId = optionId;
+    questionBox.querySelectorAll('[data-option-id]').forEach((button) => button.classList.toggle('is-selected', button.dataset.optionId === optionId));
+    checkButton.disabled = false;
+  }
+
+  async function checkAnswer() {
+    if (state.phase !== 'answering' || state.busy) return;
+    const q = currentQuestion();
+    const answer = { questionId: q.id, timeSpentMs: Math.max(0, Date.now() - state.shownAt) };
+    if (isChoice(q)) {
+      if (!state.selectedOptionId) return;
+      answer.selectedOptionId = state.selectedOptionId;
+    } else {
+      const text = $('#answer-input').value.trim();
+      if (text === '') return;
+      answer.userInputText = text;
+    }
+
+    state.busy = true;
+    setCheckState({ label: t('quiz.checking'), enabled: false });
+    try {
+      const result = await api.submitResponse(state.attemptId, answer, baseLanguage());
+      showResult(q, result);
+    } catch (error) {
+      state.busy = false;
+      setCheckState({ label: t('quiz.check'), enabled: true });
+      let message = describeError(error);
+      if (error instanceof ApiError && error.code === 'response.already_answered') message = t('error.answered');
+      if (error instanceof ApiError && error.code === 'attempt.already_completed') message = t('error.attemptClosed');
+      feedback.innerHTML = alertHtml(message);
+      feedback.classList.remove('d-none');
+      return;
+    }
+    state.busy = false;
+  }
+
+  function showResult(q, result) {
+    state.phase = 'feedback';
+    const correct = result.isCorrect === true;
+
+    // Colour the options (or the input) so the learner sees what was right.
+    if (isChoice(q)) {
+      questionBox.querySelectorAll('[data-option-id]').forEach((button) => {
+        button.disabled = true;
+        const id = button.dataset.optionId;
+        button.classList.remove('is-selected');
+        if (correct && id === state.selectedOptionId) button.classList.add('is-correct');
+        if (!correct && id === state.selectedOptionId) button.classList.add('is-wrong');
+        if (!correct && id === result.correctOptionId) button.classList.add('is-correct');
+      });
+    } else {
+      const input = $('#answer-input');
+      input.readOnly = true;
+      input.classList.add(correct ? 'is-correct' : 'is-wrong');
+    }
+
+    const praise = t(`quiz.correct.${(state.index % 3) + 1}`);
+    const details = [];
+    if (!correct && result.correctAnswer) {
+      details.push(`<div><span class="fw-semibold">${esc(t('quiz.correctAnswer'))}:</span> <span class="fs-5">${esc(result.correctAnswer)}</span></div>`);
+    }
+    if (!correct && result.explanation) {
+      details.push(`<div class="mt-1"><span class="fw-semibold">${esc(t('quiz.explanation'))}:</span> ${esc(result.explanation)}</div>`);
+    }
+    if (!correct && result.grammarNotes) {
+      details.push(`<div class="mt-1"><span class="fw-semibold">${esc(t('quiz.grammar'))}:</span> ${esc(result.grammarNotes)}</div>`);
+    }
+
+    answerBar.classList.toggle('is-correct', correct);
+    answerBar.classList.toggle('is-wrong', !correct);
+    feedback.innerHTML = `
+      <div class="d-flex align-items-start gap-3">
+        <i class="bi ${correct ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} feedback-icon"></i>
+        <div>
+          <div class="h5 mb-1 feedback-title">${esc(correct ? praise : t('quiz.wrong'))}</div>
+          ${details.join('')}
+        </div>
+      </div>`;
+    feedback.classList.remove('d-none');
+
+    const last = state.index >= state.quiz.questions.length - 1;
+    setCheckState({ label: last ? t('quiz.finish') : t('quiz.continue'), enabled: true, kind: correct ? 'success' : 'danger' });
+    checkButton.focus();
+  }
+
+  async function next() {
+    if (state.phase !== 'feedback' || state.busy) return;
+    if (state.index >= state.quiz.questions.length - 1) {
+      state.index += 1;
+      updateProgress();
+      await finishLesson();
+      return;
+    }
+    state.index += 1;
+    showQuestion();
+  }
+
+  async function finishLesson() {
+    state.busy = true;
+    state.phase = 'done';
+    setCheckState({ label: t('quiz.checking'), enabled: false });
+    let result;
+    try {
+      result = await api.completeAttempt(state.attemptId);
+    } catch (error) {
+      state.busy = false;
+      state.phase = 'feedback';
+      setCheckState({ label: t('quiz.finish'), enabled: true, kind: 'primary' });
+      feedback.innerHTML = alertHtml(describeError(error));
+      feedback.classList.remove('d-none');
+      return;
+    }
+    state.busy = false;
+    state.finished = true;
+    $('#quiz-bar').style.width = '100%';
+    renderComplete(result);
+  }
+
+  function renderComplete(result) {
+    questionBox.classList.add('d-none');
+    answerBar.classList.add('d-none');
+    answerBar.classList.remove('is-correct', 'is-wrong');
+    const great = result.scorePercentage >= 80;
+    const progress = result.progress;
+    completeBox.innerHTML = `
+      <div class="trophy">${great ? '🏆' : result.scorePercentage >= 50 ? '⭐' : '💪'}</div>
+      <h1 class="h2 mt-3">${esc(t(great ? 'quiz.done.titleGreat' : result.scorePercentage >= 50 ? 'quiz.done.title' : 'quiz.done.titleKeepGoing'))}</h1>
+      <div class="row g-3 my-3 justify-content-center">
+        <div class="col-4"><div class="quiz-stat"><div class="value text-primary">${esc(result.scorePercentage)}%</div><div class="small text-secondary">${esc(t('quiz.done.score'))}</div></div></div>
+        <div class="col-4"><div class="quiz-stat"><div class="value text-success">${esc(result.correctCount)}/${esc(result.totalQuestions)}</div><div class="small text-secondary">${esc(t('quiz.done.correct'))}</div></div></div>
+        <div class="col-4"><div class="quiz-stat"><div class="value text-warning-emphasis"><i class="bi bi-lightning-charge-fill text-warning"></i>${esc(result.xpEarned)}</div><div class="small text-secondary">${esc(t('quiz.done.xp'))}</div></div></div>
+      </div>
+      ${result.isFirstCompletion ? '' : `<p class="text-secondary">${esc(t('quiz.done.noXp'))}</p>`}
+      ${progress ? `<p class="text-secondary mb-1">${esc(t('quiz.done.progress', { done: progress.completedLessonsCount, total: progress.totalLessonsCount }))}${progress.isCompleted ? ` <i class="bi bi-patch-check-fill text-success"></i><br><strong>${esc(t('quiz.done.courseDone'))}</strong>` : ''}</p>` : ''}
+      <div class="d-grid gap-2 col-md-8 mx-auto mt-4">
+        <a class="btn btn-primary btn-lg" id="done-lessons" href="${esc(backToLessonsUrl())}"><i class="bi bi-list-ul me-1"></i>${esc(t('quiz.done.toLessons'))}</a>
+        <a class="btn btn-outline-primary btn-lg" id="done-flashcards" href="/flashcards.html"><i class="bi bi-layers me-1"></i>${esc(t('quiz.done.toFlashcards'))}</a>
+        <a class="btn btn-link" id="done-again" href="${esc(window.location.pathname + window.location.search)}">${esc(t('quiz.done.again'))}</a>
+      </div>`;
+    completeBox.classList.remove('d-none');
+    $('#exit-button').setAttribute('aria-label', t('quiz.done.toLessons'));
+  }
+
+  // ---- Wiring --------------------------------------------------------------------------------------------------------------
+  checkButton.addEventListener('click', () => { if (state.phase === 'feedback') next(); else checkAnswer(); });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.isComposing || event.defaultPrevented || state.finished || !state.quiz) return;   // isComposing: Enter confirms a Chinese IME candidate
+    if (document.querySelector('.modal.show')) return;
+
+    const typing = event.target instanceof HTMLInputElement;
+    if (event.key === 'Enter') {
+      // A focused button already turns Enter into a click; handling it here too would count it twice.
+      if (event.target instanceof HTMLButtonElement || event.target instanceof HTMLAnchorElement) return;
+      event.preventDefault();
+      if (state.phase === 'feedback') next(); else checkAnswer();
+      return;
+    }
+    if (!typing && state.phase === 'answering' && /^[1-9]$/.test(event.key)) {
+      const q = currentQuestion();
+      const option = isChoice(q) ? q.options.slice().sort((a, b) => a.orderIndex - b.orderIndex)[Number(event.key) - 1] : null;
+      if (option) { event.preventDefault(); selectOption(option.id); }
+    }
+  });
+}
+
 // ---- OIDC callback -------------------------------------------------------------------------------------------------
 
 async function initCallback() {
@@ -402,7 +723,7 @@ function initLogin() {
 
 // Static text first (it may sit inside areas the page code then fills in), then the page.
 applyTranslations();
-const pages = { home: initHome, courses: initCourses, flashcards: initFlashcards, callback: initCallback, login: initLogin };
+const pages = { home: initHome, courses: initCourses, flashcards: initFlashcards, lesson: initLesson, callback: initCallback, login: initLogin };
 const page = document.body.dataset.page;
-if (page !== 'callback') renderNavbar(page);
+if (page !== 'callback' && page !== 'lesson') renderNavbar(page);
 pages[page]?.();

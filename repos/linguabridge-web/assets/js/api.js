@@ -87,8 +87,16 @@ export const api = {
   entitlement: () => apiFetch('/api/v1/billing/entitlement'),
   courses: (targetLanguage, baseLanguage) => apiFetch(`/api/content/courses${query({ targetLanguage, baseLanguage })}`),
   lessons: (courseId, baseLanguage) => apiFetch(`/api/content/courses/${courseId}/lessons${query({ baseLanguage })}`),
+  course: (courseId, baseLanguage) => apiFetch(`/api/content/courses/${courseId}${query({ baseLanguage })}`),
   progress: (courseId) => apiFetch(`/api/v1/learning/progress/${courseId}`),
   dueCards: ({ baseLanguage, targetLanguage, limit } = {}) => apiFetch(`/api/v1/learning/srs/due${query({ baseLanguage, targetLanguage, limit })}`),
+  // Lesson player: the learner's quiz, then an attempt that collects one graded answer per question and is completed once.
+  quiz: (lessonId, baseLanguage) => apiFetch(`/api/v1/learning/lessons/${lessonId}/quiz${query({ baseLanguage })}`),
+  startAttempt: (lessonId) => apiFetch('/api/v1/learning/attempts', { method: 'POST', body: { lessonId } }),
+  // answer: { questionId, selectedOptionId } for multiple choice, { questionId, userInputText } for typed answers; plus timeSpentMs.
+  submitResponse: (attemptId, answer, baseLanguage) =>
+    apiFetch(`/api/v1/learning/attempts/${attemptId}/responses${query({ baseLanguage })}`, { method: 'POST', body: answer }),
+  completeAttempt: (attemptId) => apiFetch(`/api/v1/learning/attempts/${attemptId}/complete`, { method: 'PUT' }),
   // rating: 1 Again, 2 Hard, 3 Good, 4 Easy
   reviewCard: (cardId, rating) => apiFetch('/api/v1/learning/srs/review', { method: 'POST', body: { cardId, rating } }),
 };
