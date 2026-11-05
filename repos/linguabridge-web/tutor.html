@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="title.tutor">Gia sư AI - LinguaBridge</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ctext y=%2712.5%27 font-size=%2713%27%3E%F0%9F%8C%90%3C/text%3E%3C/svg%3E">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="/assets/css/style.css" rel="stylesheet">
+</head>
+<body data-page="tutor">
+  <div id="navbar"></div>
+
+  <main class="container py-4" id="content">
+    <!-- The page fills #content: the sign-in prompt, the scenario picker or the chat room. -->
+    <div id="tutor-setup" class="d-none">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+          <h1 class="h3 mb-1"><i class="bi bi-robot me-2 text-primary"></i><span data-i18n="tutor.title">Gia sư AI</span></h1>
+          <p class="text-secondary mb-0" data-i18n="tutor.subtitle">Luyện giao tiếp với gia sư AI theo tình huống thực tế; mỗi câu bạn gõ đều được sửa lỗi và gợi ý cách nói tự nhiên hơn.</p>
+        </div>
+      </div>
+
+      <div id="tutor-quota" class="mb-4"></div>
+      <div id="tutor-setup-error"></div>
+
+      <h2 class="h6 text-uppercase text-secondary fw-bold mb-2" data-i18n="tutor.step.language">1. Ngôn ngữ muốn luyện</h2>
+      <div class="row g-3 mb-4" id="tutor-languages" role="radiogroup" data-i18n-attr="aria-label:tutor.step.language"></div>
+
+      <h2 class="h6 text-uppercase text-secondary fw-bold mb-2" data-i18n="tutor.step.scenario">2. Tình huống giao tiếp</h2>
+      <div class="row g-3 mb-4" id="tutor-scenarios" role="radiogroup" data-i18n-attr="aria-label:tutor.step.scenario"></div>
+
+      <button id="tutor-start" class="btn btn-primary btn-lg px-4" type="button">
+        <i class="bi bi-chat-dots me-2"></i><span data-i18n="tutor.start">Bắt đầu hội thoại</span>
+      </button>
+    </div>
+
+    <div id="tutor-room" class="d-none">
+      <div class="chat-shell">
+        <header class="chat-header d-flex align-items-center gap-2 gap-sm-3">
+          <span class="feature-icon flex-shrink-0" id="chat-icon"><i class="bi bi-chat-dots"></i></span>
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold text-truncate" id="chat-title"></div>
+            <div class="small text-secondary text-truncate" id="chat-meta"></div>
+          </div>
+          <button id="chat-end" class="btn btn-outline-danger btn-sm flex-shrink-0" type="button">
+            <i class="bi bi-box-arrow-left me-1"></i><span data-i18n="tutor.end">Kết thúc phiên</span>
+          </button>
+        </header>
+
+        <div class="chat-log" id="chat-log" role="log" aria-live="polite" tabindex="0" data-i18n-attr="aria-label:tutor.log"></div>
+
+        <div id="chat-notice" class="chat-notice d-none" role="alert"></div>
+
+        <form class="chat-input" id="chat-form" autocomplete="off">
+          <label for="chat-text" class="visually-hidden" data-i18n="tutor.inputLabel">Tin nhắn của bạn</label>
+          <textarea id="chat-text" class="form-control" rows="1" maxlength="1000" data-i18n-attr="placeholder:tutor.placeholder"></textarea>
+          <button id="chat-send" class="btn btn-primary" type="submit" disabled data-i18n-attr="aria-label:tutor.send;title:tutor.send">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </form>
+        <div class="chat-hint small text-secondary" id="chat-hint"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+  <script type="module" src="/assets/js/app.js"></script>
+</body>
+</html>

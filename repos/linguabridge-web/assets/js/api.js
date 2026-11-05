@@ -99,4 +99,12 @@ export const api = {
   completeAttempt: (attemptId) => apiFetch(`/api/v1/learning/attempts/${attemptId}/complete`, { method: 'PUT' }),
   // rating: 1 Again, 2 Hard, 3 Good, 4 Easy
   reviewCard: (cardId, rating) => apiFetch('/api/v1/learning/srs/review', { method: 'POST', body: { cardId, rating } }),
+  // AI tutor. A reply that cannot be produced is a 429 (code ai.quota_exhausted, resetsAt) or a 503 (ai.provider_unavailable).
+  tutorQuota: () => apiFetch('/api/v1/ai/quota'),
+  createTutorSession: ({ targetLanguage, scenarioCode, title }) =>
+    apiFetch('/api/v1/ai/sessions', { method: 'POST', body: { targetLanguage, scenarioCode, title } }),
+  tutorMessages: (sessionId, { offset, limit } = {}) => apiFetch(`/api/v1/ai/sessions/${sessionId}/messages${query({ offset, limit })}`),
+  sendTutorMessage: (sessionId, text, baseLanguage) =>
+    apiFetch(`/api/v1/ai/sessions/${sessionId}/messages${query({ baseLanguage })}`, { method: 'POST', body: { text } }),
+  endTutorSession: (sessionId) => apiFetch(`/api/v1/ai/sessions/${sessionId}`, { method: 'DELETE' }),
 };

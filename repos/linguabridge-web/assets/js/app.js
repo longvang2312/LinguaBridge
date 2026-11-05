@@ -52,6 +52,7 @@ function renderNavbar(page) {
             ${link('/index.html', 'home', 'bi-house-door', t('nav.home'))}
             ${link('/courses.html', 'courses', 'bi-journal-richtext', t('nav.courses'))}
             ${link('/flashcards.html', 'flashcards', 'bi-layers', t('nav.review'))}
+            ${link('/tutor.html', 'tutor', 'bi-robot', t('nav.tutor'))}
           </ul>
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <select id="base-language" class="form-select form-select-sm w-auto" aria-label="${esc(t('nav.language'))}" title="${esc(t('nav.language'))}">
@@ -721,9 +722,374 @@ function initLogin() {
   $('#btn-login-oidc').addEventListener('click', () => login(returnUrl, { forceLogin: loggedOut }));
 }
 
+// ---- AI tutor ------------------------------------------------------------------------------------------------------
+
+const TUTOR_SCENARIOS = [
+  { code: 'JobInterview', icon: 'bi-briefcase' },
+  { code: 'BusinessEmail', icon: 'bi-envelope-paper' },
+  { code: 'FreeTalk', icon: 'bi-cup-hot' },
+];
+const TUTOR_LANGUAGES = ['en', 'zh'];
+const TUTOR_SESSION_KEY = 'lb.tutor.session';
+const TUTOR_MAX_LENGTH = 1000;   // the API's default AiTutor:MaxMessageLength; the textarea stops here, the API has the last word
+
+// The tutor's opening line, in the language being practised (the translation under it follows the interface language).
+const TUTOR_GREETINGS = {
+  JobInterview: {
+    en: { text: 'Hello! Thank you for coming to the interview today. I will be your interviewer. To begin, please tell me a little about yourself.' },
+    zh: { text: '你好！感谢你今天来参加面试。我是你的面试官。首先，请简单介绍一下你自己。', ipa: 'Nǐ hǎo! Gǎnxiè nǐ jīntiān lái cānjiā miànshì. Wǒ shì nǐ de miànshìguān. Shǒuxiān, qǐng jiǎndān jièshào yíxià nǐ zìjǐ.' },
+  },
+  BusinessEmail: {
+    en: { text: 'Hello! I will help you write and polish work emails. What would you like to write about?' },
+    zh: { text: '你好！我来帮你撰写和修改工作邮件。你想写一封关于什么的邮件？', ipa: 'Nǐ hǎo! Wǒ lái bāng nǐ zhuànxiě hé xiūgǎi gōngzuò yóujiàn. Nǐ xiǎng xiě yì fēng guānyú shénme de yóujiàn?' },
+  },
+  FreeTalk: {
+    en: { text: 'Hello! I am your AI tutor. What would you like to talk about today?' },
+    zh: { text: '你好！我是你的 AI 老师。今天你想聊点什么？', ipa: 'Nǐ hǎo! Wǒ shì nǐ de AI lǎoshī. Jīntiān nǐ xiǎng liáo diǎn shénme?' },
+  },
+};
+
+function readTutorSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(TUTOR_SESSION_KEY) ?? 'null');
+    const valid = saved && GUID.test(saved.id ?? '') && TUTOR_LANGUAGES.includes(saved.targetLanguage)
+      && TUTOR_SCENARIOS.some((s) => s.code === saved.scenarioCode);
+    return valid ? saved : null;
+  } catch { return null; }
+}
+const saveTutorSession = (session) => { try { sessionStorage.setItem(TUTOR_SESSION_KEY, JSON.stringify(session)); } catch { /* the room just is not restored after a reload */ } };
+const clearTutorSession = () => { try { sessionStorage.removeItem(TUTOR_SESSION_KEY); } catch { /* nothing to clear */ } };
+
+function formatDuration(milliseconds) {
+  const minutes = Math.ceil(milliseconds / 60000);
+  if (!(minutes > 0)) return t('tutor.time.soon');
+  const h = Math.floor(minutes / 60);
+  return h > 0 ? t('tutor.time.hm', { h, m: minutes % 60 }) : t('tutor.time.m', { m: minutes });
+}
+
+/** The allowance card. Free learners are limited by requests, paid learners by tokens (the other limit is null). */
+function quotaCard(quota) {
+  const byRequests = quota.dailyRequestLimit != null;
+  const limit = byRequests ? quota.dailyRequestLimit : quota.dailyTokenLimit;
+  const used = byRequests ? quota.requestsToday : quota.tokensToday;
+  const remaining = byRequests ? quota.requestsRemaining : quota.tokensRemaining;
+  const fraction = limit > 0 ? Math.min(1, used / limit) : 0;
+  const state = remaining <= 0 ? ' is-empty' : fraction >= 0.8 ? ' is-low' : '';
+  const planKey = `tutor.quota.plan.${quota.plan}`;
+  const plan = t(planKey) === planKey ? quota.plan : t(planKey);
+  const usedText = byRequests ? t('tutor.quota.requests', { used, limit }) : t('tutor.quota.tokens', { used: used.toLocaleString(), limit: limit.toLocaleString() });
+  const leftText = byRequests ? t('tutor.quota.remaining', { n: remaining }) : t('tutor.quota.tokensRemaining', { n: remaining.toLocaleString() });
+
+  return `
+    <div class="quota-card${state}">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="fw-semibold"><i class="bi bi-speedometer2 me-1 text-primary"></i>${esc(t('tutor.quota.title'))}
+          <span class="badge text-bg-primary ms-1">${esc(plan)}</span></div>
+        <div class="small text-secondary"><i class="bi bi-clock-history me-1"></i><span id="quota-reset" data-resets-at="${esc(quota.resetsAt)}">${esc(t('tutor.quota.reset', { time: formatDuration(new Date(quota.resetsAt) - Date.now()) }))}</span></div>
+      </div>
+      <div class="progress mb-2" role="progressbar" aria-label="${esc(t('tutor.quota.title'))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(fraction * 100)}">
+        <div class="progress-bar" style="width:${Math.round(fraction * 100)}%"></div>
+      </div>
+      <div class="d-flex flex-wrap justify-content-between small"><span>${esc(usedText)}</span><span class="fw-semibold">${esc(leftText)}</span></div>
+    </div>`;
+}
+
+const quotaExhausted = (quota) => (quota.dailyRequestLimit != null ? quota.requestsRemaining <= 0 : quota.tokensRemaining <= 0);
+
+async function initTutor() {
+  if (!isSignedIn()) return showSignInPrompt('#content');
+
+  const setup = $('#tutor-setup');
+  const room = $('#tutor-room');
+  const startButton = $('#tutor-start');
+  const log = $('#chat-log');
+  const input = $('#chat-text');
+  const sendButton = $('#chat-send');
+  const notice = $('#chat-notice');
+  const endButton = $('#chat-end');
+  const choice = { language: TUTOR_LANGUAGES[0], scenario: TUTOR_SCENARIOS[0].code };
+  let session = null;
+  let busy = false;
+  let locked = false;   // no more messages can be sent in this room (allowance used up, session over)
+  let unlockTimer = null;
+  let quotaTimer = null;
+  let quotaIsExhausted = false;
+
+  // ---- Choosing a scenario -----------------------------------------------------------------------------------------
+  function renderChoices() {
+    const option = (group, value, icon, title, desc, selected) => `
+      <div class="col-sm-${group === 'language' ? 6 : 4}">
+        <button type="button" class="tutor-choice" role="radio" aria-checked="${selected}" data-group="${group}" data-value="${esc(value)}">
+          <span class="feature-icon"><i class="bi ${icon}"></i></span>
+          <div class="fw-semibold">${esc(title)}</div>
+          ${desc ? `<div class="small text-secondary">${esc(desc)}</div>` : ''}
+        </button>
+      </div>`;
+    $('#tutor-languages').innerHTML = TUTOR_LANGUAGES
+      .map((code) => option('language', code, code === 'en' ? 'bi-alphabet-uppercase' : 'bi-translate', targetName(code), '', choice.language === code)).join('');
+    $('#tutor-scenarios').innerHTML = TUTOR_SCENARIOS
+      .map((s) => option('scenario', s.code, s.icon, t(`tutor.scenario.${s.code}`), t(`tutor.scenario.${s.code}.desc`), choice.scenario === s.code)).join('');
+  }
+
+  setup.addEventListener('click', (event) => {
+    const button = event.target.closest('.tutor-choice');
+    if (!button) return;
+    choice[button.dataset.group] = button.dataset.value;
+    renderChoices();
+    $(`.tutor-choice[data-group="${button.dataset.group}"][data-value="${button.dataset.value}"]`)?.focus();
+  });
+
+  function updateStartButton() {
+    startButton.disabled = quotaIsExhausted;
+  }
+
+  async function loadQuota() {
+    const box = $('#tutor-quota');
+    try {
+      const quota = await api.tutorQuota();
+      quotaIsExhausted = quotaExhausted(quota);
+      box.innerHTML = quotaCard(quota)
+        + (quotaIsExhausted ? `<div class="alert alert-warning mt-2 mb-0" role="alert">${esc(t('tutor.quota.exhausted', { time: formatDuration(new Date(quota.resetsAt) - Date.now()) }))}</div>` : '');
+      window.clearInterval(quotaTimer);
+      quotaTimer = window.setInterval(() => {
+        const label = $('#quota-reset');
+        if (label) label.textContent = t('tutor.quota.reset', { time: formatDuration(new Date(label.dataset.resetsAt) - Date.now()) });
+      }, 30000);
+    } catch (error) {
+      quotaIsExhausted = false;   // the quota is only information: the API enforces it when a message is sent
+      box.innerHTML = error instanceof AuthLoopError ? alertHtml(describeError(error)) : alertHtml(t('tutor.quota.unavailable'), 'warning');
+    }
+    updateStartButton();
+  }
+
+  function showSetup({ error } = {}) {
+    session = null;
+    clearTutorSession();
+    window.clearTimeout(unlockTimer);
+    room.classList.add('d-none');
+    setup.classList.remove('d-none');
+    $('#tutor-setup-error').innerHTML = error ? alertHtml(error) : '';
+    renderChoices();
+    startButton.querySelector('span').textContent = t('tutor.start');
+    updateStartButton();
+    loadQuota();
+  }
+
+  startButton.addEventListener('click', async () => {
+    if (startButton.disabled) return;
+    startButton.disabled = true;
+    startButton.querySelector('span').textContent = t('tutor.starting');
+    $('#tutor-setup-error').innerHTML = '';
+    try {
+      const created = await api.createTutorSession({
+        targetLanguage: choice.language,
+        scenarioCode: choice.scenario,
+        title: `${t(`tutor.scenario.${choice.scenario}`)} · ${targetName(choice.language)}`,
+      });
+      session = { id: created.id, targetLanguage: created.targetLanguage, scenarioCode: created.scenarioCode };
+      saveTutorSession(session);
+      await openRoom({ fresh: true });
+    } catch (error) {
+      $('#tutor-setup-error').innerHTML = alertHtml(describeError(error));
+      startButton.querySelector('span').textContent = t('tutor.start');
+      updateStartButton();
+    }
+  });
+
+  // ---- The room ----------------------------------------------------------------------------------------------------
+  const scrollToEnd = () => { log.scrollTo({ top: log.scrollHeight }); };
+
+  function bubbleHtml({ sender, content, ipa, translation, tips }) {
+    if (sender === 'User') {
+      return `<div class="msg msg-user"><div class="bubble"><div class="bubble-who">${esc(t('tutor.you'))}</div><div class="bubble-text">${esc(content)}</div></div></div>`;
+    }
+    return `
+      <div class="msg msg-ai"><div class="bubble">
+        <div class="bubble-who"><i class="bi bi-robot me-1"></i>${esc(t('tutor.tutor'))}</div>
+        <div class="bubble-text">${esc(content)}</div>
+        ${ipa ? `<div class="bubble-ipa">${esc(ipa)}</div>` : ''}
+        ${translation ? `<div class="bubble-translation"><i class="bi bi-translate me-1"></i>${esc(translation)}</div>` : ''}
+        ${tips ? `<div class="grammar-tips"><span class="tips-title"><i class="bi bi-lightbulb-fill me-1"></i>${esc(t('tutor.grammar'))}</span>${esc(tips)}</div>` : ''}
+      </div></div>`;
+  }
+
+  function appendHtml(html) {
+    log.insertAdjacentHTML('beforeend', html);
+    scrollToEnd();
+    return log.lastElementChild;
+  }
+
+  const fromApi = (m) => ({ sender: m.sender, content: m.content, ipa: m.pinyinOrIpa, translation: m.translation, tips: m.grammarTips });
+  const fromReply = (r) => ({ sender: 'Assistant', content: r.replyText, ipa: r.pinyinOrIpa, translation: r.translation, tips: r.grammarTips });
+
+  function showNotice(html, kind = 'danger') {
+    notice.className = `chat-notice${kind === 'warning' ? ' is-warning' : ''}`;
+    notice.innerHTML = html;
+  }
+  const hideNotice = () => { notice.className = 'chat-notice d-none'; notice.innerHTML = ''; };
+
+  function updateControls() {
+    const empty = input.value.trim().length === 0;
+    sendButton.disabled = busy || locked || empty;
+    sendButton.innerHTML = busy ? '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>' : '<i class="bi bi-send-fill"></i>';
+    input.disabled = locked;
+    $('#chat-hint').innerHTML = `<span>${esc(t('tutor.hint'))}</span>`
+      + (input.value.length >= TUTOR_MAX_LENGTH * 0.8 ? `<span>${esc(t('tutor.count', { n: input.value.length, max: TUTOR_MAX_LENGTH }))}</span>` : '');
+  }
+
+  function autosize() {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+  }
+
+  function lock(until) {
+    locked = true;
+    window.clearTimeout(unlockTimer);
+    if (until) {
+      // Setting a timer far in the future overflows; a learner who waits that long has reloaded the page anyway.
+      unlockTimer = window.setTimeout(() => { locked = false; hideNotice(); updateControls(); }, Math.min(Math.max(until - Date.now(), 1000), 2_000_000_000));
+    }
+    updateControls();
+  }
+
+  async function openRoom({ fresh = false } = {}) {
+    const scenarioName = t(`tutor.scenario.${session.scenarioCode}`);
+    const scenario = TUTOR_SCENARIOS.find((s) => s.code === session.scenarioCode);
+    $('#chat-title').textContent = scenarioName;
+    $('#chat-meta').textContent = `${targetName(session.targetLanguage)} · ${t('tutor.tutor')}`;
+    $('#chat-icon').innerHTML = `<i class="bi ${scenario.icon}"></i>`;
+    log.innerHTML = '';
+    hideNotice();
+    busy = false;
+    locked = false;
+    input.value = '';
+    autosize();
+    updateControls();
+    window.clearInterval(quotaTimer);
+
+    setup.classList.add('d-none');
+    room.classList.remove('d-none');
+
+    const greeting = TUTOR_GREETINGS[session.scenarioCode][session.targetLanguage];
+    appendHtml(bubbleHtml({ sender: 'Assistant', content: greeting.text, ipa: greeting.ipa, translation: t(`tutor.greet.${session.scenarioCode}`) }));
+
+    // A reload (or a language switch, which reloads) brings the room back: the history comes from the API.
+    const items = [];
+    let total = fresh ? 0 : 1;   // a brand-new session has no history to ask for
+    while (items.length < total) {
+      const page = await api.tutorMessages(session.id, { offset: items.length, limit: 200 });
+      items.push(...page.items);
+      total = page.total;
+      if (page.items.length === 0) break;
+    }
+    for (const message of items) log.insertAdjacentHTML('beforeend', bubbleHtml(fromApi(message)));
+    scrollToEnd();
+    input.focus();
+  }
+
+  const newSessionButton = `<button type="button" class="btn btn-sm btn-outline-danger ms-2" id="notice-new">${esc(t('tutor.error.newSession'))}</button>`;
+
+  function failSending(error, text) {
+    const problem = error instanceof ApiError ? error : null;
+    if (problem?.status === 429) {
+      const resetsAt = problem.problem?.resetsAt ? new Date(problem.problem.resetsAt) : null;
+      const known = resetsAt && !Number.isNaN(resetsAt.getTime());
+      showNotice(`<i class="bi bi-hourglass-split me-1"></i>${esc(known
+        ? t('tutor.error.quota', { time: formatDuration(resetsAt - Date.now()) })
+        : t('tutor.error.quotaNoTime'))}`);
+      lock(known ? resetsAt.getTime() : null);
+    } else if (problem?.status === 503) {
+      showNotice(`<i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(t('tutor.error.provider'))}`, 'warning');
+    } else if (problem?.status === 409 || problem?.status === 404) {
+      showNotice(`<i class="bi bi-x-circle-fill me-1"></i>${esc(t(problem.status === 409 ? 'tutor.error.ended' : 'tutor.error.notFound'))}${newSessionButton}`);
+      clearTutorSession();
+      lock(null);
+      $('#notice-new').addEventListener('click', () => showSetup());
+    } else if (problem?.status === 400) {
+      showNotice(`<i class="bi bi-exclamation-circle-fill me-1"></i>${esc(t('tutor.error.tooLong'))}`);
+    } else {
+      showNotice(`<i class="bi bi-exclamation-circle-fill me-1"></i>${esc(describeError(error))} ${esc(t('tutor.error.retryHint'))}`);
+    }
+    input.value = text;
+    autosize();
+  }
+
+  async function send() {
+    const text = input.value.trim();
+    if (!text || busy || locked) return;
+
+    busy = true;
+    hideNotice();
+    const mine = appendHtml(bubbleHtml({ sender: 'User', content: text }));
+    input.value = '';
+    autosize();
+    const typing = appendHtml(`<div class="msg msg-ai msg-typing"><div class="bubble text-secondary"><span class="typing-dots" aria-hidden="true"><span></span><span></span><span></span></span> <span class="small">${esc(t('tutor.thinking'))}</span></div></div>`);
+    updateControls();
+
+    try {
+      const reply = await api.sendTutorMessage(session.id, text, baseLanguage());
+      typing.remove();
+      appendHtml(bubbleHtml(fromReply(reply)));
+    } catch (error) {
+      typing.remove();
+      mine.remove();   // it was never answered: the text goes back into the input to be sent again
+      failSending(error, text);
+    } finally {
+      busy = false;
+      updateControls();
+      if (!locked) input.focus();
+    }
+  }
+
+  $('#chat-form').addEventListener('submit', (event) => { event.preventDefault(); send(); });
+  input.addEventListener('input', () => { autosize(); updateControls(); });
+  input.addEventListener('keydown', (event) => {
+    // Enter sends, Shift+Enter is a new line; Enter that confirms an IME candidate (Chinese input) is not a send.
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    send();
+  });
+
+  endButton.addEventListener('click', async () => {
+    if (!session || endButton.disabled) return;
+    endButton.disabled = true;
+    const label = endButton.querySelector('span');
+    label.textContent = t('tutor.ending');
+    try {
+      await api.endTutorSession(session.id);
+    } catch (error) {
+      // A session that is already gone is as good as ended; anything else keeps the learner here to try again.
+      if (!(error instanceof ApiError && error.status === 404)) {
+        showNotice(`<i class="bi bi-exclamation-circle-fill me-1"></i>${esc(describeError(error))}`);
+        endButton.disabled = false;
+        label.textContent = t('tutor.end');
+        return;
+      }
+    }
+    endButton.disabled = false;
+    label.textContent = t('tutor.end');
+    showSetup();
+  });
+
+  // ---- Start: pick up a room that was open before a reload, otherwise offer the scenarios ------------------------------
+  const saved = readTutorSession();
+  if (!saved) { showSetup(); return; }
+
+  session = saved;
+  setup.classList.add('d-none');
+  room.classList.remove('d-none');
+  log.innerHTML = `<div class="text-center text-secondary py-5"><div class="spinner-border" role="status"></div><div class="mt-2">${esc(t('tutor.loadingChat'))}</div></div>`;
+  try {
+    await openRoom();
+  } catch (error) {
+    const gone = error instanceof ApiError && error.status === 404;
+    showSetup({ error: gone ? t('tutor.error.notFound') : describeError(error) });
+  }
+}
+
 // Static text first (it may sit inside areas the page code then fills in), then the page.
 applyTranslations();
-const pages = { home: initHome, courses: initCourses, flashcards: initFlashcards, lesson: initLesson, callback: initCallback, login: initLogin };
+const pages = { home: initHome, courses: initCourses, flashcards: initFlashcards, lesson: initLesson, tutor: initTutor, callback: initCallback, login: initLogin };
 const page = document.body.dataset.page;
 if (page !== 'callback' && page !== 'lesson') renderNavbar(page);
 pages[page]?.();
