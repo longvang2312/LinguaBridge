@@ -398,7 +398,7 @@ async function initLesson() {
     return;
   }
 
-  const state = { quiz: null, attemptId: null, index: 0, selectedOptionId: null, phase: 'answering', busy: false, shownAt: 0, finished: false };
+  const state = { quiz: null, attemptId: null, index: 0, selectedOptionId: null, phase: 'answering', busy: false, shownAt: 0, finished: false, optionOrder: [] };
 
   // ---- Leaving -------------------------------------------------------------------------------------------------------
   const leave = () => { window.location.assign(backToLessonsUrl()); };
@@ -441,6 +441,16 @@ async function initLesson() {
   function currentQuestion() { return state.quiz.questions[state.index]; }
   function isChoice(q) { return Array.isArray(q.options) && q.options.length > 0; }
 
+  // Fisher-Yates on a copy. The options keep their ids, so the server still gets the id of the option that was chosen.
+  function shuffled(items) {
+    const copy = items.slice();
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
   function updateProgress() {
     const total = state.quiz.questions.length;
     $('#quiz-position').textContent = t('quiz.position', { n: Math.min(state.index + 1, total), total });
@@ -466,6 +476,8 @@ async function initLesson() {
     updateProgress();
 
     const typeLabel = t(`quiz.type.${q.questionType}`);
+    // The order shown is chosen once per question: keys 1-9 and the numbers on the cards both follow state.optionOrder.
+    state.optionOrder = isChoice(q) ? shuffled(q.options) : [];
     let body;
     if (isChoice(q)) {
       // The question is the target text; its translation (when there is one) is a hint under it.
@@ -475,7 +487,7 @@ async function initLesson() {
         ${q.pinyinOrIpa ? `<div class="quiz-ipa mt-1">${esc(q.pinyinOrIpa)}</div>` : ''}
         ${q.promptTranslation && q.targetText ? `<div class="text-secondary mt-2">${esc(t('quiz.hint', { text: q.promptTranslation }))}</div>` : ''}
         <div class="d-grid gap-2 mt-4" id="quiz-options" role="group" aria-label="${esc(typeLabel)}">
-          ${q.options.slice().sort((a, b) => a.orderIndex - b.orderIndex).map((option, i) => `
+          ${state.optionOrder.map((option, i) => `
             <button type="button" class="quiz-option" data-option-id="${esc(option.id)}">
               <span class="quiz-key">${i + 1}</span>
               <span>${esc(option.text)}${option.pinyinOrIpa ? ` <span class="text-secondary small">${esc(option.pinyinOrIpa)}</span>` : ''}</span>
@@ -532,15 +544,48 @@ async function initLesson() {
       showResult(q, result);
     } catch (error) {
       state.busy = false;
+      if (error instanceof ApiError && error.code === 'response.already_answered') {
+        // The first request got through but its reply was lost: the answer is on record, so the learner moves on.
+        showRecorded(q);
+        return;
+      }
       setCheckState({ label: t('quiz.check'), enabled: true });
       let message = describeError(error);
-      if (error instanceof ApiError && error.code === 'response.already_answered') message = t('error.answered');
       if (error instanceof ApiError && error.code === 'attempt.already_completed') message = t('error.attemptClosed');
       feedback.innerHTML = alertHtml(message);
       feedback.classList.remove('d-none');
       return;
     }
     state.busy = false;
+  }
+
+  // Kept here, next to its only use, because this task may not touch the dictionary file.
+  const RECORDED = {
+    vi: ['Đã ghi nhận câu trả lời', 'Câu trả lời của bạn đã được lưu trước đó (có thể do kết nối bị gián đoạn). Hãy tiếp tục sang câu kế tiếp.'],
+    en: ['Answer recorded', 'Your answer was already saved (the connection was probably interrupted). Please continue to the next question.'],
+  };
+
+  /** The server already has an answer to this question but we never saw whether it was right: lock it and offer to continue. */
+  function showRecorded(q) {
+    state.phase = 'feedback';
+    if (isChoice(q)) {
+      questionBox.querySelectorAll('[data-option-id]').forEach((button) => { button.disabled = true; });
+    } else {
+      $('#answer-input').readOnly = true;
+    }
+    answerBar.classList.remove('is-correct', 'is-wrong');
+    feedback.innerHTML = `
+      <div class="d-flex align-items-start gap-3">
+        <i class="bi bi-cloud-check-fill feedback-icon text-secondary"></i>
+        <div>
+          <div class="h5 mb-1">${esc((RECORDED[baseLanguage()] ?? RECORDED.vi)[0])}</div>
+          <div>${esc((RECORDED[baseLanguage()] ?? RECORDED.vi)[1])}</div>
+        </div>
+      </div>`;
+    feedback.classList.remove('d-none');
+    const last = state.index >= state.quiz.questions.length - 1;
+    setCheckState({ label: last ? t('quiz.finish') : t('quiz.continue'), enabled: true, kind: 'secondary' });
+    checkButton.focus();
   }
 
   function showResult(q, result) {
@@ -667,7 +712,7 @@ async function initLesson() {
     }
     if (!typing && state.phase === 'answering' && /^[1-9]$/.test(event.key)) {
       const q = currentQuestion();
-      const option = isChoice(q) ? q.options.slice().sort((a, b) => a.orderIndex - b.orderIndex)[Number(event.key) - 1] : null;
+      const option = isChoice(q) ? state.optionOrder[Number(event.key) - 1] : null;
       if (option) { event.preventDefault(); selectOption(option.id); }
     }
   });

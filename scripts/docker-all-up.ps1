@@ -18,6 +18,11 @@
 .PARAMETER PostgresPort
     Host port for PostgreSQL. Defaults to 5432, or 54320 when 5432 is busy. LINGUABRIDGE_DB_PORT in the environment also works.
 
+.PARAMETER NoSeed
+    Do not load the sample courses. By default, once every service is healthy, scripts/seed-sample-courses.ps1 runs: 3 courses,
+    5 lessons, 35 questions, and 25 due flashcards for the seeded admin account. It is safe to run again (nothing is duplicated
+    and review progress is kept), so repeating this script never harms existing data.
+
 .PARAMETER TimeoutSeconds
     How long to wait for the services to become healthy.
 
@@ -27,6 +32,7 @@
 [CmdletBinding()]
 param(
     [switch] $NoBuild,
+    [switch] $NoSeed,
     [int] $DbPort = 0,
     [int] $PostgresPort = 0,
     [int] $TimeoutSeconds = 300
@@ -118,6 +124,25 @@ if ($pending) {
     throw "Not healthy after $TimeoutSeconds s: $(($pending | ForEach-Object { "$($_.Name)=$($_.Health)" }) -join ', '). See: docker compose logs"
 }
 
+# The API has migrated the LinguaBridge database by the time it is healthy, so the sample content can go in. A failure here
+# does not undo a stack that is up: it is reported, with the command to retry, and the rest of the summary still prints.
+$seedNote = $null
+if ($NoSeed) {
+    $seedNote = 'Sample courses skipped (-NoSeed). Load them later with: ./scripts/seed-sample-courses.ps1'
+}
+else {
+    Write-Host ''
+    Write-Host 'Loading sample content (use -NoSeed to skip) ...' -ForegroundColor Cyan
+    try {
+        & (Join-Path $PSScriptRoot 'seed-sample-courses.ps1')
+        $seedNote = 'Sample content is loaded: 3 courses, 5 lessons, 35 questions, flashcards for the admin account.'
+    }
+    catch {
+        Write-Warning "The sample content could not be loaded: $($_.Exception.Message)"
+        $seedNote = 'The stack is up but the sample content is NOT loaded. Retry with: ./scripts/seed-sample-courses.ps1'
+    }
+}
+
 Write-Host ''
 Write-Host 'AppInHouse is up:' -ForegroundColor Green
 Write-Host '  Admin Web         http://localhost:5000'
@@ -130,5 +155,6 @@ Write-Host ''
 Write-Host 'Always use http://host.docker.internal:5001 for the STS (browser, Swagger, Postman): a token is only accepted by the APIs'
 Write-Host 'when it was issued through that address, a token obtained via localhost:5001 is rejected with 401.'
 Write-Host 'The databases, Admin API and Admin Web listen on this machine only; the STS (5001) and LinguaBridge API (5020) are reachable from the network.'
+Write-Host $seedNote
 Write-Host 'Check the integration with: ./scripts/verify-linguabridge-identity.ps1'
 Write-Host 'Stop with: ./scripts/docker-all-down.ps1'

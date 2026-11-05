@@ -97,38 +97,39 @@ SELECT * FROM (VALUES
   ('ZH-HSK1-COMM', 2, 7, 'M', '我是学生', 'wǒ shì xuésheng', 'Câu này nghĩa là gì?', 'What does this sentence mean?', '我是学生 nghĩa là "tôi là học sinh".', '我是学生 means "I am a student".')
 ) AS v(course, lesson, idx, kind, target_text, ipa, prompt_vi, prompt_en, expl_vi, expl_en);
 
--- Answer choices of the M questions: exactly one is correct.
+-- Answer choices of the M questions: exactly one is correct. Its position varies (1, 2 or 3) so the right answer is not
+-- always the first one; the web client also shuffles the choices when it shows them.
 CREATE TEMP TABLE s_options AS
 SELECT * FROM (VALUES
-  ('ENG-A1-COMM', 1, 6, 1, 'Nice to meet you.', true),
-  ('ENG-A1-COMM', 1, 6, 2, 'See you tomorrow.', false),
+  ('ENG-A1-COMM', 1, 6, 1, 'See you tomorrow.', false),
+  ('ENG-A1-COMM', 1, 6, 2, 'Nice to meet you.', true),
   ('ENG-A1-COMM', 1, 6, 3, 'I am hungry.', false),
-  ('ENG-A1-COMM', 1, 7, 1, 'I am fine, thank you. And you?', true),
-  ('ENG-A1-COMM', 1, 7, 2, 'My name is Lan.', false),
-  ('ENG-A1-COMM', 1, 7, 3, 'Good night.', false),
+  ('ENG-A1-COMM', 1, 7, 1, 'My name is Lan.', false),
+  ('ENG-A1-COMM', 1, 7, 2, 'Good night.', false),
+  ('ENG-A1-COMM', 1, 7, 3, 'I am fine, thank you. And you?', true),
   ('ENG-A1-COMM', 2, 6, 1, 'Could you help me, please?', true),
   ('ENG-A1-COMM', 2, 6, 2, 'Help me now.', false),
   ('ENG-A1-COMM', 2, 6, 3, 'You must help me.', false),
-  ('ENG-A1-COMM', 2, 7, 1, 'The last time to finish a task', true),
-  ('ENG-A1-COMM', 2, 7, 2, 'A room for meetings', false),
-  ('ENG-A1-COMM', 2, 7, 3, 'A kind of email', false),
-  ('ENG-BIZ-A2', 1, 6, 1, 'Dear Ms. Tran,', true),
-  ('ENG-BIZ-A2', 1, 6, 2, 'Hey you,', false),
+  ('ENG-A1-COMM', 2, 7, 1, 'A room for meetings', false),
+  ('ENG-A1-COMM', 2, 7, 2, 'A kind of email', false),
+  ('ENG-A1-COMM', 2, 7, 3, 'The last time to finish a task', true),
+  ('ENG-BIZ-A2', 1, 6, 1, 'Hey you,', false),
+  ('ENG-BIZ-A2', 1, 6, 2, 'Dear Ms. Tran,', true),
   ('ENG-BIZ-A2', 1, 6, 3, 'What''s up?', false),
   ('ENG-BIZ-A2', 1, 7, 1, 'Best regards, Minh', true),
   ('ENG-BIZ-A2', 1, 7, 2, 'See ya!', false),
   ('ENG-BIZ-A2', 1, 7, 3, 'Whatever.', false),
-  ('ZH-HSK1-COMM', 1, 6, 1, 'Thank you / Cảm ơn', true),
-  ('ZH-HSK1-COMM', 1, 6, 2, 'Goodbye / Tạm biệt', false),
-  ('ZH-HSK1-COMM', 1, 6, 3, 'Sorry / Xin lỗi', false),
-  ('ZH-HSK1-COMM', 1, 7, 1, '你好', true),
-  ('ZH-HSK1-COMM', 1, 7, 2, '再见', false),
+  ('ZH-HSK1-COMM', 1, 6, 1, 'Goodbye / Tạm biệt', false),
+  ('ZH-HSK1-COMM', 1, 6, 2, 'Sorry / Xin lỗi', false),
+  ('ZH-HSK1-COMM', 1, 6, 3, 'Thank you / Cảm ơn', true),
+  ('ZH-HSK1-COMM', 1, 7, 1, '再见', false),
+  ('ZH-HSK1-COMM', 1, 7, 2, '你好', true),
   ('ZH-HSK1-COMM', 1, 7, 3, '对不起', false),
   ('ZH-HSK1-COMM', 2, 6, 1, 'Doctor / Bác sĩ', true),
   ('ZH-HSK1-COMM', 2, 6, 2, 'Teacher / Giáo viên', false),
   ('ZH-HSK1-COMM', 2, 6, 3, 'Student / Học sinh', false),
-  ('ZH-HSK1-COMM', 2, 7, 1, 'I am a student / Tôi là học sinh', true),
-  ('ZH-HSK1-COMM', 2, 7, 2, 'I am a teacher / Tôi là giáo viên', false),
+  ('ZH-HSK1-COMM', 2, 7, 1, 'I am a teacher / Tôi là giáo viên', false),
+  ('ZH-HSK1-COMM', 2, 7, 2, 'I am a student / Tôi là học sinh', true),
   ('ZH-HSK1-COMM', 2, 7, 3, 'I am a doctor / Tôi là bác sĩ', false)
 ) AS v(course, lesson, question, idx, option_text, is_correct);
 
