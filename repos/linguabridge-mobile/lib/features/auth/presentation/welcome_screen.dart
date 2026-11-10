@@ -10,6 +10,7 @@ class WelcomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final auth = ref.watch(authControllerProvider);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -28,17 +29,25 @@ class WelcomeScreen extends ConsumerWidget {
                   style: theme.textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 32),
-                // The OpenID Connect sign-in (authorization code + PKCE against the STS) is the next task.
+                if (auth.error != null) ...[
+                  Container(
+                    key: const Key('login-error'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(auth.error!, style: TextStyle(color: theme.colorScheme.onErrorContainer))),
+                    ]),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 FilledButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.login),
-                  label: const Text('Đăng nhập (sắp có)'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: () => ref.read(authControllerProvider.notifier).startPreview(),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                  child: const Text('Xem trước giao diện'),
+                  onPressed: auth.busy ? null : () => ref.read(authControllerProvider.notifier).signIn(),
+                  icon: auth.busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.login),
+                  label: const Text('Đăng nhập với AppInHouse ID'),
                 ),
               ]),
             ),

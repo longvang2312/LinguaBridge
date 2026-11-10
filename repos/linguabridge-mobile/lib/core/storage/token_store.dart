@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Where the learner's access token is kept between launches.
+import '../../features/auth/domain/auth_session.dart';
+
+/// Where the learner's tokens (access, refresh and id token) are kept between launches.
 abstract class TokenStore {
-  Future<String?> read();
-  Future<void> write(String accessToken);
+  Future<AuthSession?> read();
+  Future<void> write(AuthSession session);
   Future<void> clear();
 }
 
@@ -12,39 +16,41 @@ abstract class TokenStore {
 class SecureTokenStore implements TokenStore {
   SecureTokenStore([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _key = 'lb.accessToken';
+  static const _key = 'lb.session';
   final FlutterSecureStorage _storage;
 
   @override
-  Future<String?> read() async {
+  Future<AuthSession?> read() async {
     try {
-      return await _storage.read(key: _key);
+      final text = await _storage.read(key: _key);
+      return text == null ? null : AuthSession.fromJson(jsonDecode(text));
     } on Object {
-      // A store that cannot be read (corrupt keystore, blocked storage) is the same as no token: the learner signs in again.
+      // A store that cannot be read (corrupt keystore, blocked storage, damaged value) is the same as no session: the
+      // learner signs in again.
       return null;
     }
   }
 
   @override
-  Future<void> write(String accessToken) => _storage.write(key: _key, value: accessToken);
+  Future<void> write(AuthSession session) => _storage.write(key: _key, value: jsonEncode(session.toJson()));
 
   @override
   Future<void> clear() => _storage.delete(key: _key);
 }
 
-/// Kept in memory only; for tests and previews.
+/// Kept in memory only; for tests.
 class MemoryTokenStore implements TokenStore {
-  MemoryTokenStore([this._token]);
-  String? _token;
+  MemoryTokenStore([this._session]);
+  AuthSession? _session;
 
   @override
-  Future<String?> read() async => _token;
+  Future<AuthSession?> read() async => _session;
 
   @override
-  Future<void> write(String accessToken) async => _token = accessToken;
+  Future<void> write(AuthSession session) async => _session = session;
 
   @override
-  Future<void> clear() async => _token = null;
+  Future<void> clear() async => _session = null;
 }
 
 final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());

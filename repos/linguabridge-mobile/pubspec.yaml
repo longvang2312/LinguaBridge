@@ -39,6 +39,11 @@ dependencies:
   dio: ^5.11.1
   shared_preferences: ^2.5.6
   flutter_secure_storage: ^11.2.0
+  crypto: ^3.0.8
+  url_launcher: ^6.3.3
+  flutter_web_auth_2: ^5.1.0
+  flutter_web_plugins:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
