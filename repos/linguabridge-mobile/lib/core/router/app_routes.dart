@@ -8,4 +8,10 @@ abstract final class AppRoutes {
   static const courses = '/courses';
   static const srs = '/srs';
   static const aiTutor = '/tutor';
+
+  /// A lesson run: full screen, outside the tabs.
+  static const lesson = '/lesson';
+
+  static String lessonLocation(String lessonId, {String? courseId}) =>
+      '$lesson/${Uri.encodeComponent(lessonId)}${courseId == null ? '' : '?courseId=${Uri.encodeQueryComponent(courseId)}'}';
 }

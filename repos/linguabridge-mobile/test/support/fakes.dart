@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,6 +8,8 @@ import 'package:linguabridge_mobile/features/auth/data/auth_launcher.dart';
 import 'package:linguabridge_mobile/features/auth/domain/auth_session.dart';
 import 'package:linguabridge_mobile/features/courses/data/course_models.dart';
 import 'package:linguabridge_mobile/features/courses/data/courses_repository.dart';
+import 'package:linguabridge_mobile/features/quiz/data/quiz_models.dart';
+import 'package:linguabridge_mobile/features/quiz/data/quiz_repository.dart';
 
 /// Answers every request with whatever [respond] says and remembers what was asked.
 class FakeAdapter implements HttpClientAdapter {
@@ -159,3 +162,118 @@ const englishLessons = [
   LessonModel(id: 'l2', courseId: '11111111-1111-1111-1111-111111111111', orderIndex: 2, lessonType: 'Vocabulary', xpReward: 10, title: 'Nhờ giúp đỡ'),
   LessonModel(id: 'l1', courseId: '11111111-1111-1111-1111-111111111111', orderIndex: 1, lessonType: 'Vocabulary', xpReward: 15, title: 'Chào hỏi', guideText: 'Học cách chào.'),
 ];
+
+// ---- Quiz ----
+
+QuizOption _option(String id, int order, String text) => QuizOption(id: id, orderIndex: order, text: text);
+
+/// A lesson of three questions: typed, multiple choice (right answer is option "b"), typed.
+final sampleQuiz = Quiz(
+  lessonId: 'l1',
+  courseId: englishCourse.id,
+  xpReward: 15,
+  questions: [
+    const QuizQuestion(id: 'q1', orderIndex: 1, questionType: 'Translate', promptTranslation: 'Xin chào'),
+    QuizQuestion(
+      id: 'q2',
+      orderIndex: 2,
+      questionType: 'MultipleChoice',
+      targetText: 'Nice to meet you.',
+      pinyinOrIpa: '/naɪs/',
+      promptTranslation: 'Rất vui được gặp bạn',
+      options: [_option('a', 1, 'See you tomorrow.'), _option('b', 2, 'Rất vui được gặp bạn.'), _option('c', 3, 'I am hungry.')],
+    ),
+    const QuizQuestion(id: 'q3', orderIndex: 3, questionType: 'FillBlank', promptTranslation: 'Cảm ơn bạn'),
+  ],
+);
+
+/// What the server knows and the learner does not.
+const _rightText = {'q1': 'Hello', 'q3': 'Thank you'};
+const _rightOption = {'q2': 'b'};
+
+class FakeQuizRepository implements QuizRepository {
+  FakeQuizRepository({Map<String, Quiz>? quizzes, this.firstCompletion = true}) : quizzes = quizzes ?? {'l1': sampleQuiz};
+
+  final Map<String, Quiz> quizzes;
+  bool firstCompletion;
+
+  /// Every call in order, e.g. `quiz:l1`, `start:l1`, `answer:q1`, `complete:attempt-1`.
+  final calls = <String>[];
+  final answers = <QuizAnswer>[];
+  final answeredInAttempt = <String, Set<String>>{};
+  int attempts = 0;
+
+  /// Errors to throw (once each, in order) before a call works; one list per kind of call.
+  final answerErrors = <ApiException>[];
+  final completeErrors = <ApiException>[];
+  final loadErrors = <ApiException>[];
+
+  /// When set, an answer waits for it (to hold a request in flight).
+  Completer<void>? answerGate;
+
+  /// Course progress after a completion, for tests that go back to the course list.
+  void Function(AttemptResult result)? onCompleted;
+
+  @override
+  Future<Quiz> quiz(String lessonId, {required String baseLanguage}) async {
+    calls.add('quiz:$lessonId');
+    if (loadErrors.isNotEmpty) throw loadErrors.removeAt(0);
+    final quiz = quizzes[lessonId];
+    if (quiz == null) throw const ApiException(message: 'Lesson not found.', statusCode: 404, code: 'lesson.not_found');
+    return quiz;
+  }
+
+  @override
+  Future<String> startAttempt(String lessonId) async {
+    calls.add('start:$lessonId');
+    attempts++;
+    return 'attempt-$attempts';
+  }
+
+  @override
+  Future<AnswerResult> submitResponse(String attemptId, QuizAnswer answer, {required String baseLanguage}) async {
+    calls.add('answer:${answer.questionId}');
+    answers.add(answer);
+    if (answerErrors.isNotEmpty) throw answerErrors.removeAt(0);
+    if (answerGate != null) await answerGate!.future;
+
+    final done = answeredInAttempt.putIfAbsent(attemptId, () => {});
+    if (!done.add(answer.questionId)) {
+      throw const ApiException(message: 'This question has already been answered in this attempt.', statusCode: 409, code: 'response.already_answered');
+    }
+    final isChoice = answer.selectedOptionId != null;
+    final correct = isChoice
+        ? answer.selectedOptionId == _rightOption[answer.questionId]
+        : answer.userInputText!.trim().toLowerCase() == _rightText[answer.questionId]!.toLowerCase();
+    return AnswerResult(
+      questionId: answer.questionId,
+      isCorrect: correct,
+      correctOptionId: isChoice ? _rightOption[answer.questionId] : null,
+      correctAnswer: isChoice ? 'Rất vui được gặp bạn.' : _rightText[answer.questionId],
+      explanation: correct ? null : 'Giải thích cho ${answer.questionId}.',
+      grammarNotes: correct ? null : 'Ngữ pháp của ${answer.questionId}.',
+    );
+  }
+
+  @override
+  Future<AttemptResult> completeAttempt(String attemptId) async {
+    calls.add('complete:$attemptId');
+    if (completeErrors.isNotEmpty) throw completeErrors.removeAt(0);
+    final total = sampleQuiz.questions.length;
+    final correct = answers.where((a) => _isRight(a)).length;
+    final result = AttemptResult(
+      scorePercentage: (correct * 100 / total).round(),
+      correctCount: correct,
+      totalQuestions: total,
+      xpEarned: firstCompletion ? 11 : 0,
+      isFirstCompletion: firstCompletion,
+      progress: const CourseProgress(completedLessons: 1, totalLessons: 2, isCompleted: false),
+    );
+    onCompleted?.call(result);
+    return result;
+  }
+
+  bool _isRight(QuizAnswer a) => a.selectedOptionId != null
+      ? a.selectedOptionId == _rightOption[a.questionId]
+      : a.userInputText!.trim().toLowerCase() == _rightText[a.questionId]!.toLowerCase();
+}

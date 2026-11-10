@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:linguabridge_mobile/features/auth/application/auth_controller.da
 import 'package:linguabridge_mobile/features/auth/data/pending_login_store.dart';
 import 'package:linguabridge_mobile/features/auth/domain/auth_session.dart';
 import 'package:linguabridge_mobile/features/courses/application/courses_providers.dart';
+import 'package:linguabridge_mobile/features/quiz/application/quiz_controller.dart';
 import 'package:linguabridge_mobile/main.dart';
 
 import 'fakes.dart';
@@ -21,6 +24,7 @@ class TestApp {
     required this.repository,
     required this.tokenEndpoint,
     required this.pending,
+    required this.quiz,
   });
 
   final ProviderContainer container;
@@ -29,8 +33,12 @@ class TestApp {
   final FakeCoursesRepository repository;
   final FakeAdapter tokenEndpoint;
   final MemoryPendingLoginStore pending;
+  final FakeQuizRepository quiz;
 
-  String get location => container.read(appRouterProvider).routerDelegate.currentConfiguration.uri.path;
+  /// Where the app is, including a screen that was pushed on top of a tab (what the address bar of a browser shows).
+  Uri get uri => container.read(appRouterProvider).routeInformationProvider.value.uri;
+
+  String get location => uri.path;
 }
 
 FakeCoursesRepository sampleRepository() => FakeCoursesRepository(
@@ -50,6 +58,7 @@ Future<TestApp> pumpApp(
   FakeAuthLauncher? launcher,
   FakeAdapter? tokenEndpoint,
   MemoryPendingLoginStore? pending,
+  FakeQuizRepository? quiz,
   Size size = const Size(400, 800),
 }) async {
   tester.view.physicalSize = size;
@@ -61,6 +70,7 @@ Future<TestApp> pumpApp(
   final theRepository = repository ?? sampleRepository();
   final theTokenEndpoint = tokenEndpoint ?? FakeAdapter((_) => jsonBody(200, tokenResponse(idToken: testIdToken)));
   final thePending = pending ?? MemoryPendingLoginStore();
+  final theQuiz = quiz ?? FakeQuizRepository();
 
   final app = TestApp(
     container: ProviderContainer(overrides: [
@@ -69,12 +79,15 @@ Future<TestApp> pumpApp(
       authLauncherProvider.overrideWithValue(theLauncher),
       tokenDioProvider.overrideWithValue(Dio()..httpClientAdapter = theTokenEndpoint),
       coursesRepositoryProvider.overrideWithValue(theRepository),
+      quizRepositoryProvider.overrideWithValue(theQuiz),
+      quizRandomProvider.overrideWithValue(Random(7)),
     ]),
     store: theStore,
     launcher: theLauncher,
     repository: theRepository,
     tokenEndpoint: theTokenEndpoint,
     pending: thePending,
+    quiz: theQuiz,
   );
   addTearDown(app.container.dispose);
   await tester.pumpWidget(UncontrolledProviderScope(container: app.container, child: const LinguaBridgeApp()));

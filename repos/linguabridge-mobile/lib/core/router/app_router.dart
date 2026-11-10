@@ -9,6 +9,7 @@ import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/welcome_screen.dart';
 import '../../features/courses/presentation/courses_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/quiz/presentation/quiz_screen.dart';
 import '../../features/srs/presentation/srs_screen.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
@@ -46,6 +47,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),
       GoRoute(path: AppRoutes.welcome, builder: (context, state) => const WelcomeScreen()),
       GoRoute(path: AppRoutes.callback, builder: (context, state) => CallbackScreen(uri: state.uri)),
+      // A lesson run takes the whole screen: it is outside the tab shell, so there is no bottom bar, and leaving it returns
+      // to the tab it was started from.
+      GoRoute(
+        path: '${AppRoutes.lesson}/:lessonId',
+        builder: (context, state) => QuizScreen(
+          lessonId: state.pathParameters['lessonId']!,
+          courseId: state.uri.queryParameters['courseId'],
+        ),
+      ),
       // One navigator per tab, kept alive by an IndexedStack: leaving a tab does not lose its scroll position or input.
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),
