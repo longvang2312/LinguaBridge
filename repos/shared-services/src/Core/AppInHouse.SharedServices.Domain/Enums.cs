@@ -57,7 +57,7 @@ public static class ProviderCatalog
     {
         [ChannelType.Email] = [ProviderType.Smtp, ProviderType.SendGrid, ProviderType.Brevo, ProviderType.Mock],
         [ChannelType.Telegram] = [ProviderType.TelegramBot, ProviderType.Mock],
-        [ChannelType.Storage] = [ProviderType.LocalDisk, ProviderType.S3],
+        [ChannelType.Storage] = [ProviderType.LocalDisk, ProviderType.S3, ProviderType.Mock],
         [ChannelType.Chat] = [ProviderType.TelegramBot, ProviderType.DiscordWebhook, ProviderType.SlackWebhook, ProviderType.Mock],
     };
 

@@ -143,7 +143,7 @@ public class StoredFileTests
 
         Assert.DoesNotContain("passwd", file.ObjectKey);
         Assert.DoesNotContain("..", file.ObjectKey);
-        Assert.Equal($"linguabridge/{file.Id:N}", file.ObjectKey);
+        Assert.Equal($"uploads/linguabridge/2026/11/{file.Id:N}.png", file.ObjectKey);   // uploads/{project}/{yyyy}/{MM}/{guid}{ext}
     }
 
     [Theory]
@@ -152,6 +152,60 @@ public class StoredFileTests
     [InlineData("a/b/c.png", "c.png")]
     public void TheOriginalFileName_IsReducedToAFileName(string sent, string expected) =>
         Assert.Equal(expected, Create(sent).OriginalFileName);
+
+    [Theory]
+    [InlineData("image/png", ".png")]
+    [InlineData("image/jpeg", ".jpg")]
+    [InlineData("application/pdf", ".pdf")]
+    [InlineData("audio/mpeg", ".mp3")]
+    public void TheExtension_ComesFromTheDetectedType_NotFromTheName(string mime, string extension)
+    {
+        var file = StoredFile.Create("p", Guid.NewGuid(), ProviderType.LocalDisk, "evil.exe", mime, 1, new string('a', 64), false, Now);
+
+        Assert.EndsWith(extension, file.ObjectKey);
+        Assert.DoesNotContain("evil", file.ObjectKey);
+    }
+
+    [Fact]
+    public void ThePathOfTheKey_FollowsTheUploadDate_InUtc()
+    {
+        var late = new DateTimeOffset(2026, 12, 31, 23, 30, 0, TimeSpan.FromHours(-5));   // already 2027-01-01 in UTC
+        var file = StoredFile.Create("p", Guid.NewGuid(), ProviderType.LocalDisk, "a.png", "image/png", 1, new string('a', 64), false, late);
+
+        Assert.StartsWith("uploads/p/2027/01/", file.ObjectKey);
+    }
+
+    [Fact]
+    public void TheThumbnailKey_SitsNextToTheFile_AndKeepsTheFolder()
+    {
+        var file = Create();
+
+        Assert.Equal($"uploads/linguabridge/2026/11/{file.Id:N}_thumb.webp", file.ThumbnailObjectKey);
+        Assert.Equal("a/b.c/x_thumb.webp", StoredFile.ThumbnailKeyFor("a/b.c/x"));   // a dot in a folder name is not an extension
+    }
+
+    [Theory]
+    [InlineData("image/png", true)]
+    [InlineData("image/jpeg", true)]
+    [InlineData("image/webp", true)]
+    [InlineData("image/gif", false)]
+    [InlineData("application/pdf", false)]
+    public void OnlyPngJpegAndWebp_CanHaveAThumbnail(string mime, bool expected) =>
+        Assert.Equal(expected, StoredFile.Create("p", Guid.NewGuid(), ProviderType.LocalDisk, "a", mime, 1, new string('a', 64), false, Now).CanHaveThumbnail);
+
+    [Theory]
+    [InlineData("../../etc/passwd", "passwd")]
+    [InlineData("..\\..\\Windows\\system32\\evil.dll", "evil.dll")]
+    [InlineData("/etc/shadow", "shadow")]
+    [InlineData("..", "file")]
+    [InlineData("   ", "file")]
+    [InlineData("ab.png", "ab.png")]
+    public void TheFileName_IsCleanedOfPathsAndControlCharacters(string sent, string expected) =>
+        Assert.Equal(expected, StoredFile.SafeFileName(sent));
+
+    [Fact]
+    public void ALongFileName_IsCutToTheEnd_WhereTheExtensionIs() =>
+        Assert.Equal(255, StoredFile.SafeFileName(new string('x', 400) + ".png").Length);
 
     [Fact]
     public void TwoFilesWithTheSameName_GetDifferentKeys() =>
@@ -162,6 +216,7 @@ public class StoredFileTests
     {
         Assert.Throws<DomainException>(() =>
             StoredFile.Create("p", Guid.NewGuid(), ProviderType.Smtp, "a.png", "image/png", 1, new string('a', 64), false, Now));
+        Assert.Equal(ProviderType.Mock, StoredFile.Create("p", Guid.NewGuid(), ProviderType.Mock, "a.png", "image/png", 1, new string('a', 64), false, Now).StorageProvider);
         Assert.Throws<DomainException>(() =>
             StoredFile.Create("p", Guid.NewGuid(), ProviderType.LocalDisk, "a.png", "image/png", -1, new string('a', 64), false, Now));
     }

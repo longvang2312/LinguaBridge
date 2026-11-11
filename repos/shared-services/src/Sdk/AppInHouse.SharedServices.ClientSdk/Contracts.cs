@@ -85,6 +85,53 @@ public sealed record SendTestChatMessageRequest(
 public sealed record SendTestChatMessageResponse(
     bool Success, string Message, int LatencyMs, string ProviderType, bool UsedSavedConfiguration, Guid? ConfigurationId);
 
+/// <summary>What the service knows about a stored file (never where it is kept). <see cref="Url"/> and <see cref="ThumbnailUrl"/> are relative to the API address.</summary>
+public sealed record StoredFileDto(
+    Guid Id, string ProjectCode, string StorageProvider, string OriginalFileName, string MimeType, long FileSizeBytes, string FileHashSha256,
+    bool IsPublic, bool HasThumbnail, DateTimeOffset CreatedAt, string Url, string? ThumbnailUrl);
+
+/// <summary>
+/// Upload one file. <see cref="ContentType"/> is only what the caller claims: the service reads the real type from the bytes and refuses a
+/// file that is not what it claims to be. The project defaults to the project of the API key.
+/// </summary>
+public sealed record UploadFileRequest(string FileName, string? ContentType = null, bool IsPublic = false, string? ProjectCode = null);
+
+public sealed record UploadFileResponse(StoredFileDto File, string Url, string? ThumbnailUrl, string? PublicUrl);
+
+/// <summary>A file's content, streamed. Dispose it to release the connection.</summary>
+public sealed class FileStreamResponse(Stream content, string contentType, string fileName, long? length, string? eTag, IDisposable? owner = null) : IAsyncDisposable, IDisposable
+{
+    public Stream Content { get; } = content;
+    public string ContentType { get; } = contentType;
+    public string FileName { get; } = fileName;
+    public long? Length { get; } = length;
+    public string? ETag { get; } = eTag;
+
+    public void Dispose()
+    {
+        Content.Dispose();
+        owner?.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Content.DisposeAsync();
+        owner?.Dispose();
+    }
+}
+
+public sealed record MediaLogDto(Guid Id, string ProjectCode, Guid? FileId, string Action, string Status, string? ErrorMessage, DateTimeOffset CreatedAt);
+
+/// <summary>
+/// Test a storage configuration. With <see cref="ConfigurationId"/> the saved version is tested and its last test result is updated. Without
+/// it, <see cref="ProviderType"/>, <see cref="Settings"/> and <see cref="Secret"/> (the S3 secret access key) are tried from memory: nothing
+/// is saved or activated. <see cref="Secret"/> is write-only.
+/// </summary>
+public sealed record StorageTestRequest(Guid? ConfigurationId = null, string? ProviderType = null, JsonElement? Settings = null, string? Secret = null);
+
+/// <summary>The outcome of a storage test. A failed test is an answer (<see cref="Success"/> false with a short, safe <see cref="Message"/>), not an exception.</summary>
+public sealed record StorageTestResponse(bool Success, string Message, int LatencyMs, string ProviderType, bool UsedSavedConfiguration, Guid? ConfigurationId);
+
 /// <summary>The API refused or failed a call. <see cref="Errors"/> holds field-level messages for a 400.</summary>
 public sealed class SharedServicesApiException(int statusCode, string message, IReadOnlyDictionary<string, string[]>? errors = null)
     : Exception(message)

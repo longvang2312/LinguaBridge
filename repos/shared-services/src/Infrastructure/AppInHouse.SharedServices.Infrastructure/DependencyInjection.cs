@@ -1,3 +1,5 @@
+using AppInHouse.SharedServices.Infrastructure.Storage;
+using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Chat;
 using AppInHouse.SharedServices.Application.Email;
@@ -52,6 +54,7 @@ public static class DependencyInjection
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
         AddEmailProviders(services, configuration);
         AddChatProviders(services, configuration);
+        AddStorageProviders(services, configuration);
         return services;
     }
 
@@ -107,5 +110,17 @@ public static class DependencyInjection
         services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<TelegramBotChatProvider>());
         services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<DiscordWebhookChatProvider>());
         services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<SlackWebhookChatProvider>());
+    }
+
+    /// <summary>The storage providers the service can route to (local disk, S3, a mock) and the thumbnail service. Host settings: section <c>Storage</c>.</summary>
+    private static void AddStorageProviders(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        services.AddSingleton<MockStorageProvider>();
+        services.AddSingleton<IStorageProvider>(provider => provider.GetRequiredService<MockStorageProvider>());
+        services.AddSingleton<IStorageProvider, LocalDiskStorageProvider>();
+        services.AddSingleton<IS3ClientFactory>(provider => new S3ClientFactory(provider.GetRequiredService<IOptions<StorageOptions>>(), provider.GetService<Amazon.Runtime.HttpClientFactory>()));
+        services.AddSingleton<IStorageProvider, S3StorageProvider>();
+        services.AddSingleton<IImageThumbnailService, ImageThumbnailService>();
     }
 }

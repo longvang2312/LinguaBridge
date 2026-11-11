@@ -1,6 +1,7 @@
 using AppInHouse.SharedServices.Application.Chat;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -22,6 +23,10 @@ public static class DependencyInjection
         // Chat: the providers (Telegram, Discord, Slack, mock) are registered by the infrastructure layer.
         services.AddScoped<IChatDispatcher, ChatDispatcher>();
         services.AddScoped<IChatTestService, ChatTestService>();
+
+        // Storage: the providers (local disk, S3, mock) and the thumbnail service are registered by the infrastructure layer.
+        services.AddScoped<IStorageService, StorageService>();
+        services.AddScoped<IStorageTestService, StorageTestService>();
         return services;
     }
 }

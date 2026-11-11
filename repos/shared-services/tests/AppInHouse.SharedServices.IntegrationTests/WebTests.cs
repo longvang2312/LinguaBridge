@@ -97,14 +97,14 @@ public partial class WebTests : IClassFixture<WebFactory>
         Assert.Contains("Đang phát triển", html);
     }
 
-    [Theory]
-    [InlineData("/Storage", "Storage")]
-    public async Task TheChannelEntries_OpenTheConfigurationListFilteredByThatChannel(string path, string channel)
+    [Fact]
+    public async Task TheStorageEntry_OpensTheStoragePage_WithTheSidebarEntryLit()
     {
-        var response = await NewClient().GetAsync(path);
+        var html = await NewClient().GetStringAsync("/Storage");
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Configurations?channel={channel}", response.Headers.Location!.OriginalString);
+        Assert.Contains("Lưu trữ &amp; Media Browser", html);
+        Assert.Contains("href=\"/Storage\"", html);
+        Assert.Matches("class=\"nav-link active\"[^>]*href=\"/Storage\"", html);
     }
 
     [Fact]

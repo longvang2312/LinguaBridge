@@ -13,6 +13,9 @@ public static class Policies
     public const string ConfigWrite = ApiScopes.ConfigWrite;
     public const string EmailSend = ApiScopes.EmailSend;
     public const string ChatSend = ApiScopes.ChatSend;
+    public const string StorageUpload = ApiScopes.StorageUpload;
+    public const string StorageRead = ApiScopes.StorageRead;
+    public const string StorageDelete = ApiScopes.StorageDelete;
 }
 
 /// <summary>Needs one of the scopes in the caller's claims (an API key's scopes, or the scopes of a bearer token).</summary>
@@ -31,14 +34,20 @@ public sealed class ScopeAuthorizationHandler : AuthorizationHandler<ScopeRequir
 
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ScopeRequirement requirement)
     {
-        var scopes = context.User.Claims
+        if (HasAny(context.User, requirement.Scopes))
+            context.Succeed(requirement);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Whether the caller has one of these scopes (or the administrator scope). Also used by endpoints that decide per resource, such as a public file.</summary>
+    public static bool HasAny(System.Security.Claims.ClaimsPrincipal user, IEnumerable<string> wanted)
+    {
+        var scopes = user.Claims
             .Where(c => ScopeClaimTypes.Contains(c.Type))
             .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .ToHashSet(StringComparer.Ordinal);
 
-        if (requirement.Scopes.Any(scopes.Contains) || scopes.Contains(AdminScope))
-            context.Succeed(requirement);
-        return Task.CompletedTask;
+        return wanted.Any(scopes.Contains) || scopes.Contains(AdminScope);
     }
 }
 
@@ -98,6 +107,9 @@ public static class AuthenticationExtensions
             options.AddPolicy(Policies.EmailSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.EmailSend)));
             // "telegram:send" is the scope keys had before chat covered more than Telegram; it keeps working.
             options.AddPolicy(Policies.ChatSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ChatSend, ApiScopes.TelegramSend)));
+            options.AddPolicy(Policies.StorageUpload, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageUpload)));
+            options.AddPolicy(Policies.StorageRead, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageRead, ApiScopes.StorageUpload, ApiScopes.StorageDelete)));
+            options.AddPolicy(Policies.StorageDelete, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageDelete)));
         });
         services.AddSingleton<IAuthorizationHandler, ScopeAuthorizationHandler>();
 

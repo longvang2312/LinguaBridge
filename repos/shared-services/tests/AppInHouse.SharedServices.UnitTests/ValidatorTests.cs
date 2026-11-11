@@ -69,6 +69,7 @@ public class ChannelConfigurationValidatorTests
     [InlineData(ChannelType.Chat, ProviderType.Mock)]
     [InlineData(ChannelType.Storage, ProviderType.LocalDisk)]
     [InlineData(ChannelType.Storage, ProviderType.S3)]
+    [InlineData(ChannelType.Storage, ProviderType.Mock)]
     public void EveryDocumentedPairing_Passes(ChannelType channel, ProviderType provider) =>
         Assert.Empty(Check(Valid() with { ChannelType = channel, ProviderType = provider, Secret = SecretFor(provider) }));
 
@@ -76,6 +77,7 @@ public class ChannelConfigurationValidatorTests
     internal static string SecretFor(ProviderType provider) => provider switch
     {
         ProviderType.TelegramBot => "123456" + ":" + "fake-token-for-tests-0123456789",
+        ProviderType.S3 => "fake-secret-access-key-for-tests-0123456789",
         ProviderType.DiscordWebhook => "https://discord.com/api/webhooks/" + "123456789012345678" + "/" + "fake-webhook-token-for-tests-0123456789",
         ProviderType.SlackWebhook => "https://hooks.slack.com/services/" + "T0FAKE000" + "/" + "B0FAKE000" + "/" + "fakewebhooktokenfortests0123",
         _ => "secret",

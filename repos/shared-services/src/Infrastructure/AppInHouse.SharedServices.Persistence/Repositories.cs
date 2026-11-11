@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -59,6 +60,35 @@ internal sealed class DeliveryLogRepository(SharedServicesDbContext db) : IDeliv
     {
         var channels = channelTypes.ToList();   // a plain list, which EF turns into IN (...)
         var query = db.DeliveryLogs.AsNoTracking().Where(l => channels.Contains(l.ChannelType));
+        if (projectCode is not null) query = query.Where(l => l.ProjectCode == projectCode);
+        return await query.OrderByDescending(l => l.CreatedAt).Take(limit).ToListAsync(cancellationToken);
+    }
+}
+
+internal sealed class StoredFileRepository(SharedServicesDbContext db) : IStoredFileRepository
+{
+    public void Add(StoredFile file) => db.StoredFiles.Add(file);
+
+    public Task<StoredFile?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        db.StoredFiles.FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
+
+    public void Remove(StoredFile file) => db.StoredFiles.Remove(file);
+
+    public async Task<IReadOnlyList<StoredFile>> ListAsync(string? projectCode, int limit, int offset, CancellationToken cancellationToken = default)
+    {
+        var query = db.StoredFiles.AsNoTracking();
+        if (projectCode is not null) query = query.Where(f => f.ProjectCode == projectCode);
+        return await query.OrderByDescending(f => f.CreatedAt).ThenBy(f => f.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
+    }
+}
+
+internal sealed class MediaLogRepository(SharedServicesDbContext db) : IMediaLogRepository
+{
+    public void Add(MediaLog log) => db.MediaLogs.Add(log);
+
+    public async Task<IReadOnlyList<MediaLog>> ListRecentAsync(string? projectCode, int limit, CancellationToken cancellationToken = default)
+    {
+        var query = db.MediaLogs.AsNoTracking();
         if (projectCode is not null) query = query.Where(l => l.ProjectCode == projectCode);
         return await query.OrderByDescending(l => l.CreatedAt).Take(limit).ToListAsync(cancellationToken);
     }

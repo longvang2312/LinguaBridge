@@ -1,6 +1,8 @@
 using AppInHouse.SharedServices.Api;
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Storage;
+using AppInHouse.SharedServices.Infrastructure.Storage;
 using AppInHouse.SharedServices.Domain;
 using System.Net;
 using AppInHouse.SharedServices.Infrastructure.Chat;
@@ -25,6 +27,9 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
 
     public string DatabasePath => Path.Combine(_folder, "test.db");
 
+    /// <summary>The folder every local-disk storage configuration of this host puts its files under (deleted with the host).</summary>
+    public string StoragePath => Path.Combine(_folder, "storage");
+
     /// <summary>"Testing" by default. In Development minimal APIs throw on a request that cannot be read instead of answering 400 themselves.</summary>
     protected virtual string EnvironmentName => "Testing";
 
@@ -33,6 +38,12 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
 
     /// <summary>Stands in for api.telegram.org, discord.com and hooks.slack.com: every chat request the service made is recorded here.</summary>
     public RecordingHandler Chat { get; } = new() { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"ok\":true,\"result\":{\"message_id\":77}}") } };
+
+    /// <summary>Stands in for an S3-compatible service (https://s3.example.test): every request the service made is recorded here.</summary>
+    public RecordingHandler S3 { get; } = new() { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) };
+
+    /// <summary>The in-memory store of the mock storage provider.</summary>
+    public MockStorageProvider MockStorage => Services.GetServices<IStorageProvider>().OfType<MockStorageProvider>().Single();
 
     /// <summary>The in-memory mailbox of the mock email provider.</summary>
     public MockEmailProvider MockMail => Services.GetServices<IEmailProvider>().OfType<MockEmailProvider>().Single();
@@ -50,6 +61,7 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
             ["SharedServices:Seeding:Enabled"] = "false",
             ["Authentication:Authority"] = string.Empty,
             ["Email:AllowPrivateNetworkHosts"] = "true",   // the fake SMTP server is on the loopback address
+            ["Storage:BasePath"] = StoragePath,
         };
 
         // Set both ways: which one the host reads first differs between hosting models.
@@ -61,6 +73,7 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
             services.AddHttpClient<TelegramBotChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
             services.AddHttpClient<DiscordWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
             services.AddHttpClient<SlackWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddSingleton<Amazon.Runtime.HttpClientFactory>(new StubS3HttpClientFactory(S3));
             services.AddSingleton<IHostAddressResolver>(new PublicHostResolver());   // no real DNS: the webhook hosts "resolve" to a public address
         });
     }
@@ -122,5 +135,13 @@ public sealed class DevelopmentApiFactory : ApiFactory
 public sealed class PublicHostResolver : IHostAddressResolver
 {
     public Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
-        Task.FromResult(IPAddress.TryParse(host, out var literal) ? new[] { literal } : new[] { IPAddress.Parse("93.184.216.34") });
+        Task.FromResult(IPAddress.TryParse(host, out var literal) ? new[] { literal }
+            : host.StartsWith("evil-", StringComparison.Ordinal) ? new[] { IPAddress.Parse("169.254.169.254") }   // a wildcard DNS name that points at the metadata address
+            : new[] { IPAddress.Parse("93.184.216.34") });
+}
+
+/// <summary>Gives the S3 client of the service an HTTP layer that goes nowhere but into a recorder.</summary>
+public sealed class StubS3HttpClientFactory(HttpMessageHandler handler) : Amazon.Runtime.HttpClientFactory
+{
+    public override HttpClient CreateHttpClient(Amazon.Runtime.IClientConfig clientConfig) => new(handler, disposeHandler: false);
 }

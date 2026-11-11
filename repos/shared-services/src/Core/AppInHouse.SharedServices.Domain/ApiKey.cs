@@ -12,7 +12,15 @@ public static class ApiScopes
 
     /// <summary>Send a chat message (Telegram, Discord, Slack). <see cref="TelegramSend"/> is accepted for it too, for callers that predate this scope.</summary>
     public const string ChatSend = "chat:send";
+
+    /// <summary>Upload files. Also lets a key read the files of its project.</summary>
     public const string StorageUpload = "storage:upload";
+
+    /// <summary>List, download and see the thumbnails of the files of a project (a public file needs no key).</summary>
+    public const string StorageRead = "storage:read";
+
+    /// <summary>Delete files.</summary>
+    public const string StorageDelete = "storage:delete";
 }
 
 /// <summary>

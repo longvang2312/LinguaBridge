@@ -95,6 +95,75 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
         return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(ChatLogs);
     }
 
+    // ---- storage
+
+    public List<StoredFileDto> StoredFiles { get; set; } = [];
+    public List<MediaLogDto> MediaLogs { get; set; } = [];
+    public StorageTestResponse? StorageTestResult { get; set; }
+
+    /// <summary>The bytes the fake serves for any file; null means the file is missing from the storage.</summary>
+    public byte[]? FileBytes { get; set; } = [0x89, 0x50, 0x4E, 0x47];
+
+    public (UploadFileRequest Request, byte[] Content)? LastUpload { get; private set; }
+    public StorageTestRequest? LastStorageTestRequest { get; private set; }
+
+    public async Task<UploadFileResponse> UploadFileAsync(UploadFileRequest request, Stream fileStream, CancellationToken cancellationToken = default)
+    {
+        Enter($"upload:{request.FileName}:{request.ProjectCode}:{request.IsPublic}");
+        using var copy = new MemoryStream();
+        await fileStream.CopyToAsync(copy, cancellationToken);
+        LastUpload = (request, copy.ToArray());
+        var file = new StoredFileDto(Guid.NewGuid(), request.ProjectCode ?? "default", "LocalDisk", request.FileName, request.ContentType ?? "image/png", copy.Length, new string('a', 64), request.IsPublic, true, DateTimeOffset.UtcNow, "/api/v1/storage/files/x", "/api/v1/storage/files/x/thumbnail");
+        return new UploadFileResponse(file, file.Url, file.ThumbnailUrl, null);
+    }
+
+    public Task<FileStreamResponse> DownloadFileAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        Enter($"download:{fileId}");
+        var file = StoredFiles.FirstOrDefault(f => f.Id == fileId) ?? throw new SharedServicesApiException(404, "The file does not exist.");
+        return Task.FromResult(new FileStreamResponse(new MemoryStream(FileBytes ?? []), file.MimeType, file.OriginalFileName, FileBytes?.Length, "\"" + file.FileHashSha256 + "\""));
+    }
+
+    public Task<FileStreamResponse?> GetThumbnailAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        Enter($"thumb:{fileId}");
+        var file = StoredFiles.FirstOrDefault(f => f.Id == fileId);
+        return Task.FromResult(file is { HasThumbnail: true }
+            ? new FileStreamResponse(new MemoryStream([0x52, 0x49, 0x46, 0x46]), "image/webp", "thumb.webp", 4, null)
+            : null);
+    }
+
+    public Task<StoredFileDto?> GetFileMetadataAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        Enter($"metadata:{fileId}");
+        return Task.FromResult(StoredFiles.FirstOrDefault(f => f.Id == fileId));
+    }
+
+    public Task<IReadOnlyList<StoredFileDto>> ListFilesAsync(string? projectCode = null, int limit = 50, CancellationToken cancellationToken = default)
+    {
+        Enter($"files:{projectCode}:{limit}");
+        return Task.FromResult<IReadOnlyList<StoredFileDto>>([.. StoredFiles.Where(f => projectCode is null || f.ProjectCode == projectCode).Take(limit)]);
+    }
+
+    public Task<bool> DeleteFileAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        Enter($"delete-file:{fileId}");
+        return Task.FromResult(StoredFiles.RemoveAll(f => f.Id == fileId) > 0);
+    }
+
+    public Task<StorageTestResponse> TestStorageAsync(StorageTestRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"test-storage:{request.ConfigurationId?.ToString() ?? "unsaved"}:{request.ProviderType}");
+        LastStorageTestRequest = request;
+        return Task.FromResult(StorageTestResult ?? new StorageTestResponse(true, "The folder can be written and read.", 7, request.ProviderType ?? "LocalDisk", request.ConfigurationId is not null, request.ConfigurationId));
+    }
+
+    public Task<IReadOnlyList<MediaLogDto>> GetMediaLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        Enter($"media-logs:{projectCode}:{limit}");
+        return Task.FromResult<IReadOnlyList<MediaLogDto>>(MediaLogs);
+    }
+
     public Task<ChannelConfigurationResponse> RollbackConfigurationAsync(RollbackConfigurationRequest request, CancellationToken cancellationToken = default)
     {
         Enter($"rollback:{request.ProjectCode}:{request.ChannelType}:{request.Name}:{request.TargetVersion}");

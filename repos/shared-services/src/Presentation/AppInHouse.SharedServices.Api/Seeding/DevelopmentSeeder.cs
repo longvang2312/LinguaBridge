@@ -27,7 +27,8 @@ public static class DevelopmentSeeder
             if (ApiKey.TryGetPrefix(devKey, out var prefix) && (await keys.FindByPrefixAsync(prefix, cancellationToken)).Count == 0)
             {
                 await keys.AddAsync(ApiKey.FromPlainText(
-                    "default", "Development key", [ApiScopes.ConfigRead, ApiScopes.ConfigWrite, ApiScopes.EmailSend, ApiScopes.ChatSend], devKey, expiresAt: null, TimeProvider.System.GetUtcNow()), cancellationToken);
+                    "default", "Development key", [ApiScopes.ConfigRead, ApiScopes.ConfigWrite, ApiScopes.EmailSend, ApiScopes.ChatSend,
+                        ApiScopes.StorageUpload, ApiScopes.StorageRead, ApiScopes.StorageDelete], devKey, expiresAt: null, TimeProvider.System.GetUtcNow()), cancellationToken);
                 await provider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken);
                 logger.LogInformation("Seeded the development API key ({Prefix}...).", prefix);
             }
@@ -57,7 +58,7 @@ public static class DevelopmentSeeder
 
         var storage = await manager.SaveAsync(new SaveChannelConfigurationCommand(
             "default", ChannelType.Storage, ProviderType.LocalDisk, "Local uploads",
-            Json(new { rootPath = "data/uploads", maxFileSizeMb = 10 })), cancellationToken);
+            Json(new { rootPath = "uploads", maxFileSizeMb = 10 })), cancellationToken);
         await manager.ActivateAsync(storage.Id, cancellationToken);
 
         logger.LogInformation("Seeded sample configurations (development only).");

@@ -31,6 +31,27 @@ public interface ISharedServicesClient
     Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
+
+    /// <summary>Stores a file. A refusal throws <see cref="SharedServicesApiException"/> (400 not an allowed type or not what it claims to be, 409 no storage configuration, 413 too large, 502 not stored).</summary>
+    Task<UploadFileResponse> UploadFileAsync(UploadFileRequest request, Stream fileStream, CancellationToken cancellationToken = default);
+
+    /// <summary>Streams a file. Throws <see cref="SharedServicesApiException"/> when it does not exist (404) or the key may not read it (403).</summary>
+    Task<FileStreamResponse> DownloadFileAsync(Guid fileId, CancellationToken cancellationToken = default);
+
+    /// <summary>Streams the thumbnail of an image; null when the file has none (or does not exist).</summary>
+    Task<FileStreamResponse?> GetThumbnailAsync(Guid fileId, CancellationToken cancellationToken = default);
+
+    /// <summary>What is known about a file; null when it does not exist.</summary>
+    Task<StoredFileDto?> GetFileMetadataAsync(Guid fileId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<StoredFileDto>> ListFilesAsync(string? projectCode = null, int limit = 50, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a file; false when it did not exist.</summary>
+    Task<bool> DeleteFileAsync(Guid fileId, CancellationToken cancellationToken = default);
+
+    Task<StorageTestResponse> TestStorageAsync(StorageTestRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MediaLogDto>> GetMediaLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
 }
 
 public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClient
@@ -114,6 +135,87 @@ public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClien
         var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
         using var response = await http.GetAsync($"api/v1/chat/delivery-logs?{query}", cancellationToken);
         return await ReadAsync<List<DeliveryLogDto>>(response, cancellationToken);
+    }
+
+    public async Task<UploadFileResponse> UploadFileAsync(UploadFileRequest request, Stream fileStream, CancellationToken cancellationToken = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new StreamContent(fileStream);
+        if (!string.IsNullOrWhiteSpace(request.ContentType)) file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(request.ContentType);
+        form.Add(file, "file", string.IsNullOrWhiteSpace(request.FileName) ? "file" : request.FileName);
+        form.Add(new StringContent(request.IsPublic ? "true" : "false"), "isPublic");
+        if (!string.IsNullOrWhiteSpace(request.ProjectCode)) form.Add(new StringContent(request.ProjectCode), "projectCode");
+
+        using var response = await http.PostAsync("api/v1/storage/upload", form, cancellationToken);
+        return await ReadAsync<UploadFileResponse>(response, cancellationToken);
+    }
+
+    public async Task<FileStreamResponse> DownloadFileAsync(Guid fileId, CancellationToken cancellationToken = default) =>
+        await StreamAsync($"api/v1/storage/files/{fileId}", cancellationToken)
+        ?? throw new SharedServicesApiException(404, "The file does not exist.");
+
+    public Task<FileStreamResponse?> GetThumbnailAsync(Guid fileId, CancellationToken cancellationToken = default) =>
+        StreamAsync($"api/v1/storage/files/{fileId}/thumbnail", cancellationToken);
+
+    public async Task<StoredFileDto?> GetFileMetadataAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync($"api/v1/storage/files/{fileId}/metadata", cancellationToken);
+        return response.StatusCode == HttpStatusCode.NotFound ? null : await ReadAsync<StoredFileDto>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<StoredFileDto>> ListFilesAsync(string? projectCode = null, int limit = 50, CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
+        using var response = await http.GetAsync($"api/v1/storage/files?{query}", cancellationToken);
+        return await ReadAsync<List<StoredFileDto>>(response, cancellationToken);
+    }
+
+    public async Task<bool> DeleteFileAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/storage/files/{fileId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return false;
+        if (!response.IsSuccessStatusCode) throw await ToExceptionAsync(response, cancellationToken);
+        return true;
+    }
+
+    public async Task<StorageTestResponse> TestStorageAsync(StorageTestRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/storage/test", request, Json, cancellationToken);
+        return await ReadAsync<StorageTestResponse>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MediaLogDto>> GetMediaLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
+        using var response = await http.GetAsync($"api/v1/storage/media-logs?{query}", cancellationToken);
+        return await ReadAsync<List<MediaLogDto>>(response, cancellationToken);
+    }
+
+    /// <summary>A body to stream: the response stays open until the caller disposes the result. A 404 is null.</summary>
+    private async Task<FileStreamResponse?> StreamAsync(string url, CancellationToken cancellationToken)
+    {
+        var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        try
+        {
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                response.Dispose();
+                return null;
+            }
+
+            if (!response.IsSuccessStatusCode) throw await ToExceptionAsync(response, cancellationToken);
+
+            var disposition = response.Content.Headers.ContentDisposition;
+            var name = disposition?.FileNameStar ?? disposition?.FileName?.Trim('"') ?? "file";
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return new FileStreamResponse(stream, response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream", name,
+                response.Content.Headers.ContentLength, response.Headers.ETag?.Tag, owner: response);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 
     private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
