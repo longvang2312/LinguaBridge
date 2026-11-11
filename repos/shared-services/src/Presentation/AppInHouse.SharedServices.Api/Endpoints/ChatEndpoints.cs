@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using AppInHouse.SharedServices.Api.Auth;
 using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.AspNetCore.Mvc;
 
@@ -54,8 +55,10 @@ public static class ChatEndpoints
             .WithSummary("Sends a chat message with the project's active chat configuration (or the default project's) and logs the delivery.");
 
         // POST /api/v1/telegram/test is the older address of the same endpoint, kept so callers written for it keep working.
-        var test = async (SendTestChatMessageRequest request, IChatTestService tests, CancellationToken ct) =>
+        var test = async (SendTestChatMessageRequest request, ClaimsPrincipal user, IChannelConfigManager manager, IChatTestService tests, CancellationToken ct) =>
         {
+            if (await ProjectAccess.CheckConfigurationAsync(user, request.ConfigurationId, manager, ct) is { } denied) return denied;
+
             var result = await tests.TestAsync(new TestChatCommand(
                 request.Recipient, request.Message, request.ConfigurationId, request.ProviderType,
                 request.Settings is { ValueKind: not JsonValueKind.Undefined and not JsonValueKind.Null } settings ? settings.GetRawText() : null,

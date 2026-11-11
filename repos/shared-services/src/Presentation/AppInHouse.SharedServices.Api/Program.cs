@@ -56,6 +56,7 @@ var app = builder.Build();
 if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     await app.Services.InitializeSharedServicesDatabaseAsync();
+    await BootstrapKey.EnsureAsync(app.Services, app.Configuration);
     if (app.Environment.IsDevelopment()) await DevelopmentSeeder.SeedAsync(app.Services, app.Configuration);
 }
 
@@ -80,6 +81,7 @@ app.MapChannelConfigurationEndpoints();
 app.MapEmailEndpoints();
 app.MapChatEndpoints();
 app.MapStorageEndpoints();
+app.MapApiKeyEndpoints();
 
 app.Run();
 

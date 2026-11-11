@@ -768,7 +768,7 @@ public class StorageApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(TestStatus.Success, rows.Single(r => r.Id == draft.GetProperty("id").GetGuid()).TestStatus);
         Assert.Equal(TestStatus.Untested, rows.Single(r => r.Id == first.GetProperty("id").GetGuid()).TestStatus);
         Assert.Equal(ConfigurationStatus.Active, rows.Single(r => r.Id == first.GetProperty("id").GetGuid()).Status);   // testing the draft activated nothing
-        Assert.True(Directory.Exists(Path.Combine(factory.StoragePath, "draft-" + project)));
+        Assert.False(Directory.Exists(Path.Combine(factory.StoragePath, "draft-" + project)));   // the folder the test made was taken away again
     }
 
     [Fact]

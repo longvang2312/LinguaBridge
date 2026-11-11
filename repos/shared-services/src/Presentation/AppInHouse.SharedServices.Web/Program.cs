@@ -46,4 +46,7 @@ app.UseStaticFiles();
 app.UseRouting();
 app.MapRazorPages();
 
+// For the container health check: the portal answers, without calling the API (a portal that is up while the API is down is still up).
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", module = "AppInHouse.SharedServices.Web" }));
+
 app.Run();

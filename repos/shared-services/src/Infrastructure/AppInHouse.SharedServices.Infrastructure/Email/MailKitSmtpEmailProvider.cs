@@ -56,9 +56,23 @@ public sealed class DnsHostAddressResolver : IHostAddressResolver
 /// unspecified addresses always, loopback and private networks unless <see cref="EmailOptions.AllowPrivateNetworkHosts"/> is on.
 /// The name is resolved here and again when connecting, so a name that changes its answer in between is not caught.
 /// </summary>
-public sealed class OutboundHostPolicy(IOptions<EmailOptions> options, IHostAddressResolver? resolver = null)
+public sealed class OutboundHostPolicy
 {
-    private readonly IHostAddressResolver _resolver = resolver ?? new DnsHostAddressResolver();
+    private readonly IHostAddressResolver _resolver;
+    private readonly Func<bool> _allowPrivateNetworkHosts;
+
+    /// <summary>The policy of the email and chat providers: private networks are allowed only when <c>Email:AllowPrivateNetworkHosts</c> says so.</summary>
+    public OutboundHostPolicy(IOptions<EmailOptions> options, IHostAddressResolver? resolver = null)
+        : this(() => options.Value.AllowPrivateNetworkHosts, resolver)
+    {
+    }
+
+    /// <summary>A policy with its own switch for private networks, so each kind of outbound call (mail, storage) is allowed to reach them independently.</summary>
+    public OutboundHostPolicy(Func<bool> allowPrivateNetworkHosts, IHostAddressResolver? resolver = null)
+    {
+        _allowPrivateNetworkHosts = allowPrivateNetworkHosts;
+        _resolver = resolver ?? new DnsHostAddressResolver();
+    }
 
     public async Task<string?> CheckAsync(string host, CancellationToken cancellationToken)
     {
@@ -76,7 +90,7 @@ public sealed class OutboundHostPolicy(IOptions<EmailOptions> options, IHostAddr
         {
             var ip = address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
             if (IsAlwaysBlocked(ip)) return $"The address of {host} is not allowed (link-local, multicast or unspecified).";
-            if (!options.Value.AllowPrivateNetworkHosts && IsPrivate(ip)) return $"{host} is on a private or loopback network, which this service is set not to contact.";
+            if (!_allowPrivateNetworkHosts() && IsPrivate(ip)) return $"{host} is on a private or loopback network, which this service is set not to contact.";
         }
 
         return null;

@@ -24,7 +24,8 @@ public sealed class StorageTestService(
     IEnumerable<IStorageProvider> providers,
     IAuditLogWriter audit,
     IUnitOfWork unitOfWork,
-    ILogger<StorageTestService> logger) : IStorageTestService
+    ILogger<StorageTestService> logger,
+    ConfigurationRules? rules = null) : IStorageTestService
 {
     public async Task<TestStorageResult> TestAsync(TestStorageCommand command, CancellationToken cancellationToken = default) =>
         command.ConfigurationId is { } id
@@ -52,7 +53,7 @@ public sealed class StorageTestService(
         // the settings must be complete, because something is really going to be written.
         var settingsJson = string.IsNullOrWhiteSpace(command.SettingsJson) ? "{}" : command.SettingsJson;
         var errors = ChannelConfigurationValidator.Validate(new SaveChannelConfigurationCommand(
-            StorageService.FallbackProject, ChannelType.Storage, provider, "inline test", settingsJson, command.Secret))
+            StorageService.FallbackProject, ChannelType.Storage, provider, "inline test", settingsJson, command.Secret), rules)
             .ToDictionary(e => e.Key, e => e.Value.ToList());
 
         var secret = string.IsNullOrEmpty(command.Secret) || SecretMask.IsMask(command.Secret) ? null : command.Secret;

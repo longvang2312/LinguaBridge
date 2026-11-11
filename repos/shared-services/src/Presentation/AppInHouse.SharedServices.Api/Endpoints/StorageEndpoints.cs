@@ -3,6 +3,7 @@ using System.Text.Json;
 using AppInHouse.SharedServices.Api.Auth;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Storage;
+using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
@@ -101,8 +102,10 @@ public static class StorageEndpoints
             .WithName("DeleteFile")
             .WithSummary("Deletes the file and its thumbnail from the storage it was written to, and its record.");
 
-        group.MapPost("/test", async (StorageTestRequest request, IStorageTestService tests, CancellationToken ct) =>
+        group.MapPost("/test", async (StorageTestRequest request, ClaimsPrincipal user, IChannelConfigManager manager, IStorageTestService tests, CancellationToken ct) =>
             {
+                if (await ProjectAccess.CheckConfigurationAsync(user, request.ConfigurationId, manager, ct) is { } denied) return denied;
+
                 var result = await tests.TestAsync(new TestStorageCommand(
                     request.ConfigurationId, request.ProviderType,
                     request.Settings is { ValueKind: not JsonValueKind.Undefined and not JsonValueKind.Null } settings ? settings.GetRawText() : null,
@@ -125,7 +128,10 @@ public static class StorageEndpoints
         return routes;
     }
 
-    private static IResult Forbidden(string detail) => Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Not your project", detail: detail);
+    private static IResult Forbidden(string detail) => ProjectAccess.Forbidden(detail);
+
+    private static bool StartsADownload(HttpRequest request) =>
+        request.GetTypedHeaders().Range is not { } range || range.Ranges.Any(r => r.From == 0);
 
     private static async Task<IResult> ServeAsync(
         Guid id, bool thumbnail, bool download, HttpContext http, ClaimsPrincipal user, IStorageService storage, CancellationToken ct)
@@ -151,7 +157,9 @@ public static class StorageEndpoints
             return Results.StatusCode(StatusCodes.Status304NotModified);   // not read from the storage, not logged
         }
 
-        var content = await storage.OpenAsync(id, thumbnail, ct);
+        // A player asks for a file in many byte ranges; only the request for the whole file, or for a range that starts at byte 0, is a
+        // download worth a log line. The ranges that follow are the same download continuing.
+        var content = await storage.OpenAsync(id, thumbnail, logDownload: StartsADownload(http.Request), cancellationToken: ct);
         if (content is null) return Results.NotFound();
 
         http.Response.RegisterForDisposeAsync(content);

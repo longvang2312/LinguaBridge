@@ -52,6 +52,23 @@ public interface ISharedServicesClient
     Task<StorageTestResponse> TestStorageAsync(StorageTestRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<MediaLogDto>> GetMediaLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
+
+    /// <summary>Creates a key (only a platform key may). The full key is in the answer and is never available again.</summary>
+    Task<CreateApiKeyResponse> CreateApiKeyAsync(CreateApiKeyRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ApiKeyDto>> ListApiKeysAsync(string? projectCode = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Revokes a key at once (only a platform key may).</summary>
+    Task<ApiKeyDto> RevokeApiKeyAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Makes a new key like the old one; the old one works for <paramref name="graceDays"/> more days, then stops.</summary>
+    Task<RotateApiKeyResponse> RotateApiKeyAsync(Guid id, int graceDays = 7, CancellationToken cancellationToken = default);
+
+    /// <summary>The audit log, newest first (the platform's keys only). <paramref name="to"/> is exclusive.</summary>
+    Task<IReadOnlyList<AuditLogDto>> ListAuditLogsAsync(
+        string? actor = null, string? action = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> GetAuditActionsAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClient
@@ -189,6 +206,49 @@ public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClien
         var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
         using var response = await http.GetAsync($"api/v1/storage/media-logs?{query}", cancellationToken);
         return await ReadAsync<List<MediaLogDto>>(response, cancellationToken);
+    }
+
+    public async Task<CreateApiKeyResponse> CreateApiKeyAsync(CreateApiKeyRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/api-keys", request, Json, cancellationToken);
+        return await ReadAsync<CreateApiKeyResponse>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ApiKeyDto>> ListApiKeysAsync(string? projectCode = null, CancellationToken cancellationToken = default)
+    {
+        var url = string.IsNullOrWhiteSpace(projectCode) ? "api/v1/api-keys" : $"api/v1/api-keys?projectCode={Uri.EscapeDataString(projectCode)}";
+        using var response = await http.GetAsync(url, cancellationToken);
+        return await ReadAsync<List<ApiKeyDto>>(response, cancellationToken);
+    }
+
+    public async Task<ApiKeyDto> RevokeApiKeyAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"api/v1/api-keys/{id}/revoke", null, cancellationToken);
+        return await ReadAsync<ApiKeyDto>(response, cancellationToken);
+    }
+
+    public async Task<RotateApiKeyResponse> RotateApiKeyAsync(Guid id, int graceDays = 7, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"api/v1/api-keys/{id}/rotate?graceDays={graceDays}", null, cancellationToken);
+        return await ReadAsync<RotateApiKeyResponse>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AuditLogDto>> ListAuditLogsAsync(
+        string? actor = null, string? action = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, CancellationToken cancellationToken = default)
+    {
+        var query = new List<string> { $"limit={limit}" };
+        if (!string.IsNullOrWhiteSpace(actor)) query.Add($"actor={Uri.EscapeDataString(actor)}");
+        if (!string.IsNullOrWhiteSpace(action)) query.Add($"action={Uri.EscapeDataString(action)}");
+        if (from is { } start) query.Add($"from={Uri.EscapeDataString(start.ToString("O"))}");
+        if (to is { } end) query.Add($"to={Uri.EscapeDataString(end.ToString("O"))}");
+        using var response = await http.GetAsync($"api/v1/audit-logs?{string.Join('&', query)}", cancellationToken);
+        return await ReadAsync<List<AuditLogDto>>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> GetAuditActionsAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync("api/v1/audit-logs/actions", cancellationToken);
+        return await ReadAsync<List<string>>(response, cancellationToken);
     }
 
     /// <summary>A body to stream: the response stays open until the caller disposes the result. A 404 is null.</summary>

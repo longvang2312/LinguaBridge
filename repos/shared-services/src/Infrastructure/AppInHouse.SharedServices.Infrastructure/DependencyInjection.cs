@@ -120,7 +120,12 @@ public static class DependencyInjection
         services.AddSingleton<IStorageProvider>(provider => provider.GetRequiredService<MockStorageProvider>());
         services.AddSingleton<IStorageProvider, LocalDiskStorageProvider>();
         services.AddSingleton<IS3ClientFactory>(provider => new S3ClientFactory(provider.GetRequiredService<IOptions<StorageOptions>>(), provider.GetService<Amazon.Runtime.HttpClientFactory>()));
-        services.AddSingleton<IStorageProvider, S3StorageProvider>();
+        // S3 reaches its service through a policy with its own private-network switch (Storage:AllowPrivateNetworkHosts).
+        services.AddSingleton<IStorageProvider>(provider => new S3StorageProvider(
+            provider.GetRequiredService<IS3ClientFactory>(),
+            new OutboundHostPolicy(() => provider.GetRequiredService<IOptions<StorageOptions>>().Value.AllowPrivateNetworkHosts, provider.GetRequiredService<IHostAddressResolver>()),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<S3StorageProvider>>()));
+        services.AddSingleton(provider => new Application.Configurations.ConfigurationRules(provider.GetRequiredService<IOptions<StorageOptions>>().Value.AllowAbsolutePaths));
         services.AddSingleton<IImageThumbnailService, ImageThumbnailService>();
     }
 }

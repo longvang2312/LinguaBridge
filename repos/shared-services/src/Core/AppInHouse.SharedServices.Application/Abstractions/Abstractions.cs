@@ -49,6 +49,12 @@ public interface IApiKeyRepository
 
     Task AddAsync(ApiKey key, CancellationToken cancellationToken = default);
     Task<bool> AnyAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>For reading only; newest first. A null project means every project.</summary>
+    Task<IReadOnlyList<ApiKey>> ListAsync(string? projectCode, CancellationToken cancellationToken = default);
+
+    /// <summary>Tracked, so a change to it is saved by the unit of work.</summary>
+    Task<ApiKey?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

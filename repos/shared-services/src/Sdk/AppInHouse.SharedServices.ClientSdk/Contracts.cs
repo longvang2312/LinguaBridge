@@ -132,6 +132,28 @@ public sealed record StorageTestRequest(Guid? ConfigurationId = null, string? Pr
 /// <summary>The outcome of a storage test. A failed test is an answer (<see cref="Success"/> false with a short, safe <see cref="Message"/>), not an exception.</summary>
 public sealed record StorageTestResponse(bool Success, string Message, int LatencyMs, string ProviderType, bool UsedSavedConfiguration, Guid? ConfigurationId);
 
+/// <summary>A key as the service shows it: what it is for and its state (<c>Active</c>, <c>Expired</c>, <c>Revoked</c>), never the key itself.</summary>
+public sealed record ApiKeyDto(
+    Guid Id, string ProjectCode, string Name, string KeyPrefix, IReadOnlyList<string> Scopes, string Status,
+    DateTimeOffset CreatedAt, DateTimeOffset? ExpiresAt, DateTimeOffset? LastUsedAt);
+
+/// <summary>Make a key. <see cref="ExpiresInDays"/> left out means it does not expire (1 to 3650 days otherwise).</summary>
+public sealed record CreateApiKeyRequest(string ProjectCode, string Name, string[] Scopes, int? ExpiresInDays = null);
+
+/// <summary>The answer to creating a key. <see cref="ApiKey"/> is the full key, shown this one time only: keep it in a secret store.</summary>
+public sealed record CreateApiKeyResponse(ApiKeyDto Key, string ApiKey)
+{
+    public override string ToString() => $"CreateApiKeyResponse {Key.KeyPrefix}...";
+}
+
+public sealed record RotateApiKeyResponse(ApiKeyDto Key, string ApiKey, ApiKeyDto OldKey)
+{
+    public override string ToString() => $"RotateApiKeyResponse {Key.KeyPrefix}...";
+}
+
+/// <summary>One audit entry. <see cref="DetailsJson"/> has been cleaned of anything that looks like a secret.</summary>
+public sealed record AuditLogDto(Guid Id, string Actor, string Action, string ResourceType, string ResourceId, string? DetailsJson, DateTimeOffset CreatedAt);
+
 /// <summary>The API refused or failed a call. <see cref="Errors"/> holds field-level messages for a 400.</summary>
 public sealed class SharedServicesApiException(int statusCode, string message, IReadOnlyDictionary<string, string[]>? errors = null)
     : Exception(message)

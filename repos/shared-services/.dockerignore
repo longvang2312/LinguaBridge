@@ -1,0 +1,10 @@
+# Keeps the build context small and stops local build output or local data from reaching an image.
+**/bin/
+**/obj/
+**/data/
+**/.vs/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+tests/
+*.md

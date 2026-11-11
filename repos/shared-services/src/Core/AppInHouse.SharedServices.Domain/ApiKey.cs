@@ -3,6 +3,14 @@ using System.Text;
 
 namespace AppInHouse.SharedServices.Domain;
 
+/// <summary>What a key can do right now.</summary>
+public enum ApiKeyStatus
+{
+    Active,
+    Expired,
+    Revoked,
+}
+
 public static class ApiScopes
 {
     public const string ConfigRead = "config:read";
@@ -21,6 +29,10 @@ public static class ApiScopes
 
     /// <summary>Delete files.</summary>
     public const string StorageDelete = "storage:delete";
+
+    /// <summary>The scopes a key can be given when it is created (the older <see cref="TelegramSend"/> is no longer offered).</summary>
+    public static IReadOnlyList<string> Assignable { get; } =
+        [ConfigRead, ConfigWrite, EmailSend, ChatSend, StorageUpload, StorageRead, StorageDelete];
 }
 
 /// <summary>
@@ -127,7 +139,16 @@ public sealed class ApiKey
 
     public bool HasScope(string scope) => ScopeList.Contains(scope, StringComparer.Ordinal);
 
+    public ApiKeyStatus StatusAt(DateTimeOffset now) =>
+        IsRevoked ? ApiKeyStatus.Revoked : ExpiresAt is not null && ExpiresAt <= now ? ApiKeyStatus.Expired : ApiKeyStatus.Active;
+
     public void Revoke() => IsRevoked = true;
+
+    /// <summary>Ends the key's life at <paramref name="at"/> if that is earlier than it already ends (used to retire an old key once a new one has taken over).</summary>
+    public void ShortenExpiry(DateTimeOffset at)
+    {
+        if (ExpiresAt is null || at < ExpiresAt) ExpiresAt = at;
+    }
 
     public void MarkUsed(DateTimeOffset now) => LastUsedAt = now;
 }

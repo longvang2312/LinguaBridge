@@ -28,6 +28,12 @@ public sealed class StorageOptions
     /// <summary>Whether a local-disk configuration may name an absolute folder anywhere on the server. Off by default.</summary>
     public bool AllowAbsolutePaths { get; set; }
 
+    /// <summary>
+    /// Whether an S3 <c>serviceUrl</c> may point at a loopback or private network (a MinIO next to the service). Off by default, and independent of
+    /// <c>Email:AllowPrivateNetworkHosts</c>: allowing storage on the internal network does not open mail to it. Link-local and metadata addresses are never allowed.
+    /// </summary>
+    public bool AllowPrivateNetworkHosts { get; set; }
+
     public int S3TimeoutSeconds { get; set; } = 30;
 }
 
@@ -106,9 +112,11 @@ public sealed class LocalDiskStorageProvider(IOptions<StorageOptions> options) :
         var shown = StorageSettingsReader.Read(configuration.Settings).RootPath;
 
         string? canary = null;
+        IReadOnlyList<string> created = [];
         try
         {
             var root = Root(configuration);
+            created = MissingFolders(root);   // what the test is about to create, so it can take it away again
             Directory.CreateDirectory(root);
             canary = Path.Combine(root, $".canary-{Guid.NewGuid():N}.tmp");
 
@@ -136,6 +144,32 @@ public sealed class LocalDiskStorageProvider(IOptions<StorageOptions> options) :
         finally
         {
             try { if (canary is not null) File.Delete(canary); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            RemoveEmpty(created);
+        }
+    }
+
+    /// <summary>The folders from <paramref name="root"/> upwards that do not exist yet, deepest first (the order to remove them in).</summary>
+    private static List<string> MissingFolders(string root)
+    {
+        var missing = new List<string>();
+        for (var folder = Path.TrimEndingDirectorySeparator(root); !string.IsNullOrEmpty(folder) && !Directory.Exists(folder); folder = Path.GetDirectoryName(folder))
+            missing.Add(folder);
+        return missing;
+    }
+
+    /// <summary>Removes the folders a test created, but only while they are empty: a folder that has files in it is never touched.</summary>
+    private static void RemoveEmpty(IEnumerable<string> folders)
+    {
+        foreach (var folder in folders)
+        {
+            try
+            {
+                if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A leftover empty folder is not a failure of the test.
+            }
         }
     }
 

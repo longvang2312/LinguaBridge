@@ -1,0 +1,96 @@
+# AppInHouse Shared Services: API (5030), management portal (5031) and PostgreSQL.
+#
+#   SHARED_SERVICES_DB_PASSWORD=...  SHARED_SERVICES_ADMIN_KEY=aih_live_...  docker compose -f docker-compose.shared-services.yml up -d --build
+#
+# Both variables are required (compose refuses to start without them); put them in an .env file that is not committed, or in the
+# environment of the server. SHARED_SERVICES_ADMIN_KEY is the first API key: the API creates it once, when the database holds no key,
+# and the portal uses it to call the API. Make real keys in the portal (/ApiKeys), switch the portal to one of them, then revoke this one.
+# It must start with "aih_live_" and be at least 32 characters, for example:  aih_live_ + 40 random letters and digits.
+#
+# Ports can be moved with SHARED_SERVICES_API_PORT / SHARED_SERVICES_WEB_PORT. The portal has no sign-in yet: do not publish its port
+# beyond a trusted network.
+
+name: appinhouse-shared-services
+
+services:
+  shared-services-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shared_services
+      POSTGRES_USER: shared_services
+      POSTGRES_PASSWORD: ${SHARED_SERVICES_DB_PASSWORD:?Set SHARED_SERVICES_DB_PASSWORD}
+    volumes:
+      - shared-services-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shared_services -d shared_services"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  shared-services-api:
+    build:
+      context: ./repos/shared-services
+      dockerfile: src/Presentation/AppInHouse.SharedServices.Api/Dockerfile
+    image: appinhouse/shared-services-api:latest
+    restart: unless-stopped
+    depends_on:
+      shared-services-db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5030
+      Database__Provider: Postgres
+      # Applies the migration (schema "shared") before the host starts listening, so a healthy API means a ready database.
+      Database__MigrateOnStartup: "true"
+      ConnectionStrings__SharedServicesDb: Host=shared-services-db;Port=5432;Database=shared_services;Username=shared_services;Password=${SHARED_SERVICES_DB_PASSWORD}
+      DataProtection__ApplicationName: AppInHouse.SharedServices
+      DataProtection__KeysPath: /root/.aspnet/DataProtection-Keys
+      Storage__BasePath: /data/storage
+      SharedServices__Bootstrap__AdminApiKey: ${SHARED_SERVICES_ADMIN_KEY:?Set SHARED_SERVICES_ADMIN_KEY (aih_live_..., at least 32 characters)}
+    volumes:
+      # The key ring that protects every stored secret. Back it up with the database; lose it and the secrets cannot be read.
+      - shared-services-dp-keys:/root/.aspnet/DataProtection-Keys
+      # The files of the local-disk storage provider.
+      - shared-services-storage:/data/storage
+    ports:
+      - "${SHARED_SERVICES_API_PORT:-5030}:5030"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:5030/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  shared-services-web:
+    build:
+      context: ./repos/shared-services
+      dockerfile: src/Presentation/AppInHouse.SharedServices.Web/Dockerfile
+    image: appinhouse/shared-services-web:latest
+    restart: unless-stopped
+    depends_on:
+      shared-services-api:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5031
+      SharedServices__Api__BaseUrl: http://shared-services-api:5030
+      SharedServices__Api__ApiKey: ${SHARED_SERVICES_ADMIN_KEY:?Set SHARED_SERVICES_ADMIN_KEY}
+      DataProtection__KeysPath: /root/.aspnet/DataProtection-Keys
+    volumes:
+      - shared-services-web-dp-keys:/root/.aspnet/DataProtection-Keys
+    ports:
+      - "${SHARED_SERVICES_WEB_PORT:-5031}:5031"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:5031/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  shared-services-pgdata:
+  shared-services-dp-keys:
+  shared-services-storage:
+  shared-services-web-dp-keys:

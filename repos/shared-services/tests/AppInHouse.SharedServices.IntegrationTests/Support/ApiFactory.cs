@@ -30,6 +30,9 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
     /// <summary>The folder every local-disk storage configuration of this host puts its files under (deleted with the host).</summary>
     public string StoragePath => Path.Combine(_folder, "storage");
 
+    /// <summary>Settings a test host adds to (or replaces in) the ones every host gets, for example another private-network switch.</summary>
+    protected virtual IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>();
+
     /// <summary>"Testing" by default. In Development minimal APIs throw on a request that cannot be read instead of answering 400 themselves.</summary>
     protected virtual string EnvironmentName => "Testing";
 
@@ -64,6 +67,8 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
             ["Storage:BasePath"] = StoragePath,
         };
 
+        foreach (var (key, value) in ExtraSettings) settings[key] = value;   // a test host can change any of the above
+
         // Set both ways: which one the host reads first differs between hosting models.
         foreach (var (key, value) in settings) builder.UseSetting(key, value);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
@@ -83,7 +88,7 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
         await CreateKeyAsync(expiresAt: null, scopes);
 
     public async Task<(string PlainKey, ApiKey Key)> CreateKeyAsync(DateTimeOffset? expiresAt, params string[] scopes) =>
-        await CreateKeyForProjectAsync("tests", expiresAt, scopes);
+        await CreateKeyForProjectAsync("default", expiresAt, scopes);
 
     /// <summary>A key that belongs to <paramref name="project"/> ("default" is the platform's own and may act for every project).</summary>
     public async Task<(string PlainKey, ApiKey Key)> CreateKeyForProjectAsync(string project, DateTimeOffset? expiresAt, params string[] scopes)
@@ -144,4 +149,28 @@ public sealed class PublicHostResolver : IHostAddressResolver
 public sealed class StubS3HttpClientFactory(HttpMessageHandler handler) : Amazon.Runtime.HttpClientFactory
 {
     public override HttpClient CreateHttpClient(Amazon.Runtime.IClientConfig clientConfig) => new(handler, disposeHandler: false);
+}
+
+/// <summary>Storage may reach private networks, mail may not.</summary>
+public sealed class StoragePrivateOnlyApiFactory : ApiFactory
+{
+    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>
+    {
+        ["Storage:AllowPrivateNetworkHosts"] = "true", ["Email:AllowPrivateNetworkHosts"] = "false",
+    };
+}
+
+/// <summary>Mail may reach private networks, storage may not.</summary>
+public sealed class EmailPrivateOnlyApiFactory : ApiFactory
+{
+    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>
+    {
+        ["Storage:AllowPrivateNetworkHosts"] = "false", ["Email:AllowPrivateNetworkHosts"] = "true",
+    };
+}
+
+/// <summary>A host that allows an absolute folder for local-disk storage.</summary>
+public sealed class AbsolutePathsApiFactory : ApiFactory
+{
+    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Storage:AllowAbsolutePaths"] = "true" };
 }

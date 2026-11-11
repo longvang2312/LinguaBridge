@@ -11,11 +11,12 @@ public sealed class ChannelConfigManager(
     ISecretProtector secretProtector,
     IAuditLogWriter audit,
     IUnitOfWork unitOfWork,
-    TimeProvider clock) : IChannelConfigManager
+    TimeProvider clock,
+    ConfigurationRules? rules = null) : IChannelConfigManager
 {
     public async Task<ChannelConfigurationDto> SaveAsync(SaveChannelConfigurationCommand command, CancellationToken cancellationToken = default)
     {
-        var errors = ChannelConfigurationValidator.Validate(command);
+        var errors = ChannelConfigurationValidator.Validate(command, rules);
         if (errors.Count > 0) throw new ValidationException(errors);
 
         var projectCode = ChannelConfigurationValidator.NormalizeProjectCode(command.ProjectCode);
@@ -37,6 +38,20 @@ public sealed class ChannelConfigManager(
             {
                 [nameof(command.Secret)] = [$"The provider changed from {before} to {command.ProviderType}: enter the secret for {command.ProviderType}. The previous secret is not reused."],
             });
+        }
+
+        // The stored SMTP password belongs to one server and one login. If either changes, the old password must not silently go to the new
+        // server (it would be handed to whoever runs it), so it has to be typed again.
+        if (series.Count > 0 && !typedSecret && command.ProviderType == ProviderType.Smtp && previousProvider == ProviderType.Smtp)
+        {
+            var last = series.OrderBy(v => v.Version).Last();
+            if (last.EncryptedSecret is not null && SmtpLoginChanged(last.SettingsJson, command.SettingsJson))
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    [nameof(command.Secret)] = ["The SMTP host or username changed: enter the password again. The stored password is not reused for a different server or login."],
+                });
+            }
         }
 
         ChannelConfiguration saved;
@@ -187,5 +202,28 @@ public sealed class ChannelConfigManager(
     {
         using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(settingsJson) ? "{}" : settingsJson);
         return document.RootElement.Clone();
+    }
+
+    /// <summary>Whether the SMTP host or the user name differs between two sets of settings (host names compare without regard to case).</summary>
+    internal static bool SmtpLoginChanged(string previousSettingsJson, string newSettingsJson)
+    {
+        static (string Host, string User) Read(string json)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
+                string Text(string name) =>
+                    document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+                        ? v.GetString()!.Trim()
+                        : string.Empty;
+                return (Text("host").ToLowerInvariant(), Text("username"));
+            }
+            catch (JsonException)
+            {
+                return (string.Empty, string.Empty);
+            }
+        }
+
+        return Read(previousSettingsJson) != Read(newSettingsJson);
     }
 }

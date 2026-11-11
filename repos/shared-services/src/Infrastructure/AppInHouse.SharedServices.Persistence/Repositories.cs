@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AppInHouse.SharedServices.Application.Abstractions;
+using AppInHouse.SharedServices.Application.Audit;
 using AppInHouse.SharedServices.Application.Email;
 using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Domain;
@@ -41,6 +42,33 @@ internal sealed class ApiKeyRepository(SharedServicesDbContext db) : IApiKeyRepo
         await db.ApiKeys.AddAsync(key, cancellationToken);
 
     public Task<bool> AnyAsync(CancellationToken cancellationToken = default) => db.ApiKeys.AnyAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ApiKey>> ListAsync(string? projectCode, CancellationToken cancellationToken = default)
+    {
+        var query = db.ApiKeys.AsNoTracking();
+        if (projectCode is not null) query = query.Where(k => k.ProjectCode == projectCode);
+        return await query.OrderByDescending(k => k.CreatedAt).ThenBy(k => k.Id).ToListAsync(cancellationToken);
+    }
+
+    public Task<ApiKey?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        db.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, cancellationToken);
+}
+
+internal sealed class AuditLogRepository(SharedServicesDbContext db) : IAuditLogRepository
+{
+    public async Task<IReadOnlyList<AuditLog>> ListAsync(
+        string? actor, string? action, DateTimeOffset? from, DateTimeOffset? to, int limit, int offset, CancellationToken cancellationToken = default)
+    {
+        var query = db.AuditLogs.AsNoTracking();
+        if (actor is not null) query = query.Where(l => l.Actor.Contains(actor));
+        if (action is not null) query = query.Where(l => l.Action == action);
+        if (from is { } start) query = query.Where(l => l.CreatedAt >= start);
+        if (to is { } end) query = query.Where(l => l.CreatedAt < end);
+        return await query.OrderByDescending(l => l.CreatedAt).ThenBy(l => l.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> ActionsAsync(CancellationToken cancellationToken = default) =>
+        await db.AuditLogs.AsNoTracking().Select(l => l.Action).Distinct().OrderBy(a => a).ToListAsync(cancellationToken);
 }
 
 internal sealed class DeliveryLogRepository(SharedServicesDbContext db) : IDeliveryLogRepository

@@ -107,7 +107,11 @@ public interface IStorageService
     Task<StoredFileDto?> GetMetadataAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>The content (or the thumbnail) of a file, read from where it was stored. Null when the file or its thumbnail does not exist. A download is logged.</summary>
-    Task<DownloadedFile?> OpenAsync(Guid id, bool thumbnail, CancellationToken cancellationToken = default);
+    /// <param name="logDownload">
+    /// Whether a successful read is written to the media log. A caller that serves byte ranges passes false for the ranges that are only
+    /// the continuation of a download that was already logged. A failed read is always logged.
+    /// </param>
+    Task<DownloadedFile?> OpenAsync(Guid id, bool thumbnail, bool logDownload = true, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<StoredFileDto>> ListAsync(string? projectCode, int limit, int offset, CancellationToken cancellationToken = default);
 

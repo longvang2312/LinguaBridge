@@ -228,7 +228,7 @@ public class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var client = await AdminClientAsync();
         var v1 = await ReadAsync(await client.PostAsJsonAsync(Root, SmtpBody("Life cycle")));
-        var v2 = await ReadAsync(await client.PostAsJsonAsync(Root, SmtpBody("Life cycle", secret: null, settings: new { host = "smtp2.example.com", port = 465 })));
+        var v2 = await ReadAsync(await client.PostAsJsonAsync(Root, SmtpBody("Life cycle", secret: null, settings: new { host = "smtp.example.com", port = 465 })));
         Assert.Equal((1, "Draft"), (v1.GetProperty("version").GetInt32(), v1.GetProperty("status").GetString()));
         Assert.Equal((2, "Draft"), (v2.GetProperty("version").GetInt32(), v2.GetProperty("status").GetString()));
         Assert.True(v2.GetProperty("hasSecret").GetBoolean());   // version 2 kept the secret
@@ -258,7 +258,7 @@ public class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var client = await AdminClientAsync();
         var v1 = await ReadAsync(await client.PostAsJsonAsync(Root, SmtpBody("Quick rollback")));
         await client.PostAsync($"{Root}/{v1.GetProperty("id").GetGuid()}/activate", content: null);
-        var v2 = await ReadAsync(await client.PostAsJsonAsync(Root, SmtpBody("Quick rollback", secret: null, settings: new { host = "broken.example.com" })));
+        var v2 = await ReadAsync(await client.PostAsJsonAsync(Root, SmtpBody("Quick rollback", secret: null, settings: new { host = "smtp.example.com", port = 25 })));
         await client.PostAsync($"{Root}/{v2.GetProperty("id").GetGuid()}/activate", content: null);
 
         var rolledBack = await ReadAsync(await client.PostAsJsonAsync($"{Root}/rollback", new { projectCode = "linguabridge", channelType = "Email", name = "Quick rollback" }));

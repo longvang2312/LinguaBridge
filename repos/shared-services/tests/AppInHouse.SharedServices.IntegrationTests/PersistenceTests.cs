@@ -250,7 +250,7 @@ public class PostgresPersistenceTests
         var manager = scope.ServiceProvider.GetRequiredService<IChannelConfigManager>();
 
         var v1 = await manager.SaveAsync(new SaveChannelConfigurationCommand("p", ChannelType.Email, ProviderType.Smtp, "Main", """{"host":"a","port":587}""", "Pg-S3cret-value"));
-        var v2 = await manager.SaveAsync(new SaveChannelConfigurationCommand("p", ChannelType.Email, ProviderType.Smtp, "Main", """{"host":"b"}"""));
+        var v2 = await manager.SaveAsync(new SaveChannelConfigurationCommand("p", ChannelType.Email, ProviderType.Smtp, "Main", """{"host":"a","port":25}"""));
         await manager.ActivateAsync(v2.Id);
         var restored = await manager.RollbackAsync(new RollbackConfigurationCommand("p", ChannelType.Email, "Main", 1));
 

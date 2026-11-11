@@ -1,4 +1,5 @@
 using AppInHouse.SharedServices.Application.Abstractions;
+using AppInHouse.SharedServices.Application.Audit;
 using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Application.Email;
 using Microsoft.Data.Sqlite;
@@ -40,6 +41,7 @@ public static class DependencyInjection
 
         services.AddScoped<IChannelConfigRepository, ChannelConfigRepository>();
         services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IDeliveryLogRepository, DeliveryLogRepository>();
         services.AddScoped<IStoredFileRepository, StoredFileRepository>();
         services.AddScoped<IMediaLogRepository, MediaLogRepository>();

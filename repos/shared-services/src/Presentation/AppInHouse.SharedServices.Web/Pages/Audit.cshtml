@@ -1,13 +1,96 @@
 @page
+@model AppInHouse.SharedServices.Web.Pages.AuditModel
 @{
     ViewData["Title"] = "Audit Logs & Lịch sử gửi tin";
 }
 
-<h1 class="page-title mb-3">Audit Logs &amp; Lịch sử gửi tin</h1>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="page-title mb-0">Audit Logs <span class="text-muted fs-6 fw-normal">Ai đã đổi gì</span></h1>
+    <span class="text-muted small">Chi tiết đã được làm sạch: không chứa mật khẩu, token hay API key.</span>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+@if (!string.IsNullOrEmpty(Model.FilterError))
+{
+    <div class="alert alert-danger" role="alert" id="filter-error">@Model.FilterError</div>
+}
+
+<form method="get" class="card shadow-sm mb-3" id="audit-filter">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label small mb-1" for="actor">Actor</label>
+                <input class="form-control" id="actor" name="actor" value="@Model.Actor" placeholder="email hoặc apikey:aih_live_…" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small mb-1" for="action">Hành động</label>
+                <select class="form-select" id="action" name="action">
+                    <option value="" selected="@string.IsNullOrEmpty(Model.Action)">Tất cả</option>
+                    @foreach (var action in Model.Actions)
+                    {
+                        <option value="@action" selected="@(action == Model.Action)">@action</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="from">Từ ngày (UTC)</label>
+                <input class="form-control" type="date" id="from" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="to">Đến ngày (UTC)</label>
+                <input class="form-control" type="date" id="to" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary" id="filter-button"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                <a class="btn btn-outline-secondary" asp-page="/Audit" id="clear-filter">Xóa lọc</a>
+            </div>
+        </div>
+    </div>
+</form>
+
 <div class="card shadow-sm">
-    <div class="card-body text-center py-5 text-muted" id="coming-soon">
-        <i class="bi bi-journal-text fs-1 d-block mb-2"></i>
-        <p class="mb-1 fw-semibold">Đang phát triển</p>
-        <p class="mb-0">Nhật ký audit (ai đổi cấu hình, ai kích hoạt) đã được ghi vào cơ sở dữ liệu; màn hình xem nhật ký audit và lịch sử gửi tin sẽ có ở giai đoạn sau.</p>
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <strong>Nhật ký kiểm toán</strong>
+        <span class="text-muted small" id="log-count">@Model.Logs.Count dòng (mới nhất trước, tối đa @AuditModel.PageSize)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="audit-table">
+            <thead class="table-light">
+                <tr><th>Thời gian (UTC)</th><th>Actor</th><th>Hành động</th><th>Loại tài nguyên</th><th>Mã tài nguyên</th><th>Chi tiết</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var log in Model.Logs)
+                {
+                    var details = AuditModel.PrettyDetails(log.DetailsJson);
+                    <tr data-action="@log.Action">
+                        <td class="text-nowrap">@log.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@log.Actor</td>
+                        <td><span class="badge text-bg-light border">@log.Action</span></td>
+                        <td>@log.ResourceType</td>
+                        <td class="text-muted small text-break">@log.ResourceId</td>
+                        <td>
+                            @if (details.Length > 0)
+                            {
+                                <details class="audit-details">
+                                    <summary class="btn btn-sm btn-outline-secondary">Xem chi tiết</summary>
+                                    <pre class="mt-2 mb-0 small bg-light border rounded p-2">@details</pre>
+                                </details>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Logs.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4" id="no-audit">Không có bản ghi nào khớp bộ lọc.</td></tr>
+                }
+            </tbody>
+        </table>
     </div>
 </div>

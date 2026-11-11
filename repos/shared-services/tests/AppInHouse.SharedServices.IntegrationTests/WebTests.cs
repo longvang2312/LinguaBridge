@@ -84,19 +84,6 @@ public partial class WebTests : IClassFixture<WebFactory>
         Assert.Matches(@"(?s)Email.*?1\s*<small[^>]*>đang hoạt động.*?1 bản nháp", html);
     }
 
-    [Theory]
-    [InlineData("/ApiKeys", "Ứng dụng &amp; API Keys")]
-    [InlineData("/Audit", "Audit Logs &amp; Lịch sử gửi tin")]
-    public async Task TheSectionsStillToCome_ShowAClearPlaceholder(string path, string title)
-    {
-        var response = await NewClient().GetAsync(path);
-        var html = await response.Content.ReadAsStringAsync();
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(title, html);
-        Assert.Contains("Đang phát triển", html);
-    }
-
     [Fact]
     public async Task TheStorageEntry_OpensTheStoragePage_WithTheSidebarEntryLit()
     {

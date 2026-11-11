@@ -475,6 +475,35 @@ public class StorageServiceTests
     }
 
     [Fact]
+    public async Task ReadingWithoutLoggingTheDownload_WritesNoDownloadLog_ButStillGivesTheFile()
+    {
+        var f = new Fixture();
+        await f.ActivateAsync("default", ProviderType.LocalDisk);
+        var id = (await f.UploadAsync(TestFiles.FakePdf(), name: "a.pdf", contentType: "application/pdf")).File!.Id;
+        f.Logs.Rows.Clear();
+
+        await using (var continued = await f.Service.OpenAsync(id, thumbnail: false, logDownload: false)) Assert.NotNull(continued);   // the rest of a ranged download
+        Assert.Empty(f.Logs.Rows);
+
+        await using (var first = await f.Service.OpenAsync(id, thumbnail: false)) Assert.NotNull(first);   // the default is to log
+        Assert.Equal([("Download", "Success")], f.Logs.Rows.Select(l => (l.Action, l.Status)));
+    }
+
+    [Fact]
+    public async Task AFailedRead_IsLogged_EvenWhenSuccessIsNot()
+    {
+        var f = new Fixture();
+        await f.ActivateAsync("default", ProviderType.LocalDisk);
+        var id = (await f.UploadAsync(TestFiles.FakePdf(), name: "a.pdf", contentType: "application/pdf")).File!.Id;
+        f.Disk.Objects.Clear();
+        f.Logs.Rows.Clear();
+
+        Assert.Null(await f.Service.OpenAsync(id, thumbnail: false, logDownload: false));
+
+        Assert.Equal([("Download", "Failed")], f.Logs.Rows.Select(l => (l.Action, l.Status)));
+    }
+
+    [Fact]
     public async Task AFileWithoutAThumbnail_HasNoThumbnailToOpen()
     {
         var f = new Fixture();

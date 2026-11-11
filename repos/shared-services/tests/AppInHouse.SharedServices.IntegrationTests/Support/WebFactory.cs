@@ -95,6 +95,65 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
         return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(ChatLogs);
     }
 
+    // ---- API keys and audit
+
+    public List<ApiKeyDto> ApiKeys { get; set; } = [];
+    public List<AuditLogDto> AuditLogs { get; set; } = [];
+    public List<string> AuditActions { get; set; } = [];
+    public CreateApiKeyRequest? LastCreateKey { get; private set; }
+    public (string? Actor, string? Action, DateTimeOffset? From, DateTimeOffset? To, int Limit)? LastAuditQuery { get; private set; }
+
+    /// <summary>The full key the fake hands out when a key is created or rotated.</summary>
+    public const string IssuedKey = "aih_live_abc123Fakeissuedkeyvalue0123456789ABCDEFGH";
+
+    public Task<CreateApiKeyResponse> CreateApiKeyAsync(CreateApiKeyRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"create-key:{request.Name}");
+        LastCreateKey = request;
+        var key = new ApiKeyDto(Guid.NewGuid(), request.ProjectCode, request.Name, "aih_live_abc123", request.Scopes, "Active", DateTimeOffset.UtcNow,
+            request.ExpiresInDays is { } days ? DateTimeOffset.UtcNow.AddDays(days) : null, null);
+        ApiKeys.Add(key);
+        return Task.FromResult(new CreateApiKeyResponse(key, IssuedKey));
+    }
+
+    public Task<IReadOnlyList<ApiKeyDto>> ListApiKeysAsync(string? projectCode = null, CancellationToken cancellationToken = default)
+    {
+        Enter($"list-keys:{projectCode}");
+        return Task.FromResult<IReadOnlyList<ApiKeyDto>>([.. ApiKeys.Where(k => string.IsNullOrEmpty(projectCode) || k.ProjectCode == projectCode)]);
+    }
+
+    public Task<ApiKeyDto> RevokeApiKeyAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        Enter($"revoke-key:{id}");
+        var index = ApiKeys.FindIndex(k => k.Id == id);
+        if (index < 0) throw new SharedServicesApiException(404, "API key does not exist.");
+        ApiKeys[index] = ApiKeys[index] with { Status = "Revoked" };
+        return Task.FromResult(ApiKeys[index]);
+    }
+
+    public Task<RotateApiKeyResponse> RotateApiKeyAsync(Guid id, int graceDays = 7, CancellationToken cancellationToken = default)
+    {
+        Enter($"rotate-key:{id}:{graceDays}");
+        var old = ApiKeys.First(k => k.Id == id) with { ExpiresAt = DateTimeOffset.UtcNow.AddDays(graceDays) };
+        var fresh = old with { Id = Guid.NewGuid(), KeyPrefix = "aih_live_new999", ExpiresAt = null };
+        ApiKeys.Add(fresh);
+        return Task.FromResult(new RotateApiKeyResponse(fresh, IssuedKey, old));
+    }
+
+    public Task<IReadOnlyList<AuditLogDto>> ListAuditLogsAsync(string? actor = null, string? action = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, CancellationToken cancellationToken = default)
+    {
+        Enter($"audit:{actor}:{action}");
+        LastAuditQuery = (actor, action, from, to, limit);
+        return Task.FromResult<IReadOnlyList<AuditLogDto>>([.. AuditLogs.Where(l =>
+            (actor is null || l.Actor.Contains(actor)) && (action is null || l.Action == action) && (from is null || l.CreatedAt >= from) && (to is null || l.CreatedAt < to))]);
+    }
+
+    public Task<IReadOnlyList<string>> GetAuditActionsAsync(CancellationToken cancellationToken = default)
+    {
+        Enter("audit-actions");
+        return Task.FromResult<IReadOnlyList<string>>(AuditActions);
+    }
+
     // ---- storage
 
     public List<StoredFileDto> StoredFiles { get; set; } = [];

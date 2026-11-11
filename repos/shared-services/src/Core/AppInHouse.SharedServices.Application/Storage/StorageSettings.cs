@@ -98,6 +98,10 @@ public static partial class StorageSettingsReader
         return problems;
     }
 
+    /// <summary>Whether a folder is absolute on any platform (a Windows drive or UNC path counts on Linux too, so a setting means the same everywhere).</summary>
+    public static bool IsAbsolutePath(string path) =>
+        path.StartsWith('/') || path.StartsWith('\\') || (path.Length >= 2 && char.IsAsciiLetter(path[0]) && path[1] == ':');
+
     /// <summary>A folder name: no control characters, no ".." part (it must stay under the folder the host allows), not too long.</summary>
     private static string? RootPathProblem(string root)
     {

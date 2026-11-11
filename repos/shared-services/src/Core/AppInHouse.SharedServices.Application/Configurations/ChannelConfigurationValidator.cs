@@ -21,14 +21,17 @@ public static partial class ChannelConfigurationValidator
     [GeneratedRegex("password|passwd|pwd|secret|token|api[_-]?key|private[_-]?key|credential|authorization", RegexOptions.IgnoreCase)]
     private static partial Regex SensitiveName();
 
-    // Values that look like a secret whatever the property is called: a Telegram bot token, a SendGrid key, a PEM private key.
-    [GeneratedRegex(@"^\d{6,12}:[A-Za-z0-9_-]{30,}$|^SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}$|-----BEGIN [A-Z ]*PRIVATE KEY-----")]
+    // Values that look like a secret whatever the property is called: a Telegram bot token, a SendGrid key, a PEM private key, the
+    // webhook address of Discord or Slack (anyone who has it can post, so it is a secret, not an avatar or a note).
+    [GeneratedRegex(@"^\d{6,12}:[A-Za-z0-9_-]{30,}$|^SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}$|-----BEGIN [A-Z ]*PRIVATE KEY-----|https://(?:discord(?:app)?\.com/api/webhooks/\d+/[\w-]+|hooks\.slack\.com/services/[A-Z0-9]+/[A-Z0-9]+/\w+)")]
     private static partial Regex SecretLookingValue();
 
     /// <summary>Project codes are lower case: "linguabridge", "identity", "default".</summary>
     public static string NormalizeProjectCode(string? projectCode) => (projectCode ?? string.Empty).Trim().ToLowerInvariant();
 
-    public static IReadOnlyDictionary<string, string[]> Validate(SaveChannelConfigurationCommand command)
+    public static bool IsValidProjectCode(string normalizedProjectCode) => ProjectCodePattern().IsMatch(normalizedProjectCode);
+
+    public static IReadOnlyDictionary<string, string[]> Validate(SaveChannelConfigurationCommand command, ConfigurationRules? rules = null)
     {
         var errors = new Dictionary<string, List<string>>();
         void Add(string field, string message)
@@ -48,7 +51,7 @@ public static partial class ChannelConfigurationValidator
         else if (!ProviderCatalog.Supports(command.ChannelType, command.ProviderType))
             Add(nameof(command.ProviderType), $"The {command.ProviderType} provider cannot serve the {command.ChannelType} channel.");
 
-        ValidateSettings(command, Add);
+        ValidateSettings(command, rules ?? ConfigurationRules.Default, Add);
 
         if (command.Secret is { Length: > 4096 }) Add(nameof(command.Secret), "The secret is too long.");
 
@@ -61,7 +64,7 @@ public static partial class ChannelConfigurationValidator
         return errors.ToDictionary(e => e.Key, e => e.Value.ToArray());
     }
 
-    private static void ValidateSettings(SaveChannelConfigurationCommand command, Action<string, string> add)
+    private static void ValidateSettings(SaveChannelConfigurationCommand command, ConfigurationRules rules, Action<string, string> add)
     {
         const string field = nameof(SaveChannelConfigurationCommand.SettingsJson);
         var settingsJson = command.SettingsJson;
@@ -97,8 +100,15 @@ public static partial class ChannelConfigurationValidator
 
             // And the storage settings (folder, size limit, bucket, region, service address, access key id): shape only when saving a draft.
             if (command.ChannelType == ChannelType.Storage && Enum.IsDefined(command.ProviderType))
+            {
                 foreach (var problem in Storage.StorageSettingsReader.Validate(command.ProviderType, document.RootElement, complete: false))
                     add(field, problem);
+
+                // An absolute folder only works where the host allows it; saying so now beats an upload that fails later.
+                if (command.ProviderType == ProviderType.LocalDisk && !rules.AllowAbsoluteStoragePaths
+                    && Storage.StorageSettingsReader.Read(document.RootElement).RootPath is { Length: > 0 } root && Storage.StorageSettingsReader.IsAbsolutePath(root))
+                    add(field, "rootPath must be a folder name relative to the storage base folder; absolute paths are not allowed on this server.");
+            }
         }
         catch (JsonException)
         {

@@ -1,3 +1,5 @@
+using AppInHouse.SharedServices.Application.ApiKeys;
+using AppInHouse.SharedServices.Application.Audit;
 using AppInHouse.SharedServices.Application.Chat;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
@@ -14,6 +16,8 @@ public static class DependencyInjection
     {
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IChannelConfigManager, ChannelConfigManager>();
+        services.AddScoped<IApiKeyManager, ApiKeyManager>();
+        services.AddScoped<IAuditLogReader, AuditLogReader>();
 
         // Email: the providers (SMTP, SendGrid, mock) are registered by the infrastructure layer.
         services.AddSingleton<EmailTemplateRenderer>();

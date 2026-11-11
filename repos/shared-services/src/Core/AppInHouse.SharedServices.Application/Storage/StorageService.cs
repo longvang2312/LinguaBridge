@@ -141,7 +141,7 @@ public sealed class StorageService(
         return file is null ? null : ToDto(file);
     }
 
-    public async Task<DownloadedFile?> OpenAsync(Guid id, bool thumbnail, CancellationToken cancellationToken = default)
+    public async Task<DownloadedFile?> OpenAsync(Guid id, bool thumbnail, bool logDownload = true, CancellationToken cancellationToken = default)
     {
         var file = await files.GetByIdAsync(id, cancellationToken);
         if (file is null) return null;
@@ -165,7 +165,7 @@ public sealed class StorageService(
             }
 
             // A thumbnail is only a preview (a gallery asks for many), so only real downloads are logged.
-            if (!thumbnail) await LogAsync(file.ProjectCode, file.Id, "Download", "Success", null, cancellationToken);
+            if (!thumbnail && logDownload) await LogAsync(file.ProjectCode, file.Id, "Download", "Success", null, cancellationToken);
             var length = thumbnail ? (stream.CanSeek ? stream.Length : (long?)null) : file.FileSizeBytes;
             return new DownloadedFile(ToDto(file), stream, thumbnail ? "image/webp" : file.MimeType, length);
         }

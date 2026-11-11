@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using AppInHouse.SharedServices.Api.Auth;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.AspNetCore.Mvc;
 
@@ -53,8 +54,10 @@ public static class EmailEndpoints
             .WithName("SendEmail")
             .WithSummary("Sends an email with the project's active email configuration (or the default project's) and logs the delivery.");
 
-        group.MapPost("/test", async (SendTestEmailRequest request, IEmailTestService tests, CancellationToken ct) =>
+        group.MapPost("/test", async (SendTestEmailRequest request, ClaimsPrincipal user, IChannelConfigManager manager, IEmailTestService tests, CancellationToken ct) =>
             {
+                if (await ProjectAccess.CheckConfigurationAsync(user, request.ConfigurationId, manager, ct) is { } denied) return denied;
+
                 var result = await tests.TestAsync(new TestEmailCommand(
                     request.TestRecipient, request.ConfigurationId, request.ProviderType,
                     request.Settings is { ValueKind: not JsonValueKind.Undefined and not JsonValueKind.Null } settings ? settings.GetRawText() : null,

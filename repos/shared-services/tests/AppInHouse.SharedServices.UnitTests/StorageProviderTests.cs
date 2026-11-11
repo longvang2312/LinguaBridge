@@ -161,8 +161,43 @@ public sealed class LocalDiskStorageProviderTests : IDisposable
 
         Assert.True(outcome.Success);
         Assert.Contains("canary-root", outcome.Message);
-        Assert.Empty(Directory.GetFiles(Path.Combine(_baseFolder, "canary-root"), "*", SearchOption.AllDirectories));
+        Assert.False(Directory.Exists(Path.Combine(_baseFolder, "canary-root")));   // the folder the test made is taken away again, not left empty
         Assert.DoesNotContain(_baseFolder, outcome.Message);   // no server path is shown
+    }
+
+    [Fact]
+    public async Task TheTest_TakesAwayEveryFolderItMade_EvenANestedRoot()
+    {
+        var outcome = await Provider().TestConnectionAsync(Config("a/b/c").Value);
+
+        Assert.True(outcome.Success);
+        Assert.False(Directory.Exists(Path.Combine(_baseFolder, "a")));
+        Assert.False(Directory.Exists(Path.Combine(_baseFolder, "a", "b", "c")));
+    }
+
+    [Fact]
+    public async Task TheTest_LeavesAFolderThatAlreadyExisted_AndOnlyRemovesWhatItAdded()
+    {
+        Directory.CreateDirectory(Path.Combine(_baseFolder, "keep"));
+        await File.WriteAllTextAsync(Path.Combine(_baseFolder, "keep", "important.txt"), "data");
+
+        var outcome = await Provider().TestConnectionAsync(Config("keep/new-sub").Value);
+
+        Assert.True(outcome.Success);
+        Assert.True(File.Exists(Path.Combine(_baseFolder, "keep", "important.txt")));   // what was there is untouched
+        Assert.False(Directory.Exists(Path.Combine(_baseFolder, "keep", "new-sub")));   // what the test added is gone
+    }
+
+    [Fact]
+    public async Task TheTest_OfAnExistingRoot_DoesNotRemoveIt()
+    {
+        var provider = Provider();
+        await provider.PutAsync(Config("live").Value, "k/a.bin", new MemoryStream([1]), "x");   // a root that is in use
+
+        var outcome = await provider.TestConnectionAsync(Config("live").Value);
+
+        Assert.True(outcome.Success);
+        Assert.True(File.Exists(Path.Combine(_baseFolder, "live", "k", "a.bin")));
     }
 
     [Fact]

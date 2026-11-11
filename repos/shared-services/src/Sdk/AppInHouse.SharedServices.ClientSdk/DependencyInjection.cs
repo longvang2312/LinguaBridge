@@ -10,6 +10,13 @@ public sealed class SharedServicesClientOptions
     /// <summary>For example <c>http://localhost:5030</c>.</summary>
     public string BaseUrl { get; set; } = "http://localhost:5030";
 
+    /// <summary>The same address as <see cref="BaseUrl"/>, as a <see cref="Uri"/>: <c>options.BaseAddress = new Uri("http://localhost:5030")</c>.</summary>
+    public Uri BaseAddress
+    {
+        get => new(BaseUrl);
+        set => BaseUrl = (value ?? throw new ArgumentNullException(nameof(value))).ToString();
+    }
+
     /// <summary>Sent as the <c>X-Api-Key</c> header. Keep it in configuration or a secret store, never in code.</summary>
     public string? ApiKey { get; set; }
 
