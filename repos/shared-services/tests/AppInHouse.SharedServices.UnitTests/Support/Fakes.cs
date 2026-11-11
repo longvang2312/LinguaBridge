@@ -91,3 +91,59 @@ internal sealed class ManagerFixture
     public static SaveChannelConfigurationCommand SmtpCommand(string settings = """{"host":"smtp.example.com","port":587}""", string? secret = "S3cr3t-P@ssw0rd") =>
         new("default", ChannelType.Email, ProviderType.Smtp, "Main SMTP", settings, secret);
 }
+
+internal sealed class FakeDeliveryLogRepository : AppInHouse.SharedServices.Application.Email.IDeliveryLogRepository
+{
+    public List<DeliveryLog> Rows { get; } = [];
+
+    public void Add(DeliveryLog log) => Rows.Add(log);
+
+    public Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(string? projectCode, ChannelType channelType, int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<DeliveryLog>>([.. Rows
+            .Where(l => l.ChannelType == channelType && (projectCode is null || l.ProjectCode == projectCode))
+            .OrderByDescending(l => l.CreatedAt).Take(limit)]);
+}
+
+/// <summary>An email provider that records what it was given and answers as told.</summary>
+internal sealed class FakeEmailProvider(ProviderType type) : AppInHouse.SharedServices.Application.Email.IEmailProvider
+{
+    public ProviderType Type { get; } = type;
+    public List<(AppInHouse.SharedServices.Application.Email.EmailMessage Message, ChannelRuntimeConfiguration Config)> Sent { get; } = [];
+    public List<(ChannelRuntimeConfiguration Config, string Recipient)> Tested { get; } = [];
+    public AppInHouse.SharedServices.Application.Email.EmailSendResult SendResult { get; set; } = new(true, "msg-1", ProviderResponse: "250 queued");
+    public AppInHouse.SharedServices.Application.Email.EmailTestResult TestResult { get; set; } = new(true, "Test email accepted.", 5);
+    public Exception? Throw { get; set; }
+
+    public Task<AppInHouse.SharedServices.Application.Email.EmailSendResult> SendAsync(
+        AppInHouse.SharedServices.Application.Email.EmailMessage message, ChannelRuntimeConfiguration config, CancellationToken ct = default)
+    {
+        Sent.Add((message, config));
+        if (Throw is not null) throw Throw;
+        return Task.FromResult(SendResult);
+    }
+
+    public Task<AppInHouse.SharedServices.Application.Email.EmailTestResult> TestConnectionAsync(ChannelRuntimeConfiguration config, string testRecipient, CancellationToken ct = default)
+    {
+        Tested.Add((config, testRecipient));
+        if (Throw is not null) throw Throw;
+        return Task.FromResult(TestResult);
+    }
+}
+
+internal static class RuntimeConfig
+{
+    public static ChannelRuntimeConfiguration Make(ProviderType provider, string settingsJson, string? secret, string project = "default") => new()
+    {
+        Id = Guid.NewGuid(),
+        ProjectCode = project,
+        ChannelType = ChannelType.Email,
+        ProviderType = provider,
+        Name = "Test",
+        Version = 1,
+        Settings = System.Text.Json.JsonDocument.Parse(settingsJson).RootElement.Clone(),
+        Secret = secret,
+    };
+
+    public const string Smtp = """{"host":"203.0.113.10","port":2525,"useSsl":"None","username":"mailer","senderEmail":"noreply@example.com","senderName":"AppInHouse"}""";
+    public const string SendGrid = """{"senderEmail":"noreply@example.com","senderName":"AppInHouse"}""";
+}

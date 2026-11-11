@@ -77,6 +77,7 @@ app.MapGet("/health", (TimeProvider clock) => Results.Ok(new HealthResponse("Hea
     .AllowAnonymous();
 
 app.MapChannelConfigurationEndpoints();
+app.MapEmailEndpoints();
 
 app.Run();
 

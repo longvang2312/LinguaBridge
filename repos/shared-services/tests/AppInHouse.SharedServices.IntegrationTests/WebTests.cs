@@ -97,7 +97,6 @@ public partial class WebTests : IClassFixture<WebFactory>
     }
 
     [Theory]
-    [InlineData("/Email", "Email")]
     [InlineData("/Telegram", "Telegram")]
     [InlineData("/Storage", "Storage")]
     public async Task TheChannelEntries_OpenTheConfigurationListFilteredByThatChannel(string path, string channel)

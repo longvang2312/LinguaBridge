@@ -11,6 +11,7 @@ public static class Policies
 {
     public const string ConfigRead = ApiScopes.ConfigRead;
     public const string ConfigWrite = ApiScopes.ConfigWrite;
+    public const string EmailSend = ApiScopes.EmailSend;
 }
 
 /// <summary>Needs the scope in the caller's claims (an API key's scopes, or the scopes of a bearer token).</summary>
@@ -93,6 +94,7 @@ public static class AuthenticationExtensions
             options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
             options.AddPolicy(Policies.ConfigRead, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ConfigRead)));
             options.AddPolicy(Policies.ConfigWrite, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ConfigWrite)));
+            options.AddPolicy(Policies.EmailSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.EmailSend)));
         });
         services.AddSingleton<IAuthorizationHandler, ScopeAuthorizationHandler>();
 

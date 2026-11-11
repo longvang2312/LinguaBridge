@@ -14,6 +14,10 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
     public List<ChannelConfigurationResponse> Items { get; set; } = [];
     public Exception? Failure { get; set; }
     public List<string> Calls { get; } = [];
+    public List<DeliveryLogDto> Logs { get; set; } = [];
+    public SendTestEmailResponse? TestResponse { get; set; }
+    public SendTestEmailRequest? LastTestRequest { get; private set; }
+    public SaveChannelConfigurationRequest? LastSave { get; private set; }
 
     private void Enter(string call)
     {
@@ -24,7 +28,10 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
     public Task<IReadOnlyList<ChannelConfigurationResponse>> ListConfigurationsAsync(string? projectCode = null, string? channelType = null, string? status = null, CancellationToken cancellationToken = default)
     {
         Enter($"list:{projectCode}:{channelType}:{status}");
-        return Task.FromResult<IReadOnlyList<ChannelConfigurationResponse>>(Items);
+        return Task.FromResult<IReadOnlyList<ChannelConfigurationResponse>>([.. Items.Where(c =>
+            (string.IsNullOrWhiteSpace(projectCode) || c.ProjectCode == projectCode)
+            && (string.IsNullOrWhiteSpace(channelType) || c.ChannelType.Equals(channelType, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrWhiteSpace(status) || c.Status.Equals(status, StringComparison.OrdinalIgnoreCase)))]);
     }
 
     public Task<ChannelConfigurationResponse> GetConfigurationAsync(Guid id, CancellationToken cancellationToken = default)
@@ -36,13 +43,34 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
     public Task<ChannelConfigurationResponse> SaveConfigurationAsync(SaveChannelConfigurationRequest request, CancellationToken cancellationToken = default)
     {
         Enter($"save:{request.Name}");
-        return Task.FromResult(Items[0]);
+        LastSave = request;
+        var saved = Items.FirstOrDefault() ?? WebFactory.Config(request.Name, 1, "Draft");
+        return Task.FromResult(saved with { Name = request.Name, ProviderType = request.ProviderType });
     }
 
     public Task<ChannelConfigurationResponse> ActivateConfigurationAsync(Guid id, CancellationToken cancellationToken = default)
     {
         Enter($"activate:{id}");
         return Task.FromResult(Items.Single(i => i.Id == id) with { Status = "Active" });
+    }
+
+    public Task<SendEmailResponse> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"send-email:{request.To}");
+        return Task.FromResult(new SendEmailResponse(true, "Sent", Guid.NewGuid(), 1, "default", 1));
+    }
+
+    public Task<SendTestEmailResponse> SendTestEmailAsync(SendTestEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"test-email:{request.ConfigurationId?.ToString() ?? "unsaved"}:{request.ProviderType}");
+        LastTestRequest = request;
+        return Task.FromResult(TestResponse ?? new SendTestEmailResponse(true, "Test email accepted.", 12, request.ProviderType ?? "Smtp", request.ConfigurationId is not null, request.ConfigurationId));
+    }
+
+    public Task<IReadOnlyList<DeliveryLogDto>> GetEmailDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        Enter($"logs:{projectCode}:{limit}");
+        return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(Logs);
     }
 
     public Task<ChannelConfigurationResponse> RollbackConfigurationAsync(RollbackConfigurationRequest request, CancellationToken cancellationToken = default)

@@ -27,6 +27,18 @@ public sealed class ChannelConfigManager(
         var encryptedSecret = typedSecret ? secretProtector.Protect(command.Secret!) : null;
 
         var series = await repository.GetSeriesAsync(projectCode, command.ChannelType, name, cancellationToken);
+
+        // A new provider has its own credential: the secret of the previous provider is never reused for it, so it must be typed
+        // (an SMTP password must not silently become a SendGrid API key).
+        var previousProvider = series.Count == 0 ? (ProviderType?)null : series.OrderBy(v => v.Version).Last().ProviderType;
+        if (previousProvider is { } before && before != command.ProviderType && !typedSecret && ProviderCatalog.RequiresSecret(command.ProviderType))
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                [nameof(command.Secret)] = [$"The provider changed from {before} to {command.ProviderType}: enter the secret for {command.ProviderType}. The previous secret is not reused."],
+            });
+        }
+
         ChannelConfiguration saved;
         string action;
         if (series.Count == 0)
@@ -118,6 +130,30 @@ public sealed class ChannelConfigManager(
             .Select(ToDto)];
     }
 
+    public async Task<ChannelRuntimeConfiguration?> GetForRuntimeAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var configuration = await repository.GetByIdAsync(id, cancellationToken);
+        return configuration is null ? null : ToRuntime(configuration);
+    }
+
+    public async Task RecordTestResultAsync(Guid id, TestStatus result, CancellationToken cancellationToken = default)
+    {
+        var configuration = await repository.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"Configuration {id} does not exist.");
+
+        configuration.RecordTest(result, clock.GetUtcNow());
+        audit.Record("SendTest", "ChannelConfiguration", id.ToString(), new
+        {
+            configuration.ProjectCode,
+            ChannelType = configuration.ChannelType.ToString(),
+            configuration.Name,
+            configuration.Version,
+            Result = result.ToString(),
+            Saved = true,
+        });
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<ChannelRuntimeConfiguration?> GetActiveForRuntimeAsync(
         string projectCode, ChannelType channelType, string? name = null, CancellationToken cancellationToken = default)
     {
@@ -127,20 +163,20 @@ public sealed class ChannelConfigManager(
         var chosen = string.IsNullOrWhiteSpace(name)
             ? active.OrderByDescending(c => c.ActivatedAt).FirstOrDefault()
             : active.FirstOrDefault(c => string.Equals(c.Name, name.Trim(), StringComparison.Ordinal));
-        if (chosen is null) return null;
-
-        return new ChannelRuntimeConfiguration
-        {
-            Id = chosen.Id,
-            ProjectCode = chosen.ProjectCode,
-            ChannelType = chosen.ChannelType,
-            ProviderType = chosen.ProviderType,
-            Name = chosen.Name,
-            Version = chosen.Version,
-            Settings = ParseSettings(chosen.SettingsJson),
-            Secret = chosen.HasSecret ? secretProtector.Unprotect(chosen.EncryptedSecret!) : null,
-        };
+        return chosen is null ? null : ToRuntime(chosen);
     }
+
+    private ChannelRuntimeConfiguration ToRuntime(ChannelConfiguration chosen) => new()
+    {
+        Id = chosen.Id,
+        ProjectCode = chosen.ProjectCode,
+        ChannelType = chosen.ChannelType,
+        ProviderType = chosen.ProviderType,
+        Name = chosen.Name,
+        Version = chosen.Version,
+        Settings = ParseSettings(chosen.SettingsJson),
+        Secret = chosen.HasSecret ? secretProtector.Unprotect(chosen.EncryptedSecret!) : null,
+    };
 
     private static ChannelConfigurationDto ToDto(ChannelConfiguration c) => new(
         c.Id, c.ProjectCode, c.ChannelType, c.ProviderType, c.Name, c.Version, c.Status,

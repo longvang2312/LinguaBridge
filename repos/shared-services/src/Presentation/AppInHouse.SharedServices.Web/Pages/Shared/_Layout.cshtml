@@ -44,7 +44,7 @@
                 <ul class="nav flex-column">
                     <li class="nav-item"><a class="nav-link @Lit(page == "/Index")" href="/"><i class="bi bi-speedometer2"></i>Tổng quan</a></li>
                     <li class="nav-section">Kênh dịch vụ</li>
-                    <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == "Email")" asp-page="/Email"><i class="bi bi-envelope"></i><span class="label">Cấu hình Email<small>SMTP · SendGrid · Brevo</small></span></a></li>
+                    <li class="nav-item"><a class="nav-link @Lit(page == "/Email")" asp-page="/Email"><i class="bi bi-envelope"></i><span class="label">Cấu hình Email<small>SMTP · SendGrid · Brevo</small></span></a></li>
                     <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == "Telegram")" asp-page="/Telegram"><i class="bi bi-chat-dots"></i>Cấu hình Telegram Bot</a></li>
                     <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == "Storage")" asp-page="/Storage"><i class="bi bi-images"></i>Lưu trữ &amp; Media Browser</a></li>
                     <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == string.Empty)" asp-page="/Configurations/Index"><i class="bi bi-sliders"></i>Tất cả cấu hình</a></li>

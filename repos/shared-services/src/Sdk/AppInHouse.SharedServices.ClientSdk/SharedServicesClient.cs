@@ -17,6 +17,13 @@ public interface ISharedServicesClient
     Task<ChannelConfigurationResponse> ActivateConfigurationAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<ChannelConfigurationResponse> RollbackConfigurationAsync(RollbackConfigurationRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Sends an email with the project's active email configuration. A refusal or failure throws <see cref="SharedServicesApiException"/> (409 no configuration, 502 not delivered).</summary>
+    Task<SendEmailResponse> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default);
+
+    Task<SendTestEmailResponse> SendTestEmailAsync(SendTestEmailRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DeliveryLogDto>> GetEmailDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
 }
 
 public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClient
@@ -62,6 +69,25 @@ public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClien
     {
         using var response = await http.PostAsJsonAsync($"{Root}/rollback", request, Json, cancellationToken);
         return await ReadAsync<ChannelConfigurationResponse>(response, cancellationToken);
+    }
+
+    public async Task<SendEmailResponse> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/emails/send", request, Json, cancellationToken);
+        return await ReadAsync<SendEmailResponse>(response, cancellationToken);
+    }
+
+    public async Task<SendTestEmailResponse> SendTestEmailAsync(SendTestEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/emails/test", request, Json, cancellationToken);
+        return await ReadAsync<SendTestEmailResponse>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DeliveryLogDto>> GetEmailDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
+        using var response = await http.GetAsync($"api/v1/emails/delivery-logs?{query}", cancellationToken);
+        return await ReadAsync<List<DeliveryLogDto>>(response, cancellationToken);
     }
 
     private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)

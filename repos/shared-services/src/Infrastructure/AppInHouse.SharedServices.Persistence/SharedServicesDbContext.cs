@@ -1,6 +1,8 @@
+using System.Globalization;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AppInHouse.SharedServices.Persistence;
 
@@ -31,6 +33,29 @@ public sealed class SharedServicesDbContext(DbContextOptions<SharedServicesDbCon
         {
             modelBuilder.Entity<ChannelConfiguration>().Property(c => c.SettingsJson).HasColumnType("jsonb");
             modelBuilder.Entity<AuditLog>().Property(a => a.DetailsJson).HasColumnType("jsonb");
+        }
+
+        if (Database.IsSqlite()) StoreTimesAsSortableText(modelBuilder);
+    }
+
+    // SQLite cannot order or compare a DateTimeOffset in a query ("the most recent first" would fail). Store every time as UTC text with a
+    // fixed layout instead: it reads back the same, and as text it sorts in time order. The layout matches what EF writes by default
+    // for a UTC time, so a database created before this existed is still readable.
+    private static void StoreTimesAsSortableText(ModelBuilder modelBuilder)
+    {
+        const string layout = "yyyy-MM-dd HH:mm:ss.fffffff";
+        var culture = CultureInfo.InvariantCulture;
+        var required = new ValueConverter<DateTimeOffset, string>(
+            v => v.UtcDateTime.ToString(layout, culture) + "+00:00",
+            s => DateTimeOffset.Parse(s, culture, DateTimeStyles.AssumeUniversal));
+        var optional = new ValueConverter<DateTimeOffset?, string?>(
+            v => v == null ? null : v.Value.UtcDateTime.ToString(layout, culture) + "+00:00",
+            s => s == null ? null : DateTimeOffset.Parse(s, culture, DateTimeStyles.AssumeUniversal));
+
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetProperties()).ToList())
+        {
+            if (property.ClrType == typeof(DateTimeOffset)) property.SetValueConverter(required);
+            else if (property.ClrType == typeof(DateTimeOffset?)) property.SetValueConverter(optional);
         }
     }
 }

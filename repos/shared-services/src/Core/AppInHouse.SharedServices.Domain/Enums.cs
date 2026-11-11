@@ -55,4 +55,11 @@ public static class ProviderCatalog
     public static IReadOnlyList<ProviderType> For(ChannelType channel) => Map[channel];
 
     public static bool Supports(ChannelType channel, ProviderType provider) => Map[channel].Contains(provider);
+
+    /// <summary>
+    /// Whether the provider cannot work without a secret (an API key, a bot token). SMTP is not listed: a relay may accept mail
+    /// without a login. Mock and LocalDisk need none.
+    /// </summary>
+    public static bool RequiresSecret(ProviderType provider) =>
+        provider is ProviderType.SendGrid or ProviderType.Brevo or ProviderType.TelegramBot or ProviderType.S3;
 }

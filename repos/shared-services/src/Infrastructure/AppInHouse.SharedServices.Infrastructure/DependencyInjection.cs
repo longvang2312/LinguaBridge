@@ -1,8 +1,11 @@
 using AppInHouse.SharedServices.Application.Abstractions;
+using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Infrastructure.Email;
 using AppInHouse.SharedServices.Infrastructure.Security;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AppInHouse.SharedServices.Infrastructure;
 
@@ -45,6 +48,27 @@ public static class DependencyInjection
         }
 
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
+        AddEmailProviders(services, configuration);
         return services;
+    }
+
+    /// <summary>The email providers the dispatcher can route to: SMTP (MailKit), SendGrid (REST) and a mock. Host settings: section <c>Email</c>.</summary>
+    private static void AddEmailProviders(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.AddSingleton<OutboundHostPolicy>();
+        services.AddSingleton<ISmtpSender, MailKitSmtpSender>();
+
+        services.AddSingleton<MockEmailProvider>();
+        services.AddSingleton<IEmailProvider>(provider => provider.GetRequiredService<MockEmailProvider>());
+        services.AddSingleton<IEmailProvider, MailKitSmtpEmailProvider>();
+
+        services.AddHttpClient<SendGridEmailProvider>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<EmailOptions>>().Value;
+            client.BaseAddress = new Uri(options.SendGridBaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(options.SendGridTimeoutSeconds);
+        });
+        services.AddTransient<IEmailProvider>(provider => provider.GetRequiredService<SendGridEmailProvider>());
     }
 }

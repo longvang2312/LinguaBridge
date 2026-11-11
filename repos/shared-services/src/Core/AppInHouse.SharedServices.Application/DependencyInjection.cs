@@ -1,4 +1,5 @@
 using AppInHouse.SharedServices.Application.Configurations;
+using AppInHouse.SharedServices.Application.Email;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -11,6 +12,11 @@ public static class DependencyInjection
     {
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IChannelConfigManager, ChannelConfigManager>();
+
+        // Email: the providers (SMTP, SendGrid, mock) are registered by the infrastructure layer.
+        services.AddSingleton<EmailTemplateRenderer>();
+        services.AddScoped<IEmailDispatcher, EmailDispatcher>();
+        services.AddScoped<IEmailTestService, EmailTestService>();
         return services;
     }
 }

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AppInHouse.SharedServices.Api.Errors;
 
 /// <summary>
-/// Turns the service's own exceptions into RFC 7807 answers: 400 with field errors, 404, 409 for a clash with the current state.
+/// Turns the service's own exceptions into RFC 7807 answers: 400 with field errors (and for a request that cannot be read), 404, 409 for a clash with the current state.
 /// Anything else is a 500 with no detail (the exception is logged, never sent to the client).
 /// </summary>
 public sealed class SharedServicesExceptionHandler(IProblemDetailsService problems, ILogger<SharedServicesExceptionHandler> logger) : IExceptionHandler
@@ -24,6 +24,11 @@ public sealed class SharedServicesExceptionHandler(IProblemDetailsService proble
                     Status = StatusCodes.Status400BadRequest,
                     Title = "One or more values are not valid.",
                 };
+                break;
+            case BadHttpRequestException badRequest:
+                // A body that is not valid JSON, an unknown enum name, a missing required value. In development minimal APIs throw this
+                // instead of answering 400 themselves, so without this case it would fall through to the 500 below.
+                problem = new ProblemDetails { Status = badRequest.StatusCode, Title = "The request is not valid", Detail = "The request could not be read: check its format and values." };
                 break;
             case NotFoundException notFound:
                 problem = new ProblemDetails { Status = StatusCodes.Status404NotFound, Title = "Not found", Detail = notFound.Message };

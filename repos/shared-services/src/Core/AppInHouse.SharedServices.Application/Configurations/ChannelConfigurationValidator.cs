@@ -47,16 +47,17 @@ public static partial class ChannelConfigurationValidator
         else if (!ProviderCatalog.Supports(command.ChannelType, command.ProviderType))
             Add(nameof(command.ProviderType), $"The {command.ProviderType} provider cannot serve the {command.ChannelType} channel.");
 
-        ValidateSettings(command.SettingsJson, Add);
+        ValidateSettings(command, Add);
 
         if (command.Secret is { Length: > 4096 }) Add(nameof(command.Secret), "The secret is too long.");
 
         return errors.ToDictionary(e => e.Key, e => e.Value.ToArray());
     }
 
-    private static void ValidateSettings(string? settingsJson, Action<string, string> add)
+    private static void ValidateSettings(SaveChannelConfigurationCommand command, Action<string, string> add)
     {
         const string field = nameof(SaveChannelConfigurationCommand.SettingsJson);
+        var settingsJson = command.SettingsJson;
         if (string.IsNullOrWhiteSpace(settingsJson)) return;   // an empty settings object is allowed
 
         if (System.Text.Encoding.UTF8.GetByteCount(settingsJson) > MaxSettingsBytes)
@@ -76,6 +77,11 @@ public static partial class ChannelConfigurationValidator
 
             foreach (var problem in FindSecrets(document.RootElement, string.Empty))
                 add(field, problem);
+
+            // Saving a draft only checks the shape of the email settings; sending or testing needs them complete.
+            if (command.ChannelType == ChannelType.Email && Enum.IsDefined(command.ProviderType))
+                foreach (var problem in Email.EmailSettingsReader.Validate(command.ProviderType, document.RootElement, complete: false))
+                    add(field, problem);
         }
         catch (JsonException)
         {

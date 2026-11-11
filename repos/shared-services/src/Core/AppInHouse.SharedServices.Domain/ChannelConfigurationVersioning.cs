@@ -20,7 +20,8 @@ public static class ChannelConfigurationVersioning
 
     /// <summary>
     /// Creates the next Draft of a series. A null <paramref name="encryptedSecret"/> keeps the secret of the latest version, so the
-    /// settings can change without typing the password again.
+    /// settings can change without typing the password again, but only while the provider stays the same: the secret of one provider
+    /// (an SMTP password) must never become the credential of another (a SendGrid API key).
     /// </summary>
     public static ChannelConfiguration CreateNextVersion(
         IReadOnlyCollection<ChannelConfiguration> series, ProviderType providerType,
@@ -29,9 +30,10 @@ public static class ChannelConfigurationVersioning
         if (series.Count == 0) throw new DomainException("There is no version to build on; create the first version instead.");
 
         var latest = series.OrderBy(v => v.Version).Last();
+        var inherited = latest.ProviderType == providerType ? latest.EncryptedSecret : null;
         return ChannelConfiguration.Create(
             latest.ProjectCode, latest.ChannelType, providerType, latest.Name, NextVersion(series),
-            settingsJson, encryptedSecret ?? latest.EncryptedSecret, now);
+            settingsJson, encryptedSecret ?? inherited, now);
     }
 
     public static ChannelConfiguration Activate(IReadOnlyCollection<ChannelConfiguration> series, int version, DateTimeOffset now)

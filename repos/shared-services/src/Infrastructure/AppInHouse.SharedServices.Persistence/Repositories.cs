@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AppInHouse.SharedServices.Application.Abstractions;
+using AppInHouse.SharedServices.Application.Email;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,6 +40,19 @@ internal sealed class ApiKeyRepository(SharedServicesDbContext db) : IApiKeyRepo
         await db.ApiKeys.AddAsync(key, cancellationToken);
 
     public Task<bool> AnyAsync(CancellationToken cancellationToken = default) => db.ApiKeys.AnyAsync(cancellationToken);
+}
+
+internal sealed class DeliveryLogRepository(SharedServicesDbContext db) : IDeliveryLogRepository
+{
+    public void Add(DeliveryLog log) => db.DeliveryLogs.Add(log);
+
+    public async Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(
+        string? projectCode, ChannelType channelType, int limit, CancellationToken cancellationToken = default)
+    {
+        var query = db.DeliveryLogs.AsNoTracking().Where(l => l.ChannelType == channelType);
+        if (projectCode is not null) query = query.Where(l => l.ProjectCode == projectCode);
+        return await query.OrderByDescending(l => l.CreatedAt).Take(limit).ToListAsync(cancellationToken);
+    }
 }
 
 internal sealed class EfUnitOfWork(SharedServicesDbContext db) : IUnitOfWork
