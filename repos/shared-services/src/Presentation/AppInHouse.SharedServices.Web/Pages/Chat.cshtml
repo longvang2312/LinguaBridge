@@ -1,0 +1,276 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.ChatModel
+@{
+    ViewData["Title"] = "Tin nhắn & Chat";
+    var provider = Model.Form.ProviderType;
+    string Hidden(string name) => provider == name ? string.Empty : "d-none";
+    var secretLabel = provider == "TelegramBot" ? "Bot Token" : "Webhook URL";
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="page-title mb-0">Tin Nhắn &amp; Chat <span class="text-muted fs-6 fw-normal">Telegram · Discord · Slack</span></h1>
+    <span class="text-muted small">Token và webhook luôn được che; chỉ nhập lại khi muốn thay.</span>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success" role="alert" id="flash-message">@Model.Message</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" id="flash-error">@Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+
+<form method="get" class="row g-2 align-items-end mb-3" id="project-form">
+    <div class="col-12 col-md-4 col-lg-3">
+        <label class="form-label small mb-1" for="project">Dự án</label>
+        <select class="form-select" id="project" name="project" onchange="this.form.submit()">
+            @foreach (var project in Model.Projects)
+            {
+                <option value="@project" selected="@(project == Model.Project)">@project</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-arrow-repeat me-1"></i>Tải</button>
+    </div>
+    <div class="col text-muted small" id="current-version">
+        @if (Model.Current is { } current)
+        {
+            <span>Đang hiển thị <strong>@current.Name</strong> phiên bản <strong>v@(current.Version)</strong>
+                <span class="badge @UiHelpers.StatusBadge(current.Status)">@current.Status</span></span>
+            @if (Model.LiveVersion is { } live)
+            {
+                <span id="live-version" class="ms-2">· Đang hoạt động: <strong>v@(live.Version)</strong> (bản này chưa được dùng)</span>
+            }
+        }
+        else
+        {
+            <span>Dự án này chưa có cấu hình chat; dùng cấu hình của dự án <code>default</code> khi gửi.</span>
+        }
+    </div>
+</form>
+
+<form method="post" id="chat-form" class="card shadow-sm mb-4">
+    <div class="card-body">
+        <input type="hidden" asp-for="Form.ProjectCode" value="@Model.Project" />
+        <input type="hidden" asp-for="Form.ChannelType" />
+
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.Name">Tên cấu hình</label>
+                <input class="form-control" asp-for="Form.Name" maxlength="100" />
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.ProviderType">Nhà cung cấp</label>
+                <select class="form-select" asp-for="Form.ProviderType">
+                    @foreach (var option in AppInHouse.SharedServices.Web.Pages.ChatModel.Providers)
+                    {
+                        <option value="@option" selected="@(option == provider)">@option</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <hr />
+
+        <div class="provider-section row g-3 @Hidden("TelegramBot")" data-provider="TelegramBot">
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.TelegramChatId">Default Chat ID</label>
+                <input class="form-control" asp-for="Form.TelegramChatId" placeholder="-1001234567890 hoặc @@tenkenh" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.TelegramParseMode">Parse Mode mặc định</label>
+                <select class="form-select" asp-for="Form.TelegramParseMode">
+                    @foreach (var option in AppInHouse.SharedServices.Web.Pages.ChatModel.ParseModes)
+                    {
+                        <option value="@option" selected="@(option == Model.Form.TelegramParseMode)">@option</option>
+                    }
+                </select>
+                <div class="form-text">PlainText: ký tự đặc biệt tự được escape, hiển thị đúng như đã viết.</div>
+            </div>
+        </div>
+
+        <div class="provider-section row g-3 @Hidden("DiscordWebhook")" data-provider="DiscordWebhook">
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.DiscordUsername">Tên hiển thị bot <span class="text-muted small">(không bắt buộc)</span></label>
+                <input class="form-control" asp-for="Form.DiscordUsername" maxlength="80" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.DiscordAvatarUrl">Avatar URL <span class="text-muted small">(không bắt buộc, https)</span></label>
+                <input class="form-control" type="url" asp-for="Form.DiscordAvatarUrl" autocomplete="off" />
+            </div>
+        </div>
+
+        <div class="provider-section row g-3 @Hidden("SlackWebhook")" data-provider="SlackWebhook">
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.SlackChannel">Tên kênh override <span class="text-muted small">(không bắt buộc)</span></label>
+                <input class="form-control" asp-for="Form.SlackChannel" placeholder="#alerts" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" asp-for="Form.SlackIcon">Icon emoji <span class="text-muted small">(không bắt buộc)</span></label>
+                <input class="form-control" asp-for="Form.SlackIcon" placeholder=":warning:" autocomplete="off" />
+            </div>
+        </div>
+
+        <div class="provider-section row g-3 @Hidden("Mock")" data-provider="Mock">
+            <div class="col-12">
+                <div class="alert alert-info mb-0" id="mock-note">
+                    <i class="bi bi-info-circle me-1"></i>Mock: giả lập việc gửi, không có kết nối mạng và <strong>không cần secret</strong>.
+                    Tin nhắn chỉ được ghi vào bộ nhớ và nhật ký, dùng cho môi trường phát triển và kiểm thử.
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-0">
+            <div class="col-12 col-md-8 @Hidden(provider == "Mock" ? "none" : provider)" id="secret-group">
+                <label class="form-label" for="Form_Secret" id="secret-label">@secretLabel</label>
+                <input class="form-control secret-mask" type="password" id="Form_Secret" name="Form.Secret" value="@Model.Form.Secret" autocomplete="new-password" />
+                <div class="form-text">Đã lưu thì hiển thị <span class="secret-mask">••••••••</span>; để nguyên nếu không đổi, gõ giá trị mới để thay. Với Discord và Slack, địa chỉ webhook chính là secret.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-footer bg-transparent">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label small mb-1" asp-for="Form.TestRecipient">Recipient / Chat ID</label>
+                <input class="form-control" asp-for="Form.TestRecipient" placeholder="để trống dùng mặc định" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-8 col-lg-5">
+                <label class="form-label small mb-1" asp-for="Form.TestMessage">Nội dung tin nhắn thử nghiệm</label>
+                <input class="form-control" asp-for="Form.TestMessage" placeholder="để trống dùng câu mẫu" maxlength="1000" autocomplete="off" />
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-outline-primary" id="send-test-button" data-url="@Url.Page("/Chat", "SendTest")">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="send-test-spinner" role="status" aria-hidden="true"></span>
+                    <i class="bi bi-send me-1" id="send-test-icon"></i>Gửi Thử Nghiệm
+                </button>
+            </div>
+            <div class="col-12" aria-live="polite">
+                <div id="send-test-result" class="small"></div>
+            </div>
+        </div>
+        <hr />
+        <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-secondary" id="save-draft" asp-page-handler="SaveDraft"><i class="bi bi-save me-1"></i>Lưu Bản Nháp</button>
+            <button type="submit" class="btn btn-success" id="save-activate" asp-page-handler="SaveActivate"><i class="bi bi-play-fill me-1"></i>Lưu &amp; Kích Hoạt</button>
+        </div>
+        <p class="text-muted small mt-2 mb-0">Gửi thử dùng đúng các giá trị đang nhập, <strong>không lưu</strong> và <strong>không kích hoạt</strong> cấu hình.</p>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <strong>Lịch sử gửi tin nhắn gần đây</strong>
+        <span class="text-muted small">Dự án: @Model.Project</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="delivery-logs">
+            <thead class="table-light">
+                <tr><th>Thời gian (UTC)</th><th>Người nhận / kênh</th><th>Trạng thái</th><th class="text-end">Độ trễ</th><th>Phản hồi</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var log in Model.Logs)
+                {
+                    <tr data-status="@log.Status">
+                        <td>@log.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@log.Recipient</td>
+                        <td>
+                            @if (log.Status == "Sent")
+                            {
+                                <span class="badge text-bg-success">Thành công</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-danger">Thất bại</span>
+                            }
+                        </td>
+                        <td class="text-end">@(log.LatencyMs is { } ms ? $"{ms} ms" : "—")</td>
+                        <td class="text-muted small">@log.ProviderResponse</td>
+                    </tr>
+                }
+                @if (Model.Logs.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-muted py-4" id="no-logs">Chưa có tin nhắn nào được gửi cho dự án này.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('chat-form');
+            var provider = document.getElementById('Form_ProviderType');
+            var secret = document.getElementById('Form_Secret');
+            var mask = '••••••••';
+            var labels = { TelegramBot: 'Bot Token', DiscordWebhook: 'Webhook URL', SlackWebhook: 'Webhook URL' };
+
+            function showProvider() {
+                var chosen = provider.value;
+                document.querySelectorAll('.provider-section').forEach(function (section) {
+                    section.classList.toggle('d-none', section.dataset.provider !== chosen);
+                });
+                document.getElementById('secret-group').classList.toggle('d-none', chosen === 'Mock');
+                document.getElementById('secret-label').textContent = labels[chosen] || 'Secret';
+            }
+
+            provider.addEventListener('change', function () {
+                // A stored secret belongs to the previous provider: do not carry the mask over, the new one has to be typed.
+                if (secret.value === mask) secret.value = '';
+                showProvider();
+            });
+            showProvider();
+
+            var button = document.getElementById('send-test-button');
+            var spinner = document.getElementById('send-test-spinner');
+            var icon = document.getElementById('send-test-icon');
+            var result = document.getElementById('send-test-result');
+
+            function show(success, text) {
+                result.innerHTML = '';
+                var alert = document.createElement('div');
+                alert.className = 'alert py-2 mb-0 ' + (success ? 'alert-success' : 'alert-danger');
+                alert.id = success ? 'send-test-ok' : 'send-test-fail';
+                alert.setAttribute('role', 'alert');
+                var mark = document.createElement('i');
+                mark.className = 'bi me-1 ' + (success ? 'bi-check-circle-fill' : 'bi-x-circle-fill');
+                alert.appendChild(mark);
+                alert.appendChild(document.createTextNode(text));   // text, never HTML
+                result.appendChild(alert);
+            }
+
+            button.addEventListener('click', function () {
+                var token = form.querySelector('input[name="__RequestVerificationToken"]');
+                button.disabled = true;
+                spinner.classList.remove('d-none');
+                icon.classList.add('d-none');
+                result.textContent = '';
+
+                fetch(button.dataset.url, {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token ? token.value : '' },
+                    body: new FormData(form),
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                }).then(function (data) {
+                    show(data.success, data.message + (data.latencyMs ? ' (' + data.latencyMs + ' ms)' : ''));
+                }).catch(function () {
+                    show(false, 'Không gửi được yêu cầu thử nghiệm. Hãy tải lại trang và thử lại.');
+                }).finally(function () {
+                    button.disabled = false;
+                    spinner.classList.add('d-none');
+                    icon.classList.remove('d-none');
+                });
+            });
+        })();
+    </script>
+}

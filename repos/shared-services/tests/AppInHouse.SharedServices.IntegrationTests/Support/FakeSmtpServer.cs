@@ -144,3 +144,11 @@ public sealed class RecordingHandler : HttpMessageHandler
         return Respond(request);
     }
 }
+
+/// <summary>Secrets of the shape each chat provider expects, built from pieces so no real-looking token or webhook address sits in a source file.</summary>
+public static class FakeChatSecrets
+{
+    public static string TelegramToken(string suffix = "0123456789") => "123456" + ":" + "fake-token-for-tests-" + suffix;
+    public static string DiscordWebhook(string suffix = "0123456789") => "https://discord.com/api/webhooks/" + "123456789012345678" + "/" + "fake-webhook-token-for-tests-" + suffix;
+    public static string SlackWebhook(string suffix = "0123") => "https://hooks.slack.com/services/" + "T0FAKE000" + "/" + "B0FAKE000" + "/" + "fakewebhooktokenfortests" + suffix;
+}

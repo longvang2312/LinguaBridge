@@ -68,7 +68,8 @@ public partial class WebTests : IClassFixture<WebFactory>
         Assert.Contains("SMTP", html);
         Assert.Contains("SendGrid", html);
         Assert.Contains("Brevo", html);
-        Assert.Contains("Cấu hình Telegram Bot", html);
+        Assert.Contains("Tin Nhắn &amp; Chat", html);
+        Assert.Contains("Telegram · Discord · Slack", html);
         Assert.Contains("Lưu trữ &amp; Media Browser", html);
         Assert.Contains("Ứng dụng &amp; API Keys", html);
         Assert.Contains("Audit Logs &amp; Lịch sử gửi tin", html);
@@ -97,7 +98,6 @@ public partial class WebTests : IClassFixture<WebFactory>
     }
 
     [Theory]
-    [InlineData("/Telegram", "Telegram")]
     [InlineData("/Storage", "Storage")]
     public async Task TheChannelEntries_OpenTheConfigurationListFilteredByThatChannel(string path, string channel)
     {
@@ -105,6 +105,15 @@ public partial class WebTests : IClassFixture<WebFactory>
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal($"/Configurations?channel={channel}", response.Headers.Location!.OriginalString);
+    }
+
+    [Fact]
+    public async Task TheOlderTelegramAddress_GoesToTheChatPage()
+    {
+        var response = await NewClient().GetAsync("/Telegram");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/Chat", response.Headers.Location!.OriginalString);
     }
 
     [Fact]

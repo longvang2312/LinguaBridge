@@ -71,6 +71,37 @@ public class SqliteDeliveryLogTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheChatListing_MixesChatAndOlderTelegramRows_NeverEmail_NewestFirst_AndHonoursProjectAndLimit()
+    {
+        await AddAsync(
+            Log("a", "chat-old", T0, channel: ChannelType.Chat),
+            Log("a", "mail", T0.AddMinutes(1)),
+            Log("a", "legacy-tg", T0.AddMinutes(2), channel: ChannelType.Telegram),
+            Log("b", "chat-b", T0.AddMinutes(3), channel: ChannelType.Chat),
+            Log("a", "chat-new", T0.AddMinutes(4), DeliveryStatus.Failed, ChannelType.Chat));
+        using var scope = _host.CreateScope();
+        var logs = scope.ServiceProvider.GetRequiredService<IDeliveryLogRepository>();
+        ChannelType[] chat = [ChannelType.Chat, ChannelType.Telegram];
+
+        Assert.Equal(["chat-new", "chat-b", "legacy-tg", "chat-old"], (await logs.ListRecentAsync(null, chat, 10)).Select(l => l.Recipient));
+        Assert.Equal(["chat-new", "legacy-tg", "chat-old"], (await logs.ListRecentAsync("a", chat, 10)).Select(l => l.Recipient));
+        Assert.Equal(["chat-new", "chat-b"], (await logs.ListRecentAsync(null, chat, 2)).Select(l => l.Recipient));
+        Assert.Equal(["mail"], (await logs.ListRecentAsync("a", [ChannelType.Email], 10)).Select(l => l.Recipient));
+        Assert.Equal(DeliveryStatus.Failed, (await logs.ListRecentAsync("a", chat, 1))[0].Status);
+    }
+
+    [Fact]
+    public async Task AChatLog_RoundTrips_AsTheChatChannel()
+    {
+        await AddAsync(DeliveryLog.Create("p", ChannelType.Chat, "-1001", DeliveryStatus.Sent, "Telegram accepted (message 5)", 12, T0.AddTicks(987)));
+
+        using var scope = _host.CreateScope();
+        var log = Assert.Single(await scope.ServiceProvider.GetRequiredService<IDeliveryLogRepository>().ListRecentAsync("p", [ChannelType.Chat], 5));
+
+        Assert.Equal((ChannelType.Chat, "-1001", 12, T0.AddTicks(987)), (log.ChannelType, log.Recipient, log.LatencyMs, log.CreatedAt));
+    }
+
+    [Fact]
     public async Task ALogRoundTrips_WithItsStatusResponseAndLatency()
     {
         await AddAsync(DeliveryLog.Create("p", ChannelType.Email, "who@x.co", DeliveryStatus.Failed, "The SMTP server rejected the login.", 1234, T0.AddTicks(1234567)));
@@ -147,5 +178,28 @@ public class PostgresDeliveryLogTests
         Assert.Equal(["3@x.co"], (await logs.ListRecentAsync(null, ChannelType.Email, 1)).Select(l => l.Recipient));
         var first = (await logs.ListRecentAsync("a", ChannelType.Email, 10))[0];
         Assert.Equal((DeliveryStatus.Sent, 5, t0.AddMinutes(2)), (first.Status, first.LatencyMs, first.CreatedAt));
+    }
+
+    [PostgresFact]
+    public async Task OnPostgres_TheChatListing_MixesChatAndOlderTelegramRows_NeverEmail()
+    {
+        await using var host = await PersistenceHost.CreatePostgresAsync(PostgresFactAttribute.ServerConnectionString!);
+        var t0 = new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero);
+        using (var scope = host.CreateScope())
+        {
+            var repository = scope.ServiceProvider.GetRequiredService<IDeliveryLogRepository>();
+            repository.Add(DeliveryLog.Create("a", ChannelType.Chat, "chat-1", DeliveryStatus.Sent, "ok", 5, t0));
+            repository.Add(DeliveryLog.Create("a", ChannelType.Email, "mail", DeliveryStatus.Sent, "ok", 5, t0.AddMinutes(1)));
+            repository.Add(DeliveryLog.Create("a", ChannelType.Telegram, "legacy", DeliveryStatus.Sent, "ok", 5, t0.AddMinutes(2)));
+            repository.Add(DeliveryLog.Create("b", ChannelType.Chat, "chat-b", DeliveryStatus.Failed, "no", 5, t0.AddMinutes(3)));
+            await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
+        }
+
+        using var read = host.CreateScope();
+        var logs = read.ServiceProvider.GetRequiredService<IDeliveryLogRepository>();
+        ChannelType[] chat = [ChannelType.Chat, ChannelType.Telegram];
+        Assert.Equal(["chat-b", "legacy", "chat-1"], (await logs.ListRecentAsync(null, chat, 10)).Select(l => l.Recipient));
+        Assert.Equal(["legacy", "chat-1"], (await logs.ListRecentAsync("a", chat, 10)).Select(l => l.Recipient));
+        Assert.Equal(["chat-b"], (await logs.ListRecentAsync(null, chat, 1)).Select(l => l.Recipient));
     }
 }

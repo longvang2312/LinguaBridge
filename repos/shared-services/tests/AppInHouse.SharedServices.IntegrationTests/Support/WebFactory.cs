@@ -18,6 +18,9 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
     public SendTestEmailResponse? TestResponse { get; set; }
     public SendTestEmailRequest? LastTestRequest { get; private set; }
     public SaveChannelConfigurationRequest? LastSave { get; private set; }
+    public List<DeliveryLogDto> ChatLogs { get; set; } = [];
+    public SendTestChatMessageResponse? ChatTestResponse { get; set; }
+    public SendTestChatMessageRequest? LastChatTestRequest { get; private set; }
 
     private void Enter(string call)
     {
@@ -71,6 +74,25 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
     {
         Enter($"logs:{projectCode}:{limit}");
         return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(Logs);
+    }
+
+    public Task<SendChatMessageResponse> SendChatMessageAsync(SendChatMessageRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"send-chat:{request.Text}");
+        return Task.FromResult(new SendChatMessageResponse(true, "Sent", Guid.NewGuid(), 1, "default", 1));
+    }
+
+    public Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"test-chat:{request.ConfigurationId?.ToString() ?? "unsaved"}:{request.ProviderType}");
+        LastChatTestRequest = request;
+        return Task.FromResult(ChatTestResponse ?? new SendTestChatMessageResponse(true, "Test message accepted.", 9, request.ProviderType ?? "TelegramBot", request.ConfigurationId is not null, request.ConfigurationId));
+    }
+
+    public Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        Enter($"chat-logs:{projectCode}:{limit}");
+        return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(ChatLogs);
     }
 
     public Task<ChannelConfigurationResponse> RollbackConfigurationAsync(RollbackConfigurationRequest request, CancellationToken cancellationToken = default)

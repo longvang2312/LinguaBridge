@@ -6,7 +6,7 @@ namespace AppInHouse.SharedServices.Web.Pages.Configurations;
 
 public class IndexModel(ISharedServicesClient client, ILogger<IndexModel> logger) : PageModel
 {
-    public static readonly string[] Channels = ["Email", "Telegram", "Storage"];
+    public static readonly string[] Channels = ["Email", "Chat", "Telegram", "Storage"];
 
     [BindProperty(SupportsGet = true)] public string? Project { get; set; }
     [BindProperty(SupportsGet = true)] public string? Channel { get; set; }

@@ -1,3 +1,4 @@
+using AppInHouse.SharedServices.Application.Chat;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,10 @@ public static class DependencyInjection
         services.AddSingleton<EmailTemplateRenderer>();
         services.AddScoped<IEmailDispatcher, EmailDispatcher>();
         services.AddScoped<IEmailTestService, EmailTestService>();
+
+        // Chat: the providers (Telegram, Discord, Slack, mock) are registered by the infrastructure layer.
+        services.AddScoped<IChatDispatcher, ChatDispatcher>();
+        services.AddScoped<IChatTestService, ChatTestService>();
         return services;
     }
 }

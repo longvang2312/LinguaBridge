@@ -2,6 +2,8 @@ using AppInHouse.SharedServices.Api;
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Email;
 using AppInHouse.SharedServices.Domain;
+using System.Net;
+using AppInHouse.SharedServices.Infrastructure.Chat;
 using AppInHouse.SharedServices.Infrastructure.Email;
 using AppInHouse.SharedServices.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -29,6 +31,9 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
     /// <summary>What the service sent to "SendGrid": the real HTTP client is replaced by this recorder.</summary>
     public RecordingHandler SendGrid { get; } = new();
 
+    /// <summary>Stands in for api.telegram.org, discord.com and hooks.slack.com: every chat request the service made is recorded here.</summary>
+    public RecordingHandler Chat { get; } = new() { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"ok\":true,\"result\":{\"message_id\":77}}") } };
+
     /// <summary>The in-memory mailbox of the mock email provider.</summary>
     public MockEmailProvider MockMail => Services.GetServices<IEmailProvider>().OfType<MockEmailProvider>().Single();
 
@@ -51,7 +56,13 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
         foreach (var (key, value) in settings) builder.UseSetting(key, value);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
         builder.ConfigureServices(services =>
-            services.AddHttpClient<SendGridEmailProvider>().ConfigurePrimaryHttpMessageHandler(() => SendGrid));
+        {
+            services.AddHttpClient<SendGridEmailProvider>().ConfigurePrimaryHttpMessageHandler(() => SendGrid);
+            services.AddHttpClient<TelegramBotChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddHttpClient<DiscordWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddHttpClient<SlackWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddSingleton<IHostAddressResolver>(new PublicHostResolver());   // no real DNS: the webhook hosts "resolve" to a public address
+        });
     }
 
     /// <summary>Stores a new API key with these scopes and returns it in plain text, as the one call that creates a key would.</summary>
@@ -105,4 +116,11 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
 public sealed class DevelopmentApiFactory : ApiFactory
 {
     protected override string EnvironmentName => "Development";
+}
+
+/// <summary>Answers every name with a public address, so a test needs no network.</summary>
+public sealed class PublicHostResolver : IHostAddressResolver
+{
+    public Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
+        Task.FromResult(IPAddress.TryParse(host, out var literal) ? new[] { literal } : new[] { IPAddress.Parse("93.184.216.34") });
 }

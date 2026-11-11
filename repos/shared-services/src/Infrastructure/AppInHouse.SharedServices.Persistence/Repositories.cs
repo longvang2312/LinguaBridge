@@ -53,6 +53,15 @@ internal sealed class DeliveryLogRepository(SharedServicesDbContext db) : IDeliv
         if (projectCode is not null) query = query.Where(l => l.ProjectCode == projectCode);
         return await query.OrderByDescending(l => l.CreatedAt).Take(limit).ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(
+        string? projectCode, IReadOnlyCollection<ChannelType> channelTypes, int limit, CancellationToken cancellationToken = default)
+    {
+        var channels = channelTypes.ToList();   // a plain list, which EF turns into IN (...)
+        var query = db.DeliveryLogs.AsNoTracking().Where(l => channels.Contains(l.ChannelType));
+        if (projectCode is not null) query = query.Where(l => l.ProjectCode == projectCode);
+        return await query.OrderByDescending(l => l.CreatedAt).Take(limit).ToListAsync(cancellationToken);
+    }
 }
 
 internal sealed class EfUnitOfWork(SharedServicesDbContext db) : IUnitOfWork

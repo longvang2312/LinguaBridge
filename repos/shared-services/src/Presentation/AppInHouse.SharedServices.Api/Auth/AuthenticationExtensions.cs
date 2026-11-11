@@ -12,12 +12,13 @@ public static class Policies
     public const string ConfigRead = ApiScopes.ConfigRead;
     public const string ConfigWrite = ApiScopes.ConfigWrite;
     public const string EmailSend = ApiScopes.EmailSend;
+    public const string ChatSend = ApiScopes.ChatSend;
 }
 
-/// <summary>Needs the scope in the caller's claims (an API key's scopes, or the scopes of a bearer token).</summary>
-public sealed class ScopeRequirement(string scope) : IAuthorizationRequirement
+/// <summary>Needs one of the scopes in the caller's claims (an API key's scopes, or the scopes of a bearer token).</summary>
+public sealed class ScopeRequirement(params string[] scopes) : IAuthorizationRequirement
 {
-    public string Scope { get; } = scope;
+    public IReadOnlyList<string> Scopes { get; } = scopes;
 }
 
 public sealed class ScopeAuthorizationHandler : AuthorizationHandler<ScopeRequirement>
@@ -35,7 +36,7 @@ public sealed class ScopeAuthorizationHandler : AuthorizationHandler<ScopeRequir
             .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .ToHashSet(StringComparer.Ordinal);
 
-        if (scopes.Contains(requirement.Scope) || scopes.Contains(AdminScope))
+        if (requirement.Scopes.Any(scopes.Contains) || scopes.Contains(AdminScope))
             context.Succeed(requirement);
         return Task.CompletedTask;
     }
@@ -95,6 +96,8 @@ public static class AuthenticationExtensions
             options.AddPolicy(Policies.ConfigRead, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ConfigRead)));
             options.AddPolicy(Policies.ConfigWrite, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ConfigWrite)));
             options.AddPolicy(Policies.EmailSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.EmailSend)));
+            // "telegram:send" is the scope keys had before chat covered more than Telegram; it keeps working.
+            options.AddPolicy(Policies.ChatSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ChatSend, ApiScopes.TelegramSend)));
         });
         services.AddSingleton<IAuthorizationHandler, ScopeAuthorizationHandler>();
 

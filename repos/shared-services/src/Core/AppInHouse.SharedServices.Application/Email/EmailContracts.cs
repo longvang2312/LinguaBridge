@@ -40,6 +40,9 @@ public interface IDeliveryLogRepository
     void Add(DeliveryLog log);
 
     Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(string? projectCode, ChannelType channelType, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>The same for several channels together (chat is saved as Chat, or as Telegram by configurations that predate Chat).</summary>
+    Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(string? projectCode, IReadOnlyCollection<ChannelType> channelTypes, int limit, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

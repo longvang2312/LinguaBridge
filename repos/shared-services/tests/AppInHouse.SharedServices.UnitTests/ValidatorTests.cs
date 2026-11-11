@@ -48,8 +48,13 @@ public class ChannelConfigurationValidatorTests
     [Theory]
     [InlineData(ChannelType.Email, ProviderType.S3)]
     [InlineData(ChannelType.Email, ProviderType.TelegramBot)]
+    [InlineData(ChannelType.Email, ProviderType.DiscordWebhook)]
     [InlineData(ChannelType.Telegram, ProviderType.Smtp)]
+    [InlineData(ChannelType.Telegram, ProviderType.SlackWebhook)]
+    [InlineData(ChannelType.Chat, ProviderType.Smtp)]
+    [InlineData(ChannelType.Chat, ProviderType.S3)]
     [InlineData(ChannelType.Storage, ProviderType.SendGrid)]
+    [InlineData(ChannelType.Storage, ProviderType.DiscordWebhook)]
     public void AProviderThatCannotServeTheChannel_IsRefused(ChannelType channel, ProviderType provider) =>
         Assert.Contains(nameof(SaveChannelConfigurationCommand.ProviderType), Check(Valid() with { ChannelType = channel, ProviderType = provider }).Keys);
 
@@ -58,10 +63,23 @@ public class ChannelConfigurationValidatorTests
     [InlineData(ChannelType.Email, ProviderType.SendGrid)]
     [InlineData(ChannelType.Email, ProviderType.Brevo)]
     [InlineData(ChannelType.Telegram, ProviderType.TelegramBot)]
+    [InlineData(ChannelType.Chat, ProviderType.TelegramBot)]
+    [InlineData(ChannelType.Chat, ProviderType.DiscordWebhook)]
+    [InlineData(ChannelType.Chat, ProviderType.SlackWebhook)]
+    [InlineData(ChannelType.Chat, ProviderType.Mock)]
     [InlineData(ChannelType.Storage, ProviderType.LocalDisk)]
     [InlineData(ChannelType.Storage, ProviderType.S3)]
     public void EveryDocumentedPairing_Passes(ChannelType channel, ProviderType provider) =>
-        Assert.Empty(Check(Valid() with { ChannelType = channel, ProviderType = provider }));
+        Assert.Empty(Check(Valid() with { ChannelType = channel, ProviderType = provider, Secret = SecretFor(provider) }));
+
+    // A secret of the shape each provider expects (a bot token, a webhook address), built from pieces so no real-looking key sits in this file.
+    internal static string SecretFor(ProviderType provider) => provider switch
+    {
+        ProviderType.TelegramBot => "123456" + ":" + "fake-token-for-tests-0123456789",
+        ProviderType.DiscordWebhook => "https://discord.com/api/webhooks/" + "123456789012345678" + "/" + "fake-webhook-token-for-tests-0123456789",
+        ProviderType.SlackWebhook => "https://hooks.slack.com/services/" + "T0FAKE000" + "/" + "B0FAKE000" + "/" + "fakewebhooktokenfortests0123",
+        _ => "secret",
+    };
 
     [Theory]
     [InlineData("""{"host":"h"}""")]

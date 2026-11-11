@@ -23,12 +23,14 @@ public class IndexModel(ISharedServicesClient client, ILogger<IndexModel> logger
             LoadError = UiHelpers.Describe(ex);
         }
 
-        int Count(string channel, string status) => all.Count(c => c.ChannelType == channel && c.Status == status);
+        // Chat is saved as Chat, or as Telegram by configurations that predate it: both count.
+        int Count(string channel, string status) =>
+            all.Count(c => (c.ChannelType == channel || channel == "Chat" && c.ChannelType == "Telegram") && c.Status == status);
 
         Channels =
         [
             new("Email", "Email", "bi-envelope", "/Email", Count("Email", "Active"), Count("Email", "Draft")),
-            new("Telegram", "Telegram Bot", "bi-chat-dots", "/Telegram", Count("Telegram", "Active"), Count("Telegram", "Draft")),
+            new("Chat", "Tin nhắn & Chat", "bi-chat-dots", "/Chat", Count("Chat", "Active"), Count("Chat", "Draft")),
             new("Storage", "Lưu trữ & Media", "bi-images", "/Storage", Count("Storage", "Active"), Count("Storage", "Draft")),
         ];
     }

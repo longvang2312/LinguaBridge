@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AppInHouse.SharedServices.Application.Security;
 using AppInHouse.SharedServices.Domain;
 
 namespace AppInHouse.SharedServices.Application.Configurations;
@@ -51,6 +52,12 @@ public static partial class ChannelConfigurationValidator
 
         if (command.Secret is { Length: > 4096 }) Add(nameof(command.Secret), "The secret is too long.");
 
+        // A bot token or a webhook address must have the right shape (and a webhook address must be on its platform's host): the service
+        // sends requests to them. The message never repeats the value.
+        if (!string.IsNullOrEmpty(command.Secret) && !SecretMask.IsMask(command.Secret) && Enum.IsDefined(command.ProviderType)
+            && Chat.ChatSecretRules.Check(command.ProviderType, command.Secret) is { } secretProblem)
+            Add(nameof(command.Secret), secretProblem);
+
         return errors.ToDictionary(e => e.Key, e => e.Value.ToArray());
     }
 
@@ -81,6 +88,11 @@ public static partial class ChannelConfigurationValidator
             // Saving a draft only checks the shape of the email settings; sending or testing needs them complete.
             if (command.ChannelType == ChannelType.Email && Enum.IsDefined(command.ProviderType))
                 foreach (var problem in Email.EmailSettingsReader.Validate(command.ProviderType, document.RootElement, complete: false))
+                    add(field, problem);
+
+            // Likewise the chat settings (chat id, parse mode, username, avatar address, channel, emoji): shape only, none is required.
+            if (command.ChannelType is ChannelType.Chat or ChannelType.Telegram)
+                foreach (var problem in Chat.ChatSettingsReader.Validate(document.RootElement))
                     add(field, problem);
         }
         catch (JsonException)

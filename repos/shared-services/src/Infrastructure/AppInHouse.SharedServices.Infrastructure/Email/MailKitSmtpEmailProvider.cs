@@ -40,15 +40,32 @@ public sealed class MailKitSmtpSender : ISmtpSender
     }
 }
 
-/// <summary>Refuses SMTP hosts the service must not connect to (see <see cref="EmailOptions.AllowPrivateNetworkHosts"/>).</summary>
-public sealed class OutboundHostPolicy(IOptions<EmailOptions> options)
+/// <summary>Turns a host name into addresses. Separate so the outbound policy can be tested without a network.</summary>
+public interface IHostAddressResolver
 {
+    Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken);
+}
+
+public sealed class DnsHostAddressResolver : IHostAddressResolver
+{
+    public Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) => Dns.GetHostAddressesAsync(host, cancellationToken);
+}
+
+/// <summary>
+/// Refuses hosts the service must not connect to, for email (SMTP) and chat (webhooks) alike: link-local, metadata, multicast and
+/// unspecified addresses always, loopback and private networks unless <see cref="EmailOptions.AllowPrivateNetworkHosts"/> is on.
+/// The name is resolved here and again when connecting, so a name that changes its answer in between is not caught.
+/// </summary>
+public sealed class OutboundHostPolicy(IOptions<EmailOptions> options, IHostAddressResolver? resolver = null)
+{
+    private readonly IHostAddressResolver _resolver = resolver ?? new DnsHostAddressResolver();
+
     public async Task<string?> CheckAsync(string host, CancellationToken cancellationToken)
     {
         IPAddress[] addresses;
         try
         {
-            addresses = IPAddress.TryParse(host.Trim('[', ']'), out var literal) ? [literal] : await Dns.GetHostAddressesAsync(host, cancellationToken);
+            addresses = IPAddress.TryParse(host.Trim('[', ']'), out var literal) ? [literal] : await _resolver.ResolveAsync(host, cancellationToken);
         }
         catch (SocketException)
         {

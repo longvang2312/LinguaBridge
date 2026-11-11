@@ -60,6 +60,31 @@ public sealed record SendTestEmailResponse(
 public sealed record DeliveryLogDto(
     Guid Id, string ProjectCode, string ChannelType, string Recipient, string Status, string? ProviderResponse, int? LatencyMs, DateTimeOffset CreatedAt);
 
+/// <summary>
+/// Send one chat message (Telegram, Discord or Slack, whichever the project's active chat configuration names). <see cref="Recipient"/> is a
+/// chat id for Telegram, an optional channel for Slack, unused by Discord; empty means the configuration's default. <see cref="Format"/>
+/// (<c>PlainText</c>, <c>Markdown</c>, <c>MarkdownV2</c>) left out means the configuration's default; <c>PlainText</c> is always shown as
+/// written. The project defaults to the project of the API key.
+/// </summary>
+public sealed record SendChatMessageRequest(
+    string Text, string? Recipient = null, string? Format = null, string? ProjectCode = null, Dictionary<string, string>? Metadata = null);
+
+public sealed record SendChatMessageResponse(
+    bool Success, string Status, Guid? DeliveryLogId, int LatencyMs, string? ConfigurationProject, int? ConfigurationVersion);
+
+/// <summary>
+/// Test a chat configuration. With <see cref="ConfigurationId"/> the saved version is tested and its last test result is updated. Without
+/// it, <see cref="ProviderType"/>, <see cref="Settings"/> and <see cref="Secret"/> (a bot token or a webhook address) are tried from memory:
+/// nothing is saved or activated. <see cref="Secret"/> is write-only. <see cref="Recipient"/> and <see cref="Message"/> are optional.
+/// </summary>
+public sealed record SendTestChatMessageRequest(
+    string? Recipient = null, string? Message = null, Guid? ConfigurationId = null,
+    string? ProviderType = null, JsonElement? Settings = null, string? Secret = null);
+
+/// <summary>The outcome of a chat test. A failed test is an answer (<see cref="Success"/> false with a short, safe <see cref="Message"/>), not an exception.</summary>
+public sealed record SendTestChatMessageResponse(
+    bool Success, string Message, int LatencyMs, string ProviderType, bool UsedSavedConfiguration, Guid? ConfigurationId);
+
 /// <summary>The API refused or failed a call. <see cref="Errors"/> holds field-level messages for a 400.</summary>
 public sealed class SharedServicesApiException(int statusCode, string message, IReadOnlyDictionary<string, string[]>? errors = null)
     : Exception(message)

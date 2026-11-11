@@ -24,6 +24,13 @@ public interface ISharedServicesClient
     Task<SendTestEmailResponse> SendTestEmailAsync(SendTestEmailRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<DeliveryLogDto>> GetEmailDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
+
+    /// <summary>Sends a chat message with the project's active chat configuration. A refusal or failure throws <see cref="SharedServicesApiException"/> (409 no configuration, 502 not delivered).</summary>
+    Task<SendChatMessageResponse> SendChatMessageAsync(SendChatMessageRequest request, CancellationToken cancellationToken = default);
+
+    Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
 }
 
 public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClient
@@ -87,6 +94,25 @@ public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClien
     {
         var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
         using var response = await http.GetAsync($"api/v1/emails/delivery-logs?{query}", cancellationToken);
+        return await ReadAsync<List<DeliveryLogDto>>(response, cancellationToken);
+    }
+
+    public async Task<SendChatMessageResponse> SendChatMessageAsync(SendChatMessageRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/chat/send", request, Json, cancellationToken);
+        return await ReadAsync<SendChatMessageResponse>(response, cancellationToken);
+    }
+
+    public async Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/chat/test", request, Json, cancellationToken);
+        return await ReadAsync<SendTestChatMessageResponse>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
+        using var response = await http.GetAsync($"api/v1/chat/delivery-logs?{query}", cancellationToken);
         return await ReadAsync<List<DeliveryLogDto>>(response, cancellationToken);
     }
 

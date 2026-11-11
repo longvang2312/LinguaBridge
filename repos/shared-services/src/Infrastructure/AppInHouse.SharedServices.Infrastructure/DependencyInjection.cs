@@ -1,5 +1,7 @@
 using AppInHouse.SharedServices.Application.Abstractions;
+using AppInHouse.SharedServices.Application.Chat;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Infrastructure.Chat;
 using AppInHouse.SharedServices.Infrastructure.Email;
 using AppInHouse.SharedServices.Infrastructure.Security;
 using Microsoft.AspNetCore.DataProtection;
@@ -49,6 +51,7 @@ public static class DependencyInjection
 
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
         AddEmailProviders(services, configuration);
+        AddChatProviders(services, configuration);
         return services;
     }
 
@@ -56,6 +59,7 @@ public static class DependencyInjection
     private static void AddEmailProviders(IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.AddSingleton<IHostAddressResolver, DnsHostAddressResolver>();
         services.AddSingleton<OutboundHostPolicy>();
         services.AddSingleton<ISmtpSender, MailKitSmtpSender>();
 
@@ -70,5 +74,38 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(options.SendGridTimeoutSeconds);
         });
         services.AddTransient<IEmailProvider>(provider => provider.GetRequiredService<SendGridEmailProvider>());
+    }
+
+    /// <summary>
+    /// The chat providers the dispatcher can route to: Telegram, Discord, Slack and a mock. Host settings: section <c>Chat</c>.
+    /// The requests of the real providers carry a secret in their address (the bot token, the webhook), so their HTTP clients log nothing
+    /// (the framework would otherwise write every request address to the log) and follow no redirect.
+    /// </summary>
+    private static void AddChatProviders(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<ChatOptions>(configuration.GetSection(ChatOptions.SectionName));
+        services.AddSingleton<MockChatProvider>();
+        services.AddSingleton<IChatProvider>(provider => provider.GetRequiredService<MockChatProvider>());
+
+        services.AddHttpClient<TelegramBotChatProvider>((provider, client) =>
+            {
+                var options = provider.GetRequiredService<IOptions<ChatOptions>>().Value;
+                client.BaseAddress = new Uri(options.TelegramBaseUrl.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+            })
+            .RemoveAllLoggers()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddHttpClient<DiscordWebhookChatProvider>((provider, client) =>
+                client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<IOptions<ChatOptions>>().Value.TimeoutSeconds))
+            .RemoveAllLoggers()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddHttpClient<SlackWebhookChatProvider>((provider, client) =>
+                client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<IOptions<ChatOptions>>().Value.TimeoutSeconds))
+            .RemoveAllLoggers()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+
+        services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<TelegramBotChatProvider>());
+        services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<DiscordWebhookChatProvider>());
+        services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<SlackWebhookChatProvider>());
     }
 }

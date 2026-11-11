@@ -28,8 +28,7 @@ public sealed record SendTestEmailResponse(bool Success, string Message, int Lat
 
 public static class EmailEndpoints
 {
-    /// <summary>The project whose keys may act for every project (the platform's own).</summary>
-    private const string PlatformProject = EmailDispatcher.FallbackProject;
+    private const string PlatformProject = ProjectAccess.PlatformProject;
 
     public static IEndpointRouteBuilder MapEmailEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -37,7 +36,7 @@ public static class EmailEndpoints
 
         group.MapPost("/send", async (SendEmailRequest request, ClaimsPrincipal user, IEmailDispatcher dispatcher, CancellationToken ct) =>
             {
-                if (!TryResolveProject(user, request.ProjectCode, out var project)) return Results.Problem(
+                if (!ProjectAccess.TryResolve(user, request.ProjectCode, out var project)) return Results.Problem(
                     statusCode: StatusCodes.Status403Forbidden, title: "Not your project", detail: "An API key can only send for its own project.");
 
                 var result = await dispatcher.SendAsync(new SendEmailCommand(
@@ -69,7 +68,7 @@ public static class EmailEndpoints
         group.MapGet("/delivery-logs", async ([FromQuery] string? projectCode, [FromQuery] int? limit, ClaimsPrincipal user, IEmailDispatcher dispatcher, CancellationToken ct) =>
             {
                 // A key of another project sees only its own deliveries; the platform's keys can look at any project.
-                if (!TryResolveProject(user, projectCode, out var project, allowAll: true)) return Results.Problem(
+                if (!ProjectAccess.TryResolve(user, projectCode, out var project, allowAll: true)) return Results.Problem(
                     statusCode: StatusCodes.Status403Forbidden, title: "Not your project", detail: "An API key can only read the deliveries of its own project.");
 
                 return Results.Ok(await dispatcher.RecentAsync(project, limit ?? 20, ct));
@@ -81,22 +80,4 @@ public static class EmailEndpoints
         return routes;
     }
 
-    /// <summary>
-    /// A key acts for its own project; the platform project's keys (and bearer tokens, which carry no project) may name any project.
-    /// With <paramref name="allowAll"/> a platform caller that names none gets every project (null).
-    /// </summary>
-    private static bool TryResolveProject(ClaimsPrincipal user, string? requested, out string? project, bool allowAll = false)
-    {
-        var own = user.FindFirst(ApiKeyDefaults.ProjectClaim)?.Value;
-        var wanted = string.IsNullOrWhiteSpace(requested) ? null : requested.Trim().ToLowerInvariant();
-
-        if (own is null || own == PlatformProject)
-        {
-            project = wanted ?? (allowAll ? null : PlatformProject);
-            return true;
-        }
-
-        project = wanted ?? own;
-        return project == own;
-    }
 }

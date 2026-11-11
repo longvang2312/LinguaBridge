@@ -3,18 +3,8 @@ using AppInHouse.SharedServices.Domain;
 
 namespace AppInHouse.SharedServices.Application.Abstractions;
 
-// What the channel services implement (email: see the Email folder; Telegram and storage come with their own tasks). A provider is given the configuration it must use
+// What the channel services implement (email: see the Email folder; chat: the Chat folder; storage comes with its own task). A provider is given the configuration it must use
 // on every call, so a newly activated version (or a rollback) takes effect without restarting the service.
-
-public sealed record ProviderResult(bool Success, string? ProviderMessageId = null, string? Error = null, int LatencyMs = 0);
-
-public interface ITelegramProvider
-{
-    ProviderType Type { get; }
-
-    /// <summary>Sends text (MarkdownV2 escaping is the provider's job).</summary>
-    Task<ProviderResult> SendMessageAsync(ChannelRuntimeConfiguration configuration, string chatId, string text, CancellationToken cancellationToken = default);
-}
 
 public interface IStorageProvider
 {

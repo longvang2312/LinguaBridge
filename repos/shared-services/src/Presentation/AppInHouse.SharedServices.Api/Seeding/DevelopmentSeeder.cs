@@ -27,7 +27,7 @@ public static class DevelopmentSeeder
             if (ApiKey.TryGetPrefix(devKey, out var prefix) && (await keys.FindByPrefixAsync(prefix, cancellationToken)).Count == 0)
             {
                 await keys.AddAsync(ApiKey.FromPlainText(
-                    "default", "Development key", [ApiScopes.ConfigRead, ApiScopes.ConfigWrite, ApiScopes.EmailSend], devKey, expiresAt: null, TimeProvider.System.GetUtcNow()), cancellationToken);
+                    "default", "Development key", [ApiScopes.ConfigRead, ApiScopes.ConfigWrite, ApiScopes.EmailSend, ApiScopes.ChatSend], devKey, expiresAt: null, TimeProvider.System.GetUtcNow()), cancellationToken);
                 await provider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken);
                 logger.LogInformation("Seeded the development API key ({Prefix}...).", prefix);
             }
@@ -46,9 +46,13 @@ public static class DevelopmentSeeder
             Json(new { host = "smtp.example.com", port = 587, useSsl = "StartTls", username = "noreply@example.com", senderEmail = "noreply@example.com", senderName = "AppInHouse" }),
             Secret: "dev-only-smtp-password"), cancellationToken);
 
+        // Chat: the mock provider is active, so sending works with no internet; a draft Telegram version waits to be tried.
+        var chat = await manager.SaveAsync(new SaveChannelConfigurationCommand(
+            "default", ChannelType.Chat, ProviderType.Mock, "Default chat", Json(new { defaultChatId = "-1000000000000" })), cancellationToken);
+        await manager.ActivateAsync(chat.Id, cancellationToken);
         await manager.SaveAsync(new SaveChannelConfigurationCommand(
-            "linguabridge", ChannelType.Telegram, ProviderType.TelegramBot, "Alerts bot",
-            Json(new { defaultChatId = "-1000000000000", parseMode = "MarkdownV2" }),
+            "default", ChannelType.Chat, ProviderType.TelegramBot, "Default chat",
+            Json(new { defaultChatId = "-1000000000000", parseMode = "PlainText" }),
             Secret: "000000000:dev-only-fake-bot-token-0000000000"), cancellationToken);
 
         var storage = await manager.SaveAsync(new SaveChannelConfigurationCommand(

@@ -4,8 +4,14 @@ namespace AppInHouse.SharedServices.Domain;
 public enum ChannelType
 {
     Email,
+
+    /// <summary>The first chat channel. Kept so configurations saved before <see cref="Chat"/> existed keep working; new ones use <see cref="Chat"/>.</summary>
     Telegram,
+
     Storage,
+
+    /// <summary>Instant messaging: Telegram, Discord, Slack.</summary>
+    Chat,
 }
 
 /// <summary>The concrete service behind a channel.</summary>
@@ -18,6 +24,8 @@ public enum ProviderType
     TelegramBot,
     LocalDisk,
     S3,
+    DiscordWebhook,
+    SlackWebhook,
 }
 
 /// <summary>Life cycle of one version of a configuration: Draft, then Active, then Archived.</summary>
@@ -50,6 +58,7 @@ public static class ProviderCatalog
         [ChannelType.Email] = [ProviderType.Smtp, ProviderType.SendGrid, ProviderType.Brevo, ProviderType.Mock],
         [ChannelType.Telegram] = [ProviderType.TelegramBot, ProviderType.Mock],
         [ChannelType.Storage] = [ProviderType.LocalDisk, ProviderType.S3],
+        [ChannelType.Chat] = [ProviderType.TelegramBot, ProviderType.DiscordWebhook, ProviderType.SlackWebhook, ProviderType.Mock],
     };
 
     public static IReadOnlyList<ProviderType> For(ChannelType channel) => Map[channel];
@@ -57,9 +66,14 @@ public static class ProviderCatalog
     public static bool Supports(ChannelType channel, ProviderType provider) => Map[channel].Contains(provider);
 
     /// <summary>
-    /// Whether the provider cannot work without a secret (an API key, a bot token). SMTP is not listed: a relay may accept mail
-    /// without a login. Mock and LocalDisk need none.
+    /// Whether the provider cannot work without a secret (an API key, a bot token, a webhook address: for Discord and Slack the address
+    /// itself is the secret, because anyone who has it can post). SMTP is not listed: a relay may accept mail without a login.
+    /// Mock and LocalDisk need none.
     /// </summary>
     public static bool RequiresSecret(ProviderType provider) =>
-        provider is ProviderType.SendGrid or ProviderType.Brevo or ProviderType.TelegramBot or ProviderType.S3;
+        provider is ProviderType.SendGrid or ProviderType.Brevo or ProviderType.TelegramBot or ProviderType.S3
+            or ProviderType.DiscordWebhook or ProviderType.SlackWebhook;
+
+    /// <summary>The channels that carry chat messages; <see cref="ChannelType.Telegram"/> is the older name of <see cref="ChannelType.Chat"/>.</summary>
+    public static IReadOnlyList<ChannelType> ChatChannels { get; } = [ChannelType.Chat, ChannelType.Telegram];
 }

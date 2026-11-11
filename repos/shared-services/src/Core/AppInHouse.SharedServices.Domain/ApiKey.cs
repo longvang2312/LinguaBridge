@@ -9,6 +9,9 @@ public static class ApiScopes
     public const string ConfigWrite = "config:write";
     public const string EmailSend = "email:send";
     public const string TelegramSend = "telegram:send";
+
+    /// <summary>Send a chat message (Telegram, Discord, Slack). <see cref="TelegramSend"/> is accepted for it too, for callers that predate this scope.</summary>
+    public const string ChatSend = "chat:send";
     public const string StorageUpload = "storage:upload";
 }
 

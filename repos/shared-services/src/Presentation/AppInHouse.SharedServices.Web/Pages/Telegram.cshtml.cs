@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AppInHouse.SharedServices.Web.Pages;
 
-/// <summary>The Telegram section: the configuration list filtered to the Telegram channel.</summary>
+/// <summary>The older address of the chat section (it was only Telegram): it goes to <c>/Chat</c>, keeping the chosen project.</summary>
 public class TelegramModel : PageModel
 {
-    public IActionResult OnGet() => RedirectToPage("/Configurations/Index", new { channel = "Telegram" });
+    public IActionResult OnGet(string? project) => RedirectToPage("/Chat", string.IsNullOrWhiteSpace(project) ? null : new { project });
 }

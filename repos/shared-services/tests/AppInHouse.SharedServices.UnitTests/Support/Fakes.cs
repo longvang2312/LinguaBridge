@@ -98,6 +98,11 @@ internal sealed class FakeDeliveryLogRepository : AppInHouse.SharedServices.Appl
 
     public void Add(DeliveryLog log) => Rows.Add(log);
 
+    public Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(string? projectCode, IReadOnlyCollection<ChannelType> channelTypes, int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<DeliveryLog>>([.. Rows
+            .Where(l => channelTypes.Contains(l.ChannelType) && (projectCode is null || l.ProjectCode == projectCode))
+            .OrderByDescending(l => l.CreatedAt).Take(limit)]);
+
     public Task<IReadOnlyList<DeliveryLog>> ListRecentAsync(string? projectCode, ChannelType channelType, int limit, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<DeliveryLog>>([.. Rows
             .Where(l => l.ChannelType == channelType && (projectCode is null || l.ProjectCode == projectCode))
@@ -146,4 +151,55 @@ internal static class RuntimeConfig
 
     public const string Smtp = """{"host":"203.0.113.10","port":2525,"useSsl":"None","username":"mailer","senderEmail":"noreply@example.com","senderName":"AppInHouse"}""";
     public const string SendGrid = """{"senderEmail":"noreply@example.com","senderName":"AppInHouse"}""";
+}
+
+/// <summary>Secrets of the shape each chat provider expects, built from pieces so no real-looking token or webhook address sits in a source file.</summary>
+internal static class FakeChatSecrets
+{
+    public static readonly string TelegramToken = "123456" + ":" + "fake-token-for-tests-0123456789";
+    public static readonly string DiscordWebhook = "https://discord.com/api/webhooks/" + "123456789012345678" + "/" + "fake-webhook-token-for-tests-0123456789";
+    public static readonly string SlackWebhook = "https://hooks.slack.com/services/" + "T0FAKE000" + "/" + "B0FAKE000" + "/" + "fakewebhooktokenfortests0123";
+
+    public static string For(ProviderType provider) => provider switch
+    {
+        ProviderType.TelegramBot => TelegramToken,
+        ProviderType.DiscordWebhook => DiscordWebhook,
+        ProviderType.SlackWebhook => SlackWebhook,
+        _ => "secret",
+    };
+}
+
+/// <summary>A chat provider that records what it was given and answers as told.</summary>
+internal sealed class FakeChatProvider(ProviderType type) : AppInHouse.SharedServices.Application.Chat.IChatProvider
+{
+    public ProviderType Type { get; } = type;
+    public List<(AppInHouse.SharedServices.Application.Chat.ChatMessage Message, ChannelRuntimeConfiguration Config)> Sent { get; } = [];
+    public List<(ChannelRuntimeConfiguration Config, string Recipient, string Text)> Tested { get; } = [];
+    public AppInHouse.SharedServices.Application.Chat.ChatSendResult SendResult { get; set; } = new(true, "42", ProviderResponse: "Accepted (42)", Target: "-1001");
+    public AppInHouse.SharedServices.Application.Chat.ChatTestResult TestResult { get; set; } = new(true, "Test message accepted.", 5);
+    public Exception? Throw { get; set; }
+
+    public Task<AppInHouse.SharedServices.Application.Chat.ChatSendResult> SendMessageAsync(
+        AppInHouse.SharedServices.Application.Chat.ChatMessage message, ChannelRuntimeConfiguration config, CancellationToken ct = default)
+    {
+        Sent.Add((message, config));
+        if (Throw is not null) throw Throw;
+        return Task.FromResult(SendResult);
+    }
+
+    public Task<AppInHouse.SharedServices.Application.Chat.ChatTestResult> TestConnectionAsync(ChannelRuntimeConfiguration config, string testRecipient, string testMessage, CancellationToken ct = default)
+    {
+        Tested.Add((config, testRecipient, testMessage));
+        if (Throw is not null) throw Throw;
+        return Task.FromResult(TestResult);
+    }
+}
+
+/// <summary>Resolves host names from a table, so the outbound policy can be tested with no DNS.</summary>
+internal sealed class FakeHostResolver(Dictionary<string, string[]> table) : AppInHouse.SharedServices.Infrastructure.Email.IHostAddressResolver
+{
+    public Task<System.Net.IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
+        table.TryGetValue(host, out var addresses)
+            ? Task.FromResult(addresses.Select(System.Net.IPAddress.Parse).ToArray())
+            : throw new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.HostNotFound);
 }

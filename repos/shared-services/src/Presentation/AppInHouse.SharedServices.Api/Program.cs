@@ -78,6 +78,7 @@ app.MapGet("/health", (TimeProvider clock) => Results.Ok(new HealthResponse("Hea
 
 app.MapChannelConfigurationEndpoints();
 app.MapEmailEndpoints();
+app.MapChatEndpoints();
 
 app.Run();
 
