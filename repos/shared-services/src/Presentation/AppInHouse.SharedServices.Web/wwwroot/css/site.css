@@ -1,0 +1,33 @@
+:root {
+  --aih-brand: #1f3a5f;
+  --aih-brand-dark: #16293f;
+  --aih-accent: #3b82f6;
+  --sidebar-width: 270px;
+}
+
+body { background: #f4f6f9; min-height: 100vh; }
+
+.topbar { background: var(--aih-brand); height: 56px; position: sticky; top: 0; z-index: 1030; }
+.topbar { flex-wrap: nowrap; }
+.topbar .navbar-brand { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-right: .5rem; }
+@media (max-width: 575.98px) { .topbar .navbar-brand { font-size: .95rem; } }
+
+.shell { display: flex; min-height: calc(100vh - 56px); }
+
+/* !important: Bootstrap's .offcanvas-lg makes its background transparent from the lg breakpoint up. */
+.sidebar { width: var(--sidebar-width); background-color: var(--aih-brand-dark) !important; flex-shrink: 0; }
+.sidebar .nav-link { color: #c7d2e0; padding: .7rem 1.25rem; display: flex; align-items: center; gap: .75rem; border-left: 3px solid transparent; }
+.sidebar .nav-link .label small { display: block; color: #8aa0ba; font-size: .72rem; }
+.sidebar .nav-link:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.sidebar .nav-link.active { background: rgba(59, 130, 246, .18); color: #fff; border-left-color: var(--aih-accent); }
+.sidebar .nav-section { color: #7f93ad; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; padding: 1rem 1.25rem .35rem; }
+
+/* On large screens the sidebar is part of the page; below that it is an off-canvas menu (see the layout). */
+@media (min-width: 992px) { .sidebar { position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; } }
+
+.content { flex: 1; min-width: 0; padding: 1.5rem; }
+.page-title { font-size: 1.4rem; font-weight: 600; }
+
+.secret-mask { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; }
+.table > :not(caption) > * > * { vertical-align: middle; }
+.card-stat .display-6 { font-weight: 600; }

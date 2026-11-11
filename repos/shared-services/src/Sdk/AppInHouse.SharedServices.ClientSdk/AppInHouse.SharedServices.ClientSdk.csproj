@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Typed client for the Shared Services API. No reference to the service's own projects: the contracts below are the
+       public surface, so a consumer (Identity, LinguaBridge, the web portal) never depends on the service's internals. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.*" />
+  </ItemGroup>
+
+</Project>

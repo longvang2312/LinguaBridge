@@ -1,0 +1,66 @@
+@using Microsoft.AspNetCore.Hosting
+@inject IWebHostEnvironment Environment
+@{
+    // Which sidebar entry is lit: the channel pages are the configuration list filtered by channel.
+    var page = (string?)ViewContext.RouteData.Values["page"] ?? string.Empty;
+    var channel = Context.Request.Query["channel"].ToString();
+    string Lit(bool on) => on ? "active" : string.Empty;
+    var onConfigurations = page.StartsWith("/Configurations", StringComparison.OrdinalIgnoreCase);
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(ViewData["Title"] ?? "Shared Services") · AppInHouse</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
+</head>
+<body>
+    <header class="topbar navbar navbar-dark px-3">
+        <button class="btn btn-outline-light btn-sm d-lg-none me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Mở menu">
+            <i class="bi bi-list"></i>
+        </button>
+        <a class="navbar-brand fw-semibold" href="/">
+            <i class="bi bi-hdd-network me-2"></i>AppInHouse <span class="fw-light">Shared Services</span>
+        </a>
+        <span class="ms-auto d-flex align-items-center gap-2">
+            @if (Environment.IsDevelopment())
+            {
+                <span class="badge text-bg-warning">Development</span>
+            }
+            <span class="text-white-50 small d-none d-md-inline"><i class="bi bi-person-circle me-1"></i>Quản trị viên</span>
+        </span>
+    </header>
+
+    <div class="shell">
+        <nav id="sidebar" class="sidebar offcanvas-lg offcanvas-start" tabindex="-1" aria-label="Menu quản trị">
+            <div class="offcanvas-header d-lg-none">
+                <h5 class="offcanvas-title text-white">Menu</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Đóng"></button>
+            </div>
+            <div class="offcanvas-body flex-column p-0">
+                <ul class="nav flex-column">
+                    <li class="nav-item"><a class="nav-link @Lit(page == "/Index")" href="/"><i class="bi bi-speedometer2"></i>Tổng quan</a></li>
+                    <li class="nav-section">Kênh dịch vụ</li>
+                    <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == "Email")" asp-page="/Email"><i class="bi bi-envelope"></i><span class="label">Cấu hình Email<small>SMTP · SendGrid · Brevo</small></span></a></li>
+                    <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == "Telegram")" asp-page="/Telegram"><i class="bi bi-chat-dots"></i>Cấu hình Telegram Bot</a></li>
+                    <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == "Storage")" asp-page="/Storage"><i class="bi bi-images"></i>Lưu trữ &amp; Media Browser</a></li>
+                    <li class="nav-item"><a class="nav-link @Lit(onConfigurations && channel == string.Empty)" asp-page="/Configurations/Index"><i class="bi bi-sliders"></i>Tất cả cấu hình</a></li>
+                    <li class="nav-section">Quản trị</li>
+                    <li class="nav-item"><a class="nav-link @Lit(page == "/ApiKeys")" asp-page="/ApiKeys"><i class="bi bi-key"></i>Ứng dụng &amp; API Keys</a></li>
+                    <li class="nav-item"><a class="nav-link @Lit(page == "/Audit")" asp-page="/Audit"><i class="bi bi-journal-text"></i>Audit Logs &amp; Lịch sử gửi tin</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <main class="content" role="main">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

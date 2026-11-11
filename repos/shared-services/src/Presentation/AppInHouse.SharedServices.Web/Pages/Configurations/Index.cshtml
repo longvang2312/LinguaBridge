@@ -1,0 +1,115 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.Configurations.IndexModel
+@{
+    ViewData["Title"] = "Cấu hình kênh";
+    var heading = string.IsNullOrWhiteSpace(Model.Channel) ? "Danh sách cấu hình kênh" : $"Cấu hình {Model.Channel}";
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="page-title mb-0">@heading</h1>
+    <span class="text-muted small">Secret luôn được che; chỉ nhập lại khi muốn thay.</span>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success" role="alert" id="flash-message">@Model.Message</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" id="flash-error">@Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+
+<form method="get" class="row g-2 align-items-end mb-3" id="filter-form">
+    <div class="col-12 col-md-4 col-lg-3">
+        <label class="form-label small mb-1" for="project">Dự án</label>
+        <select class="form-select" id="project" name="project">
+            <option value="">Tất cả dự án</option>
+            @foreach (var project in Model.Projects)
+            {
+                <option value="@project" selected="@(project == Model.Project)">@project</option>
+            }
+        </select>
+    </div>
+    <div class="col-12 col-md-4 col-lg-3">
+        <label class="form-label small mb-1" for="channel">Kênh</label>
+        <select class="form-select" id="channel" name="channel">
+            <option value="">Tất cả kênh</option>
+            @foreach (var channel in AppInHouse.SharedServices.Web.Pages.Configurations.IndexModel.Channels)
+            {
+                <option value="@channel" selected="@(string.Equals(channel, Model.Channel, StringComparison.OrdinalIgnoreCase))">@channel</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Lọc</button></div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="configurations-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Dự án</th>
+                    <th>Kênh</th>
+                    <th>Provider</th>
+                    <th>Tên</th>
+                    <th class="text-end">Version</th>
+                    <th>Trạng thái</th>
+                    <th>Secret</th>
+                    <th>Thử nghiệm</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr data-version="@item.Version" data-status="@item.Status">
+                        <td>@item.ProjectCode</td>
+                        <td>@item.ChannelType</td>
+                        <td>@item.ProviderType</td>
+                        <td>@item.Name</td>
+                        <td class="text-end">v@(item.Version)</td>
+                        <td><span class="badge @UiHelpers.StatusBadge(item.Status)">@item.Status</span></td>
+                        <td>
+                            @if (item.HasSecret)
+                            {
+                                <span class="secret-mask" title="Secret đã lưu, không hiển thị lại">@item.MaskedSecret</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td><span class="badge @UiHelpers.TestBadge(item.LastTestStatus)">@item.LastTestStatus</span></td>
+                        <td class="text-end">
+                            @* Each form below carries an anti-forgery token (added by the form tag helper) and is checked on the server. *@
+                            @if (item.Status == "Draft")
+                            {
+                                <form method="post" asp-page-handler="Activate" asp-route-id="@item.Id" asp-route-project="@Model.Project" asp-route-channel="@Model.Channel" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-play-fill me-1"></i>Kích hoạt</button>
+                                </form>
+                            }
+                            else if (item.Status == "Archived")
+                            {
+                                <form method="post" asp-page-handler="Rollback" asp-route-project="@Model.Project" asp-route-channel="@Model.Channel" class="d-inline">
+                                    <input type="hidden" name="projectCode" value="@item.ProjectCode" />
+                                    <input type="hidden" name="channelType" value="@item.ChannelType" />
+                                    <input type="hidden" name="name" value="@item.Name" />
+                                    <input type="hidden" name="version" value="@item.Version" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Rollback</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Items.Count == 0 && string.IsNullOrEmpty(Model.LoadError))
+                {
+                    <tr><td colspan="9" class="text-center text-muted py-4" id="empty-row">Chưa có cấu hình nào.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

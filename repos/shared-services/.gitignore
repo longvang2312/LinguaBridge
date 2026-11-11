@@ -1,0 +1,5 @@
+# Local development data of the hosts: SQLite databases and the Data Protection key ring (secrets!).
+**/data/
+*.db
+*.db-shm
+*.db-wal

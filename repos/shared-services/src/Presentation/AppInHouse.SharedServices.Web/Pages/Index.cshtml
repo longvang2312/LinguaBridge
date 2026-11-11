@@ -1,0 +1,47 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.IndexModel
+@{
+    ViewData["Title"] = "Tổng quan";
+}
+
+<h1 class="page-title mb-1">Tổng quan</h1>
+<p class="text-muted">Hạ tầng dịch vụ dùng chung cho các dự án AppInHouse: email, Telegram và lưu trữ tệp.</p>
+
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+
+<div class="row g-3 mb-4">
+    @foreach (var channel in Model.Channels)
+    {
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card card-stat shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi @channel.Icon fs-4 text-primary"></i>
+                        <h2 class="h6 mb-0">@channel.Title</h2>
+                    </div>
+                    <div class="display-6">@channel.Active <small class="fs-6 text-muted">đang hoạt động</small></div>
+                    <div class="text-muted small">@channel.Draft bản nháp</div>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0">
+                    <a class="btn btn-sm btn-outline-primary" asp-page="@channel.Page">Quản lý cấu hình</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h2 class="h6">Vòng đời một cấu hình</h2>
+        <p class="mb-0 text-muted">
+            <span class="badge text-bg-warning">Draft</span> →
+            Thử nghiệm →
+            <span class="badge text-bg-success">Active</span> (phiên bản cũ thành
+            <span class="badge text-bg-secondary">Archived</span>) →
+            Rollback về một phiên bản trước ngay lập tức, không cần khởi động lại dịch vụ.
+        </p>
+    </div>
+</div>
