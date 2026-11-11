@@ -166,6 +166,7 @@ public class DbSeeder
             if (_options.LinguaBridgeAppEnabled)
             {
                 await CreateClientIfMissingAsync(BuildLinguaBridgeApp(), cancellationToken);
+                await EnsureLinguaBridgeAppHasRedirectsAsync(cancellationToken);
                 await EnsureLinguaBridgeAppHasPostLogoutRedirectsAsync(cancellationToken);
             }
 
@@ -195,6 +196,36 @@ public class DbSeeder
         await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
 
         _logger.LogInformation("Granted client {ClientId} the scope {Scope}.", InternalServiceClientId, LinguaBridgeApiScope);
+    }
+
+    private IEnumerable<string> LinguaBridgeAppRedirectUris() =>
+        _options.LinguaBridgeAppRedirectUris.Count > 0 ? _options.LinguaBridgeAppRedirectUris : DefaultLinguaBridgeAppRedirectUris;
+
+    /// <summary>
+    /// Sign-in addresses are only written when the client is created, so adding another front end (for example the web
+    /// client on a server) to an existing database would otherwise need a manual edit. This adds the configured addresses
+    /// that are missing, and nothing else: the ones an administrator added stay as they are, and nothing is removed.
+    /// </summary>
+    private async Task EnsureLinguaBridgeAppHasRedirectsAsync(CancellationToken cancellationToken)
+    {
+        var application = await _applicationManager.FindByClientIdAsync(LinguaBridgeAppClientId, cancellationToken);
+        if (application is null)
+            return;
+
+        var existing = await _applicationManager.GetRedirectUrisAsync(application, cancellationToken);
+        var missing = LinguaBridgeAppRedirectUris()
+            .Where(uri => !existing.Contains(uri, StringComparer.Ordinal))
+            .ToList();
+        if (missing.Count == 0)
+            return;
+
+        var descriptor = new OpenIddictApplicationDescriptor();
+        await _applicationManager.PopulateAsync(descriptor, application, cancellationToken);
+        foreach (var uri in missing)
+            descriptor.RedirectUris.Add(new Uri(uri));
+        await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
+
+        _logger.LogInformation("Added {Count} redirect address(es) to client {ClientId}.", missing.Count, LinguaBridgeAppClientId);
     }
 
     private IEnumerable<string> LinguaBridgeAppPostLogoutRedirectUris() =>
@@ -320,7 +351,7 @@ public class DbSeeder
             Requirements = { Requirements.Features.ProofKeyForCodeExchange },
         };
 
-        IEnumerable<string> redirectUris = _options.LinguaBridgeAppRedirectUris.Count > 0 ? _options.LinguaBridgeAppRedirectUris : DefaultLinguaBridgeAppRedirectUris;
+        IEnumerable<string> redirectUris = LinguaBridgeAppRedirectUris();
         foreach (var uri in redirectUris)
             descriptor.RedirectUris.Add(new Uri(uri));
         foreach (var uri in LinguaBridgeAppPostLogoutRedirectUris())

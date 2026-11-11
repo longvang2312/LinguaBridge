@@ -36,6 +36,14 @@ Open the site at **http://localhost:3000** exactly, not `127.0.0.1`: the STS onl
 
 The STS address in `assets/js/config.js` must be `http://localhost:5001`: the API only accepts tokens issued through the address it was configured with (`Authentication:Authority` in its `appsettings.Development.json`). Both must always be the same text. The Docker Compose stack (`docker-compose.yml`) uses `http://host.docker.internal:5001` instead; to use the web client against that stack, change `stsUrl` here and run the host with `Web__StsUrl=http://host.docker.internal:5001`.
 
+## Run on a server (Docker)
+
+`LinguaBridge.Web.Host` has a `Dockerfile` (context `repos/linguabridge-web`) and `docker-compose.web.server.yml` runs it as `linguabridge-web` on port 3000, next to the identity stack and the API (see the header of that file for the full command). In `.env` set `IDENTITY_AUTHORITY=http://<server-ip>:5001` and `LINGUABRIDGE_WEB_URL=http://<server-ip>:3000`. Then open `http://<server-ip>:3000`:
+
+- `config.js` takes the STS host from the address the page was opened with (`http://<that host>:5001`), so the same files work on `localhost` and on the server.
+- The STS must know the address: `docker-compose.identity.server.yml` passes `LINGUABRIDGE_WEB_URL` to it as sign-in and sign-out addresses of the `linguabridge-app` client. They are added to an existing database when the STS starts (nothing is removed).
+- Over plain `http` from another machine the page is not a secure context and has no `crypto.subtle`; `assets/js/sha256.js` computes the PKCE challenge then. Prefer https for anything beyond a private network.
+
 ## Why the dev server proxies two prefixes
 
 Neither the STS nor the LinguaBridge API sends CORS headers, so a page on `localhost:3000` cannot call them from the browser. `LinguaBridge.Web.Host` (and `start-web.ps1`, which does the same) is therefore also a tiny same-origin proxy:

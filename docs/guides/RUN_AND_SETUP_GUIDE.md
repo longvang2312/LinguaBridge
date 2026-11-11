@@ -271,6 +271,23 @@ Ba volume Docker: `identity-db-data` (CSDL), `identity-dataprotection-keys` (kho
 
 ---
 
+### Cách 4: Triển Khai Lên Server Linux (Docker Compose)
+
+Dùng cho một server Linux có Docker, chỉ cần cổng 3000, 5000 và 5001 (và 5020 nếu app khác gọi thẳng API) mở cho mạng. Gồm Identity (SQL Server, STS, Admin API, Admin Web), LinguaBridge (PostgreSQL, API) và web học viên, ghép từ bốn file compose ở thư mục gốc:
+
+```bash
+docker compose -f docker-compose.identity.yml -f docker-compose.identity.server.yml   -f docker-compose.linguabridge.server.yml -f docker-compose.web.server.yml --env-file .env up -d --build
+```
+
+File `.env` trên server (quyền 600, không đưa vào git) cần: `IDENTITY_AUTHORITY=http://<ip>:5001`, `ADMIN_WEB_URL=http://<ip>:5000`, `LINGUABRIDGE_WEB_URL=http://<ip>:3000`, `SA_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_API_CLIENT_SECRET`. Địa chỉ STS phải là *đúng một chuỗi* ở mọi nơi (xem ghi chú ở mục 1).
+
+- Dữ liệu mẫu: `cat scripts/seed-sample-courses.sql | docker exec -i linguabridge-db psql -U postgres -d LinguaBridge -v ON_ERROR_STOP=1`.
+- SQL Server, PostgreSQL và Admin API chỉ nghe trên loopback của server; STS, Admin Web, LinguaBridge API và web mở ra mạng.
+- Nếu `ufw` đang bật, cho container gọi được STS qua IP của host: `sudo ufw allow from 172.16.0.0/12 to any port 5001 proto tcp`; nếu không Admin Web sẽ không phản hồi.
+- Chạy ở chế độ Development, HTTP, secret mẫu: chỉ dùng trong mạng nội bộ.
+
+---
+
 ## 6. Kiểm Thử Hệ Thống (Testing & Verification)
 
 ### 6.1. Chạy Toàn Bộ Unit & Integration Tests

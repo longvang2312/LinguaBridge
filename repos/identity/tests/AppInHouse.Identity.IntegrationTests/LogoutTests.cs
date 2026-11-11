@@ -309,6 +309,36 @@ public class LinguaBridgeAppPostLogoutSeederTests
     }
 
     [Fact]
+    public async Task Seeder_AddsConfiguredSignInRedirectsToAnExistingClient_WithoutRemovingOthers()
+    {
+        await using var factory = new AppSeedingFactory(
+            ("Seeding:LinguaBridgeAppRedirectUris:0", "http://localhost:3000/callback"),
+            ("Seeding:LinguaBridgeAppRedirectUris:1", "http://server.example:3000/callback"));
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var applications = services.GetRequiredService<IOpenIddictApplicationManager>();
+
+        // An existing client that only knows one configured address and one an administrator added.
+        var client = (await applications.FindByClientIdAsync("linguabridge-app"))!;
+        var descriptor = new OpenIddictApplicationDescriptor();
+        await applications.PopulateAsync(descriptor, client);
+        descriptor.RedirectUris.Clear();
+        descriptor.RedirectUris.Add(new Uri("http://localhost:3000/callback"));
+        descriptor.RedirectUris.Add(new Uri("https://admin-added.example/callback"));
+        await applications.UpdateAsync(client, descriptor);
+
+        await services.GetRequiredService<DbSeeder>().SeedAsync();
+
+        string[] expected = ["http://localhost:3000/callback", "https://admin-added.example/callback", "http://server.example:3000/callback"];
+        var after = (await applications.FindByClientIdAsync("linguabridge-app"))!;
+        Assert.Equivalent(expected, await applications.GetRedirectUrisAsync(after), strict: true);
+
+        // Idempotent: a second run changes nothing.
+        await services.GetRequiredService<DbSeeder>().SeedAsync();
+        Assert.Equivalent(expected, await applications.GetRedirectUrisAsync((await applications.FindByClientIdAsync("linguabridge-app"))!), strict: true);
+    }
+
+    [Fact]
     public async Task Seeder_UsesTheConfiguredPostLogoutRedirects()
     {
         await using var factory = new AppSeedingFactory(("Seeding:LinguaBridgeAppPostLogoutRedirectUris:0", "https://app.example/signed-out"));

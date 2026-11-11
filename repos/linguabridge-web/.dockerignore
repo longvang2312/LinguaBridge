@@ -1,0 +1,7 @@
+# The image serves the web client files from /web and builds the host separately: keep the host sources, build output
+# and local files out of /web.
+LinguaBridge.Web.Host/bin/
+LinguaBridge.Web.Host/obj/
+**/.vs/
+**/.git/
+README.md

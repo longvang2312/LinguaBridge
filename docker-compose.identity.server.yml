@@ -6,7 +6,21 @@
 # Required in .env: IDENTITY_AUTHORITY (http://<server-ip>:5001), ADMIN_WEB_URL (http://<server-ip>:5000),
 # SA_PASSWORD, ADMIN_PASSWORD, ADMIN_API_CLIENT_SECRET.
 # SQL Server (1433) and the Admin API (5002) stay on the loopback address; only the STS (5001) and the Admin Web (5000) are open.
+#
+# LINGUABRIDGE_WEB_URL (default http://localhost:3000) is where the web client is served; the STS registers its sign-in and
+# sign-out addresses for the "linguabridge-app" client (added to an existing database on the next STS start, nothing removed).
 services:
+  identity-sts:
+    environment:
+      Seeding__LinguaBridgeAppRedirectUris__0: ${LINGUABRIDGE_WEB_URL:-http://localhost:3000}/callback
+      Seeding__LinguaBridgeAppRedirectUris__1: http://localhost:3000/callback
+      Seeding__LinguaBridgeAppRedirectUris__2: http://localhost:5173/callback
+      Seeding__LinguaBridgeAppPostLogoutRedirectUris__0: ${LINGUABRIDGE_WEB_URL:-http://localhost:3000}/login.html
+      Seeding__LinguaBridgeAppPostLogoutRedirectUris__1: ${LINGUABRIDGE_WEB_URL:-http://localhost:3000}/callback
+      Seeding__LinguaBridgeAppPostLogoutRedirectUris__2: http://localhost:3000/login.html
+      Seeding__LinguaBridgeAppPostLogoutRedirectUris__3: http://localhost:3000/callback
+      Seeding__LinguaBridgeAppPostLogoutRedirectUris__4: http://localhost:5173/login.html
+
   identity-admin-web:
     ports: !override
       - "0.0.0.0:5000:8080"

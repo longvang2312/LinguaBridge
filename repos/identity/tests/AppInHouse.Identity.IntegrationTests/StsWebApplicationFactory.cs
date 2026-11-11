@@ -38,6 +38,8 @@ public class StsWebApplicationFactory : WebApplicationFactory<Program>
                 // appsettings.Development.json (loaded by this host) enables the LinguaBridge resource server; the shared
                 // factory opts out so its seeded-entity counts stay as they were. LinguaBridgeApiSeederTests opts back in.
                 ["Seeding:LinguaBridgeApiClientSecret"] = string.Empty,
+                // Same for the learners' app client, which appsettings.Development.json also enables.
+                ["Seeding:LinguaBridgeAppEnabled"] = "false",
                 ["Seeding:AdminPortalRedirectUris:0"] = AdminPortalRedirectUri,
                 ["Seeding:AdminPortalPostLogoutRedirectUris:0"] = "https://localhost:44303/signout-callback-oidc",
             }));

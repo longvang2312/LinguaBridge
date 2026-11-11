@@ -2,6 +2,7 @@
 // Tokens live in sessionStorage: they go away with the tab, and no other origin can read them.
 
 import { config } from './config.js';
+import { sha256 } from './sha256.js';
 
 const TOKENS_KEY = 'lb.tokens';
 const FLOW_KEY = 'lb.flow';
@@ -26,8 +27,10 @@ export function randomString(byteLength = 32) {
 
 /** RFC 7636: BASE64URL(SHA-256(code_verifier)). */
 export async function codeChallengeFor(verifier) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return base64Url(new Uint8Array(digest));
+  const bytes = new TextEncoder().encode(verifier);
+  // crypto.subtle exists only in a secure context (https or http://localhost); elsewhere (http://<server-ip>) use the fallback.
+  const digest = globalThis.crypto?.subtle ? new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)) : sha256(bytes);
+  return base64Url(digest);
 }
 
 export function decodeJwtPayload(jwt) {

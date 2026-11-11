@@ -4,8 +4,10 @@ const origin = window.location.origin;
 
 export const config = {
   // The STS as the BROWSER reaches it. It must be this exact text: the API only accepts tokens issued through the
-  // address it was configured with (Authentication:Authority = http://localhost:5001).
-  stsUrl: 'http://localhost:5001',
+  // address it was configured with (Authentication:Authority). The STS runs on port 5001 of the machine that serves this
+  // page, so the host is taken from the address the page was opened with: http://localhost:5001 when the page is opened at
+  // http://localhost:3000, http://<server-ip>:5001 when it is opened on the server.
+  stsUrl: `http://${window.location.hostname}:5001`,
 
   // Public client seeded in the STS (Authorization Code + PKCE, no secret).
   clientId: 'linguabridge-app',
