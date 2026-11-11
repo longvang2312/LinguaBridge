@@ -12,11 +12,14 @@ Web client for learners: HTML5, CSS3, Bootstrap 5.3 (CDN) and vanilla JavaScript
 
 ## Run
 
-1. Start the backend (Identity + LinguaBridge): `./scripts/docker-all-up.ps1`
-2. Start the web client: `./scripts/start-web.ps1` (opens http://localhost:3000; `-NoBrowser` to skip, `-Port` to change)
-3. Sign in with the seeded account `admin@appinhouse.local` / `Admin@AppInHouse123!` (development only).
+1. Start the backend: the STS (`http://localhost:5001`) and the LinguaBridge API (`http://localhost:5020`), with SQL Server and PostgreSQL running on the machine (see `docs/guides/RUN_AND_SETUP_GUIDE.md`).
+2. Start the web client, one of:
+   - **Visual Studio**: open `AppInHouse.sln` and press F5 with the multi-startup profile (STS, Admin Web, LinguaBridge.Api, **LinguaBridge.Web.Host**). The web host opens http://localhost:3000.
+   - **Command line**: `dotnet run --project repos/linguabridge-web/LinguaBridge.Web.Host --launch-profile http`
+   - **Script** (same job, no .NET project needed): `./scripts/start-web.ps1` (`-NoBrowser` to skip the browser, `-Port` to change). If PowerShell refuses to run it (execution policy): `powershell -ExecutionPolicy Bypass -File scripts/start-web.ps1`.
 
-If PowerShell refuses to run the script (execution policy): `powershell -ExecutionPolicy Bypass -File scripts/start-web.ps1`.
+   The web host and the script both listen on port 3000: run only one of them.
+3. Sign in with the seeded account `admin@appinhouse.local` / `Admin@AppInHouse123!` (development only).
 
 Open the site at **http://localhost:3000** exactly, not `127.0.0.1`: the STS only knows `http://localhost:3000/callback` (and `:5173`) as redirect addresses of the `linguabridge-app` client.
 
@@ -31,18 +34,18 @@ Open the site at **http://localhost:3000** exactly, not `127.0.0.1`: the STS onl
 5. Logout is a real single sign-out (OpenID Connect RP-Initiated Logout): the app forgets its tokens and sends the browser to `{STS}/connect/logout?id_token_hint=<id_token>&post_logout_redirect_uri=<origin>/login.html&state=lb-logout.<returnUrl>`. The STS ends its own session (Identity cookie) and redirects straight back, without a confirmation page. `login.html` then shows "signed out" and the next sign-in asks for the password in every tab. The STS accepts only post-logout addresses registered exactly as written (no query string), so the page to return to travels in `state` and `auth.js` turns it back into `login.html?returnUrl=...&loggedOut=1` on arrival. The client's registered addresses are seeded by the STS (`Seeding:LinguaBridgeAppPostLogoutRedirectUris`; default `http://localhost:3000/login.html`, `http://localhost:5173/login.html`, `http://localhost:3000/callback`) and added to an existing database on the next STS start.
 6. Loop guard: after a 401 the app signs in again at most once per minute. If the API still refuses the fresh token (for example API and STS configured with different addresses or secrets), the page shows an error instead of redirecting forever. Any successful API call resets the guard.
 
-The STS address in `assets/js/config.js` must be `http://host.docker.internal:5001`: the API only accepts tokens issued through the address it was configured with.
+The STS address in `assets/js/config.js` must be `http://localhost:5001`: the API only accepts tokens issued through the address it was configured with (`Authentication:Authority` in its `appsettings.Development.json`). Both must always be the same text. The Docker Compose stack (`docker-compose.yml`) uses `http://host.docker.internal:5001` instead; to use the web client against that stack, change `stsUrl` here and run the host with `Web__StsUrl=http://host.docker.internal:5001`.
 
 ## Why the dev server proxies two prefixes
 
-Neither the STS nor the LinguaBridge API sends CORS headers, so a page on `localhost:3000` cannot call them from the browser. `start-web.ps1` is therefore also a tiny same-origin proxy:
+Neither the STS nor the LinguaBridge API sends CORS headers, so a page on `localhost:3000` cannot call them from the browser. `LinguaBridge.Web.Host` (and `start-web.ps1`, which does the same) is therefore also a tiny same-origin proxy:
 
 | Browser calls | Forwarded to |
 |---|---|
-| `/sts/*` (token endpoint) | `http://host.docker.internal:5001/*` |
-| `/lb/*` | `http://localhost:5020/*` |
+| `/sts/*` (token endpoint) | `http://localhost:5001/*` (`Web:StsUrl`) |
+| `/lb/*` | `http://localhost:5020/*` (`Web:ApiUrl`) |
 
-Only these two targets are reachable and cookies are not forwarded. Once the backend allows this origin (CORS), set `apiBaseUrl` and `tokenEndpoint` in `config.js` to the real addresses and the proxy is no longer needed (any static server will do, as long as `/callback` serves `callback.html`).
+`Web:StsUrl`, `Web:ApiUrl` and `Web:Root` (the folder served, default: the parent of the project) can be set in `LinguaBridge.Web.Host/appsettings.json` or with environment variables (`Web__StsUrl`). `/` is `index.html` and `/callback` is `callback.html`. If a target is not running, the proxy answers 502 and names it. Only these two targets are reachable and cookies are not forwarded. Once the backend allows this origin (CORS), set `apiBaseUrl` and `tokenEndpoint` in `config.js` to the real addresses and the proxy is no longer needed (any static server will do, as long as `/callback` serves `callback.html`).
 
 ## API used
 
@@ -52,4 +55,4 @@ Only these two targets are reachable and cookies are not forwarded. Once the bac
 
 - Bootstrap and Bootstrap Icons are loaded from jsDelivr (internet needed on first load).
 - Text from the API is always escaped before it is put into the page.
-- Files: `assets/js/{config,auth,api,app}.js`, `assets/css/style.css`.
+- Files: `assets/js/{config,auth,api,app}.js`, `assets/css/style.css`; `LinguaBridge.Web.Host/` is the development host (.NET 10) that serves them and proxies the two prefixes.

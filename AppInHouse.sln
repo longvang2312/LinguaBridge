@@ -78,6 +78,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "js", "js", "{439618A1-7E91-
 		repos\linguabridge-web\assets\js\app.js = repos\linguabridge-web\assets\js\app.js
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LinguaBridge.Web.Host", "repos\linguabridge-web\LinguaBridge.Web.Host\LinguaBridge.Web.Host.csproj", "{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -376,6 +378,18 @@ Global
 		{80E23898-84BA-4927-9793-CC66EBA14104}.Release|x64.Build.0 = Release|Any CPU
 		{80E23898-84BA-4927-9793-CC66EBA14104}.Release|x86.ActiveCfg = Release|Any CPU
 		{80E23898-84BA-4927-9793-CC66EBA14104}.Release|x86.Build.0 = Release|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Debug|x64.Build.0 = Debug|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Debug|x86.Build.0 = Debug|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Release|x64.ActiveCfg = Release|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Release|x64.Build.0 = Release|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Release|x86.ActiveCfg = Release|Any CPU
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -408,5 +422,6 @@ Global
 		{1C00512B-9F2D-42FD-B460-1932F68BAF69} = {B7E04821-7BFC-B8D5-3CA7-757341022F43}
 		{A8A530FD-4AF9-4FDD-8B9A-D33D55A259B8} = {1C00512B-9F2D-42FD-B460-1932F68BAF69}
 		{439618A1-7E91-4B4B-B3E2-B963F9D95245} = {1C00512B-9F2D-42FD-B460-1932F68BAF69}
+		{2C004D4E-FAA6-4D1E-B352-2F9CEDAF015F} = {1C00512B-9F2D-42FD-B460-1932F68BAF69}
 	EndGlobalSection
 EndGlobal

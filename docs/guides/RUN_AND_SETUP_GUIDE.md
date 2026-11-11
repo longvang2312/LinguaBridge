@@ -15,8 +15,11 @@ Toàn bộ hệ thống được đồng bộ hóa theo chuẩn cổng Skoruba v
 | **Identity Admin Web** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Web` | `https://localhost:44303`<br>`http://localhost:5000` | Web Portal quản trị người dùng, vai trò, OIDC clients & scopes |
 | **Identity Admin API** | `repos/identity/src/Presentation/AppInHouse.Identity.Admin.Api` | `https://localhost:44302`<br>`http://localhost:5002` | REST API quản trị (Swagger) cho các client khác; Admin Web **không** gọi API này mà dùng trực tiếp cùng các use case trên cùng CSDL |
 | **LinguaBridge API** | `repos/linguabridge/src/Presentation/LinguaBridge.Api` | `https://localhost:44320`<br>`http://localhost:5020` | Modular Monolith API (.NET 10) phục vụ học ngoại ngữ, AI Tutor & Billing |
+| **LinguaBridge Web** | `repos/linguabridge-web/LinguaBridge.Web.Host` | `http://localhost:3000` | Web học viên (HTML/JS thuần) kèm proxy cùng origin: `/sts/*` → STS, `/lb/*` → LinguaBridge API. **Phải đúng cổng 3000** vì STS chỉ đăng ký `http://localhost:3000/callback` |
 | **SQL Server** | LocalDB / SQLEXPRESS / Docker | `localhost:1433` | Cơ sở dữ liệu cho cụm Identity (`AppInHouse.Identity`) |
 | **PostgreSQL** | Local / Docker | `localhost:5432` | Cơ sở dữ liệu cho LinguaBridge (`LinguaBridge` gồm 5 schemas) |
+
+> **Địa chỉ STS khi chạy trên máy (Visual Studio / `dotnet run`) là `http://localhost:5001`** và phải là *đúng chuỗi đó* ở mọi nơi: `Authentication:Authority` của Admin API, Admin Web và LinguaBridge API, `stsUrl` của web (`assets/js/config.js`), và cấu hình mobile. Token chỉ được chấp nhận khi issuer khớp. Bộ Docker Compose dùng một địa chỉ khác (`http://host.docker.internal:5001`, xem Cách 3): đừng trộn hai kiểu trong cùng một lần chạy.
 
 ---
 
@@ -64,6 +67,12 @@ docker run -d --name appinhouse-sqlserver \
   -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
 ```
 
+#### Hoặc cài trực tiếp trên Windows (không cần Docker)
+
+- **PostgreSQL 16**: `winget install PostgreSQL.PostgreSQL.16 --override "--mode unattended --superpassword postgres --serverport 5432"`, rồi tạo database: `createdb -U postgres LinguaBridge` (công cụ nằm ở `C:\Program Files\PostgreSQL\16\bin`). Mật khẩu `postgres` khớp với chuỗi kết nối mặc định bên dưới.
+- **SQL Server**: dùng SQL Server Developer/Express đã cài (`sa` / `Abc@1234` theo chuỗi kết nối mặc định). Database `AppInHouse.Identity` do STS tự tạo.
+- Chuyển dữ liệu từ một PostgreSQL cũ (ví dụ container): `pg_dump -U postgres -d LinguaBridge -Fc -f lb.dump`, rồi `pg_restore -U postgres -d LinguaBridge --no-owner lb.dump` trên database mới.
+
 ### 3.2. Cấu Hình Chuỗi Kết Nối (Connection Strings)
 
 - **Identity**: Kiểm tra file `repos/identity/src/Presentation/AppInHouse.Identity.STS/appsettings.json`:
@@ -82,7 +91,9 @@ docker run -d --name appinhouse-sqlserver \
 ### 3.3. Áp Dụng Migration Vào Database
 
 #### A. Database Identity (SQL Server)
-Identity đã tích hợp sẵn cơ chế **Auto-Migration & Seeding** khi khởi chạy. Bạn chỉ cần khởi chạy `AppInHouse.Identity.STS` hoặc `AppInHouse.Identity.Admin.Web`, hệ thống sẽ tự động tạo bảng và nạp dữ liệu mẫu (Admin account, Default Scopes, Clients).
+Identity đã tích hợp sẵn cơ chế **Auto-Migration & Seeding** khi khởi chạy. Bạn chỉ cần khởi chạy `AppInHouse.Identity.STS`, hệ thống sẽ tự động tạo bảng và nạp dữ liệu mẫu (Admin account, Default Scopes, Clients) theo mục `Seeding` trong `STS/appsettings.Development.json` (gồm client `linguabridge-app`, `identity_admin_api`, `admin-portal` và các redirect URI `http://localhost:5000/...`).
+
+> Seeder **chỉ tạo client khi chưa có, không cập nhật client đã tồn tại**. Nếu bạn sửa mục `Seeding` sau khi database đã được tạo, thay đổi sẽ không có hiệu lực: sửa trực tiếp bảng `OpenIddictApplications` hoặc xoá database `AppInHouse.Identity` (mất mọi dữ liệu Identity, gồm tài khoản đã tạo) rồi khởi động lại STS.
 
 #### B. Database LinguaBridge (PostgreSQL)
 Chạy lệnh EF Core Migration để tạo 5 schemas (`content`, `learning`, `srs`, `ai`, `billing`) và 18 bảng:
@@ -110,7 +121,7 @@ Hai dịch vụ kết nối với nhau qua cơ chế OpenIddict Introspection. S
 - **Tại LinguaBridge** (`repos/linguabridge/.../Api/appsettings.Development.json`):
   ```json
   "Authentication": {
-    "Authority": "https://localhost:44310",
+    "Authority": "http://localhost:5001",
     "ClientId": "linguabridge_api",
     "ClientSecret": "dev-linguabridge-api-secret-change-me",
     "Audience": "linguabridge_api"
@@ -159,7 +170,11 @@ Hai dịch vụ kết nối với nhau qua cơ chế OpenIddict Introspection. S
    - `AppInHouse.Identity.STS`: Chọn **Start**
    - `AppInHouse.Identity.Admin.Web`: Chọn **Start**
    - `LinguaBridge.Api`: Chọn **Start**
-4. Nhấn **F5** (hoặc **Ctrl + F5** để chạy không debug). Cả 3 ứng dụng sẽ đồng thời khởi chạy.
+   - `LinguaBridge.Web.Host` (thư mục solution `LinguaBridge.Web`): Chọn **Start** (web học viên tại `http://localhost:3000`)
+   - `AppInHouse.Identity.Admin.Api` để **None** (Admin Web không gọi nó); chỉ bật **Start** khi cần Swagger hay ClientSdk của Admin API.
+4. Nhấn **F5** (hoặc **Ctrl + F5** để chạy không debug). Cả 4 ứng dụng sẽ khởi chạy theo thứ tự trong danh sách, **STS phải đứng đầu**. Visual Studio không đợi STS xong: STS cần vài giây để migrate và seed, nếu lần đầu đăng nhập lỗi thì đợi rồi tải lại trang.
+
+Profile này được lưu trong `AppInHouse.slnLaunch.user` (bị `.gitignore` bỏ qua, chỉ có trên máy bạn).
 
 ---
 
@@ -188,11 +203,22 @@ dotnet run --project repos/linguabridge/src/Presentation/LinguaBridge.Api --laun
 > Healthcheck: `https://localhost:44320/health`  
 > Swagger UI: `https://localhost:44320/swagger`
 
+#### Terminal 4: Khởi Chạy Web Học Viên (LinguaBridge Web Host)
+```bash
+dotnet run --project repos/linguabridge-web/LinguaBridge.Web.Host --launch-profile http
+```
+> Web: `http://localhost:3000` (đúng `localhost`, cổng 3000, không dùng `127.0.0.1`)
+> Proxy: `/sts/*` → `http://localhost:5001`, `/lb/*` → `http://localhost:5020` (đổi bằng `Web__StsUrl`, `Web__ApiUrl`). Không chạy đồng thời với `scripts/start-web.ps1` vì cùng cổng.
+
+> Dù chạy bằng profile `https` hay `http`, các dịch vụ gọi STS qua **`http://localhost:5001`** (STS lắng nghe cả hai cổng khi dùng profile `https`).
+
 ---
 
 ### Cách 3: Chạy Cụm Identity Bằng Docker Desktop (Docker Compose)
 
 Chạy toàn bộ Identity Platform (SQL Server 2022 + STS + Admin API + Admin Web) trong container, không cần cài SQL Server hay .NET 8 trên máy. Cấu hình nằm ở `docker-compose.identity.yml` (thư mục gốc workspace). LinguaBridge **không** nằm trong compose này, vẫn chạy theo Cách 1 hoặc 2.
+
+> Cách này dùng địa chỉ STS `http://host.docker.internal:5001`, **khác** với Cách 1 và 2 (`http://localhost:5001`). Compose tự đặt `IDENTITY_AUTHORITY` cho các container, còn `appsettings.Development.json` và `config.js` trong repo trỏ `localhost`. Đừng chạy lẫn với STS chạy trên máy (cùng cổng 5001).
 
 **Yêu cầu**: Docker Desktop đang chạy và có kết nối mạng ở lần đầu (tải image SQL Server ~1.6 GB và các image .NET).
 
@@ -324,7 +350,7 @@ dotnet test repos/identity/AppInHouse.Identity.sln
    - *Nguyên nhân*: Chưa cung cấp `OpenAI:ApiKey` trong cấu hình.
    - *Khắc phục*: Đặt key qua biến môi trường `OpenAI__ApiKey=sk-...` hoặc bổ sung vào `appsettings.json`.
 3. **Lỗi `500 Server Error (Timeout 35s)` khi gọi API có Bearer Token**:
-   - *Nguyên nhân*: Máy chủ Identity STS (`https://localhost:44310`) chưa được bật, khiến `LinguaBridge.Api` không thể kết nối để introspect token.
+   - *Nguyên nhân*: Máy chủ Identity STS (`http://localhost:5001`) chưa được bật, khiến `LinguaBridge.Api` không thể kết nối để introspect token.
    - *Khắc phục*: Khởi chạy `AppInHouse.Identity.STS` trước khi gọi các endpoint có yêu cầu xác thực.
 4. **Lỗi `429 Too Many Requests (ai.quota_exhausted)`**:
    - *Nguyên nhân*: Học viên tài khoản miễn phí đã dùng hết 10 lượt tương tác AI trong ngày (tính theo UTC).
@@ -341,3 +367,12 @@ dotnet test repos/identity/AppInHouse.Identity.sln
 8. **`docker-identity-up.ps1` báo "Not healthy after ... s"**:
    - *Nguyên nhân*: STS đang migrate/seed CSDL hoặc SQL Server chưa sẵn sàng (máy chậm, lần chạy đầu).
    - *Khắc phục*: chạy `docker compose -f docker-compose.identity.yml logs --tail=100` xem service nào lỗi; tăng `-TimeoutSeconds`.
+9. **API trả `401` dù đăng nhập thành công (chạy trên máy)**:
+   - *Nguyên nhân*: issuer của token không khớp `Authentication:Authority` của API (ví dụ token lấy qua `host.docker.internal` hoặc `127.0.0.1`, trong khi API cấu hình `http://localhost:5001`), hoặc token thiếu scope `linguabridge_api` (log API ghi "token doesn't contain any audience").
+   - *Khắc phục*: dùng đúng `http://localhost:5001` ở mọi nơi; xin scope `openid profile email offline_access linguabridge_api`.
+10. **Admin Web báo `invalid_request ... redirect_uri is not valid`**:
+    - *Nguyên nhân*: client `admin-portal` trong database được tạo từ lúc chưa có redirect `http://localhost:5000/signin-oidc` và seeder không cập nhật client có sẵn.
+    - *Khắc phục*: xem ghi chú ở mục 3.3.A (sửa `OpenIddictApplications` hoặc tạo lại database).
+11. **Web (`localhost:3000`) không đăng nhập hoặc không gọi được API**:
+    - *Nguyên nhân thường gặp*: cổng 3000 đang bị tiến trình khác chiếm (ví dụ `start-web.ps1` còn chạy), trang mở bằng `127.0.0.1` thay vì `localhost`, hoặc STS/API chưa chạy (proxy trả 502 và ghi rõ địa chỉ).
+    - *Khắc phục*: tắt tiến trình đang giữ cổng 3000, mở `http://localhost:3000`, khởi động STS và API trước.

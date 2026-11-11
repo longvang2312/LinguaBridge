@@ -17,7 +17,7 @@ void main() {
   group('startLogin', () {
     test('builds the authorization request for the learners client with PKCE', () {
       final (url, pending) = _client(FakeAdapter((_) => jsonBody(200, {}))).startLogin();
-      expect('${url.scheme}://${url.host}:${url.port}${url.path}', 'http://host.docker.internal:5001/connect/authorize');
+      expect('${url.scheme}://${url.host}:${url.port}${url.path}', 'http://localhost:5001/connect/authorize');
       final q = url.queryParameters;
       expect(q['client_id'], 'linguabridge-app');
       expect(q['response_type'], 'code');
@@ -53,7 +53,7 @@ void main() {
 
       final request = adapter.requests.single;
       expect(request.method, 'POST');
-      expect(request.uri.toString(), 'http://host.docker.internal:5001/connect/token');
+      expect(request.uri.toString(), 'http://localhost:5001/connect/token');
       expect(request.contentType, contains('application/x-www-form-urlencoded'));
       expect(request.data, {
         'grant_type': 'authorization_code',
@@ -70,7 +70,7 @@ void main() {
 
     test('uses the token address when it differs from the STS address (a web build behind a proxy)', () async {
       final adapter = FakeAdapter((_) => jsonBody(200, tokenResponse()));
-      final config = AppConfig(apiBaseUrl: '/lb', stsBaseUrl: 'http://host.docker.internal:5001', tokenBaseUrl: '/sts');
+      final config = AppConfig(apiBaseUrl: '/lb', stsBaseUrl: 'http://localhost:5001', tokenBaseUrl: '/sts');
       await _client(adapter, config: config).completeLogin(Uri.parse('http://x/callback?code=abc&state=s'), pending);
       expect(adapter.requests.single.uri.toString(), '/sts/connect/token');
     });

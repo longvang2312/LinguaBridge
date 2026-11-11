@@ -31,7 +31,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string] $StsUrl = 'http://host.docker.internal:5001',
+    [string] $StsUrl = 'http://localhost:5001',
     [string] $ApiUrl = 'http://localhost:5020',
     [string] $AdminEmail = $(if ($env:IDENTITY_ADMIN_EMAIL) { $env:IDENTITY_ADMIN_EMAIL } else { 'admin@appinhouse.local' }),
     [string] $AdminPassword = $(if ($env:IDENTITY_ADMIN_PASSWORD) { $env:IDENTITY_ADMIN_PASSWORD } else { 'Admin@AppInHouse123!' }),

@@ -4,8 +4,8 @@ const origin = window.location.origin;
 
 export const config = {
   // The STS as the BROWSER reaches it. It must be this exact text: the API only accepts tokens issued through the
-  // address it was configured with (Authentication:Authority = http://host.docker.internal:5001).
-  stsUrl: 'http://host.docker.internal:5001',
+  // address it was configured with (Authentication:Authority = http://localhost:5001).
+  stsUrl: 'http://localhost:5001',
 
   // Public client seeded in the STS (Authorization Code + PKCE, no secret).
   clientId: 'linguabridge-app',

@@ -11,18 +11,18 @@ void main() {
     });
 
     for (final platform in [TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux, TargetPlatform.iOS]) {
-      test('$platform calls the API on localhost and signs in through host.docker.internal', () {
+      test('$platform calls the API on localhost and signs in through localhost', () {
         final config = AppConfig.resolve(isWeb: false, platform: platform);
         expect(config.apiBaseUrl, 'http://localhost:5020');
         // The API only accepts tokens issued through the STS authority it was configured with.
-        expect(config.stsBaseUrl, 'http://host.docker.internal:5001');
+        expect(config.stsBaseUrl, 'http://localhost:5001');
       });
     }
 
     test('the web behaves like a desktop even when the browser runs on Android', () {
       final config = AppConfig.resolve(isWeb: true, platform: TargetPlatform.android);
       expect(config.apiBaseUrl, 'http://localhost:5020');
-      expect(config.stsBaseUrl, 'http://host.docker.internal:5001');
+      expect(config.stsBaseUrl, 'http://localhost:5001');
     });
 
     test('overrides win, and a trailing slash is dropped', () {
@@ -41,7 +41,7 @@ void main() {
     test('an empty override (the default of --dart-define) means not set', () {
       final config = AppConfig.resolve(isWeb: false, platform: TargetPlatform.windows, apiOverride: '', stsOverride: '  ');
       expect(config.apiBaseUrl, 'http://localhost:5020');
-      expect(config.stsBaseUrl, 'http://host.docker.internal:5001');
+      expect(config.stsBaseUrl, 'http://localhost:5001');
     });
 
     test('one override does not change the other address', () {

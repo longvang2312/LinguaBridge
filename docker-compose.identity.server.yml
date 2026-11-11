@@ -1,0 +1,12 @@
+# Override for deploying the identity stack on a shared Linux server (used with docker-compose.identity.yml):
+#
+#   docker compose -f docker-compose.identity.yml -f docker-compose.identity.server.yml --env-file .env up -d --build \
+#       identity-sts identity-admin-api identity-admin-web
+#
+# Required in .env: IDENTITY_AUTHORITY (http://<server-ip>:5001), ADMIN_WEB_URL (http://<server-ip>:5000),
+# SA_PASSWORD, ADMIN_PASSWORD, ADMIN_API_CLIENT_SECRET.
+# SQL Server (1433) and the Admin API (5002) stay on the loopback address; only the STS (5001) and the Admin Web (5000) are open.
+services:
+  identity-admin-web:
+    ports: !override
+      - "0.0.0.0:5000:8080"

@@ -25,7 +25,7 @@
     The LinguaBridge API. Defaults to http://localhost:5020.
 
 .PARAMETER StsUrl
-    The STS, as the browser knows it. Defaults to http://host.docker.internal:5001: tokens are only accepted by the API
+    The STS, as the browser knows it. Defaults to http://localhost:5001: tokens are only accepted by the API
     when they were issued through this address.
 
 .PARAMETER NoBrowser
@@ -38,7 +38,7 @@
 param(
     [int] $Port = 3000,
     [string] $ApiUrl = 'http://localhost:5020',
-    [string] $StsUrl = 'http://host.docker.internal:5001',
+    [string] $StsUrl = 'http://localhost:5001',
     [switch] $NoBrowser
 )
 

@@ -130,6 +130,32 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+if (app.Environment.IsDevelopment())
+{
+    // The sign-in handler's own cookies (correlation, nonce) are "Secure; SameSite=None" by default. A browser drops a Secure
+    // cookie on plain HTTP (other than on localhost), so signing in over http://<ip>:5000 fails with "Correlation failed".
+    // SameSite=Lax would fix that but then fails on https://localhost:44303: the STS answers with a cross-site POST
+    // (form_post) and http://localhost and https://localhost are different sites. So the policy follows the request scheme.
+    static bool IsSignInCookie(string name) =>
+        name.StartsWith(".AspNetCore.OpenIdConnect.", StringComparison.Ordinal) || name.StartsWith(".AspNetCore.Correlation.", StringComparison.Ordinal);
+
+    app.UseCookiePolicy(new CookiePolicyOptions
+    {
+        OnAppendCookie = context =>
+        {
+            if (!IsSignInCookie(context.CookieName)) return;
+            context.CookieOptions.Secure = context.Context.Request.IsHttps;
+            context.CookieOptions.SameSite = context.Context.Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax;
+        },
+        OnDeleteCookie = context =>
+        {
+            if (!IsSignInCookie(context.CookieName)) return;
+            context.CookieOptions.Secure = context.Context.Request.IsHttps;
+            context.CookieOptions.SameSite = context.Context.Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax;
+        },
+    });
+}
+
 app.UseRouting();
 
 app.UseAuthentication();

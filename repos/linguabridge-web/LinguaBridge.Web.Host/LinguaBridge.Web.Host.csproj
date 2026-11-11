@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Development host of the LinguaBridge web client (plain HTML/CSS/JS in the parent folder): serves the files and
+       forwards /sts/* and /lb/* to the STS and the API, because neither sends CORS headers. Same job as scripts/start-web.ps1. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LinguaBridge.Web.Host</RootNamespace>
+  </PropertyGroup>
+
+</Project>

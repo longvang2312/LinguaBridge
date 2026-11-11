@@ -9,10 +9,10 @@ import 'package:flutter/foundation.dart';
 ///     flutter run --dart-define=API_BASE_URL=http://192.168.1.20:5020 --dart-define=STS_BASE_URL=http://192.168.1.20:5001
 ///
 /// The STS address matters more than it looks: the APIs only accept tokens issued through the address configured as
-/// their authority (`http://host.docker.internal:5001` in docker-compose.yml). That is why Windows, macOS, Linux and the
-/// web sign in through `host.docker.internal` (Docker Desktop makes it resolve on the host); a token issued through
-/// `localhost:5001` is rejected by the API with 401. The Android emulator cannot resolve that name and uses `10.0.2.2`:
-/// signing in there needs the STS issuer to be configured to match (or a `--dart-define` that fits the setup).
+/// their authority (`http://localhost:5001` in appsettings.Development.json). That is why Windows, macOS, Linux and the
+/// web sign in through `localhost`; a token issued through any other address is rejected by the API with 401. The Android
+/// emulator reaches the host as `10.0.2.2`, which would be a different issuer: run `adb reverse tcp:5001 tcp:5001` (and
+/// `tcp:5020`) and pass `--dart-define=STS_BASE_URL=http://localhost:5001 --dart-define=API_BASE_URL=http://localhost:5020`.
 @immutable
 class AppConfig {
   const AppConfig({
@@ -86,7 +86,7 @@ class AppConfig {
   }) {
     final onEmulator = !isWeb && platform == TargetPlatform.android;
     final apiHost = onEmulator ? '10.0.2.2' : 'localhost';
-    final stsHost = onEmulator ? '10.0.2.2' : 'host.docker.internal';
+    final stsHost = onEmulator ? '10.0.2.2' : 'localhost';
     final isPhone = !isWeb && (platform == TargetPlatform.android || platform == TargetPlatform.iOS);
 
     final String redirect;
