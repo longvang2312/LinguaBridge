@@ -56,8 +56,8 @@ public class DbSeederTests : IClassFixture<StsWebApplicationFactory>
         Assert.Equal(1, users.Users.Count(u => u.Email == StsWebApplicationFactory.AdminEmail));
         Assert.Single(await users.GetUsersInRoleAsync("GlobalAdmin"));
 
-        Assert.Equal(3, await services.GetRequiredService<IOpenIddictApplicationManager>().CountAsync());
-        Assert.Equal(5, await services.GetRequiredService<IOpenIddictScopeManager>().CountAsync());
+        Assert.Equal(4, await services.GetRequiredService<IOpenIddictApplicationManager>().CountAsync());
+        Assert.Equal(6, await services.GetRequiredService<IOpenIddictScopeManager>().CountAsync());
         Assert.Equal(1, services.GetRequiredService<RoleManager<ApplicationRole>>().Roles.Count());
     }
 }

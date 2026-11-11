@@ -7,8 +7,14 @@
 # and the portal uses it to call the API. Make real keys in the portal (/ApiKeys), switch the portal to one of them, then revoke this one.
 # It must start with "aih_live_" and be at least 32 characters, for example:  aih_live_ + 40 random letters and digits.
 #
-# Ports can be moved with SHARED_SERVICES_API_PORT / SHARED_SERVICES_WEB_PORT. The portal has no sign-in yet: do not publish its port
-# beyond a trusted network.
+# Ports can be moved with SHARED_SERVICES_API_PORT / SHARED_SERVICES_WEB_PORT.
+#
+# The portal signs administrators in at AppInHouse Identity (OpenID Connect, client "shared-services-portal"; only users with the
+# role GlobalAdmin get in). Point SHARED_SERVICES_OIDC_AUTHORITY at the identity server as the browser reaches it, and make sure
+# the client has this portal's addresses (the identity server options SharedServicesPortalRedirectUris, for example
+# http://192.168.1.200:5031/signin-oidc, and SharedServicesPortalPostLogoutRedirectUris with .../signout-callback-oidc).
+# SHARED_SERVICES_AUTH_ENABLED=false switches sign-in off: for local tests only, never on a network others can reach.
+# SHARED_SERVICES_SECURE_COOKIES=true once the portal is served over HTTPS (the default false is for plain HTTP on the LAN).
 
 name: appinhouse-shared-services
 
@@ -77,6 +83,13 @@ services:
       ASPNETCORE_URLS: http://+:5031
       SharedServices__Api__BaseUrl: http://shared-services-api:5030
       SharedServices__Api__ApiKey: ${SHARED_SERVICES_ADMIN_KEY:?Set SHARED_SERVICES_ADMIN_KEY}
+      Authentication__Enabled: ${SHARED_SERVICES_AUTH_ENABLED:-true}
+      Authentication__Authority: ${SHARED_SERVICES_OIDC_AUTHORITY:-http://192.168.1.200:5001}
+      Authentication__ClientId: ${SHARED_SERVICES_OIDC_CLIENT_ID:-shared-services-portal}
+      Authentication__ClientSecret: ${SHARED_SERVICES_OIDC_CLIENT_SECRET:-}
+      Authentication__RequireHttpsMetadata: ${SHARED_SERVICES_OIDC_REQUIRE_HTTPS:-false}
+      Authentication__RequiredRole: ${SHARED_SERVICES_REQUIRED_ROLE:-GlobalAdmin}
+      Authentication__SecureCookies: ${SHARED_SERVICES_SECURE_COOKIES:-false}
       DataProtection__KeysPath: /root/.aspnet/DataProtection-Keys
     volumes:
       - shared-services-web-dp-keys:/root/.aspnet/DataProtection-Keys

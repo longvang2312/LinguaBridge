@@ -4,5 +4,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Sdk\AppInHouse.SharedServices.ClientSdk\AppInHouse.SharedServices.ClientSdk.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.*" />
+  </ItemGroup>
 
 </Project>

@@ -58,9 +58,9 @@ public class LinguaBridgeApiSeederTests
 
         await services.GetRequiredService<DbSeeder>().SeedAsync();
 
-        // admin-portal, internal-service, identity_admin_api, linguabridge_api; and the five scopes plus linguabridge_api.
-        Assert.Equal(4, await services.GetRequiredService<IOpenIddictApplicationManager>().CountAsync());
-        Assert.Equal(6, await services.GetRequiredService<IOpenIddictScopeManager>().CountAsync());
+        // admin-portal, internal-service, shared-services-portal, identity_admin_api, linguabridge_api; and the six scopes (with roles) plus linguabridge_api.
+        Assert.Equal(5, await services.GetRequiredService<IOpenIddictApplicationManager>().CountAsync());
+        Assert.Equal(7, await services.GetRequiredService<IOpenIddictScopeManager>().CountAsync());
     }
 
     [Fact]

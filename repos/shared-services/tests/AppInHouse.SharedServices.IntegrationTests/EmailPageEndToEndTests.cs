@@ -20,6 +20,7 @@ public sealed class PortalOnRealApiFactory(HttpClient api) : WebApplicationFacto
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("DataProtection:KeysPath", _keys);
+        builder.UseSetting("Authentication:Enabled", "false"); // these tests are about the pages; WebAuthenticationTests covers sign-in
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<ISharedServicesClient>();

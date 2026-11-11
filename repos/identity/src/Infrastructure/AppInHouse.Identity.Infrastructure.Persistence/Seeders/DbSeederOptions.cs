@@ -42,6 +42,18 @@ public class DbSeederOptions
     /// <summary>Where <c>linguabridge-app</c> may send the browser after a logout. When empty the local development pages are used.</summary>
     public List<string> LinguaBridgeAppPostLogoutRedirectUris { get; set; } = new();
 
+    /// <summary>
+    /// Secret of the <c>shared-services-portal</c> client. Optional: without one the client is public (Authorization Code +
+    /// PKCE, no secret). It only takes effect when the client is created.
+    /// </summary>
+    public string SharedServicesPortalSecret { get; set; } = string.Empty;
+
+    /// <summary>Sign-in addresses of <c>shared-services-portal</c> (<c>https://host/signin-oidc</c>). When empty the local one (port 5031) is used.</summary>
+    public List<string> SharedServicesPortalRedirectUris { get; set; } = new();
+
+    /// <summary>Where <c>shared-services-portal</c> may send the browser after a logout (<c>https://host/signout-callback-oidc</c>). When empty the local one is used.</summary>
+    public List<string> SharedServicesPortalPostLogoutRedirectUris { get; set; } = new();
+
     public List<string> AdminPortalRedirectUris { get; set; } = new();
     public List<string> AdminPortalPostLogoutRedirectUris { get; set; } = new();
 }

@@ -22,6 +22,7 @@ public class DbSeeder
     public const string AdminPortalClientId = "admin-portal";
     public const string InternalServiceClientId = "internal-service";
     public const string LinguaBridgeAppClientId = "linguabridge-app";
+    public const string SharedServicesPortalClientId = "shared-services-portal";
 
     private static readonly string[] DefaultLinguaBridgeAppPostLogoutRedirectUris =
     [
@@ -35,6 +36,10 @@ public class DbSeeder
         "http://localhost:3000/callback",
         "http://localhost:5173/callback",
     ];
+
+    private static readonly string[] DefaultSharedServicesPortalRedirectUris = ["http://localhost:5031/signin-oidc"];
+
+    private static readonly string[] DefaultSharedServicesPortalPostLogoutRedirectUris = ["http://localhost:5031/signout-callback-oidc"];
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<ApplicationRole> _roleManager;
@@ -122,6 +127,8 @@ public class DbSeeder
             new OpenIddictScopeDescriptor { Name = Scopes.Profile, DisplayName = "User profile" },
             new OpenIddictScopeDescriptor { Name = Scopes.Email, DisplayName = "Email address" },
             new OpenIddictScopeDescriptor { Name = Scopes.OfflineAccess, DisplayName = "Offline access" },
+            // Puts the user's roles into the ID token, which is how a portal (Shared Services) learns whether to admit them.
+            new OpenIddictScopeDescriptor { Name = Scopes.Roles, DisplayName = "User roles" },
             new OpenIddictScopeDescriptor
             {
                 Name = AdminApiScope,
@@ -155,6 +162,8 @@ public class DbSeeder
     {
         await CreateClientIfMissingAsync(BuildAdminPortal(), cancellationToken);
         await CreateClientIfMissingAsync(BuildInternalService(), cancellationToken);
+        await CreateClientIfMissingAsync(BuildSharedServicesPortal(), cancellationToken);
+        await EnsureSharedServicesPortalHasAddressesAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(_options.AdminApiClientSecret))
             await CreateClientIfMissingAsync(BuildAdminApiResourceServer(), cancellationToken);
@@ -299,6 +308,80 @@ public class DbSeeder
             descriptor.PostLogoutRedirectUris.Add(new Uri(uri));
 
         return descriptor;
+    }
+
+    private IEnumerable<string> SharedServicesPortalRedirectUris() =>
+        _options.SharedServicesPortalRedirectUris.Count > 0 ? _options.SharedServicesPortalRedirectUris : DefaultSharedServicesPortalRedirectUris;
+
+    private IEnumerable<string> SharedServicesPortalPostLogoutRedirectUris() =>
+        _options.SharedServicesPortalPostLogoutRedirectUris.Count > 0 ? _options.SharedServicesPortalPostLogoutRedirectUris : DefaultSharedServicesPortalPostLogoutRedirectUris;
+
+    /// <summary>
+    /// The Shared Services management portal: a server-side web app using Authorization Code + PKCE. Public unless a secret is
+    /// configured, in which case it is a confidential client (the portal then sends that secret at the token endpoint).
+    /// </summary>
+    private OpenIddictApplicationDescriptor BuildSharedServicesPortal()
+    {
+        var confidential = !string.IsNullOrWhiteSpace(_options.SharedServicesPortalSecret);
+        var descriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = SharedServicesPortalClientId,
+            DisplayName = "Shared Services Portal",
+            ClientType = confidential ? ClientTypes.Confidential : ClientTypes.Public,
+            ConsentType = ConsentTypes.Implicit,
+            Permissions =
+            {
+                Permissions.Endpoints.Authorization,
+                Permissions.Endpoints.Token,
+                Permissions.Endpoints.Logout,
+                Permissions.GrantTypes.AuthorizationCode,
+                Permissions.ResponseTypes.Code,
+                Permissions.Scopes.Profile,
+                Permissions.Scopes.Email,
+                Permissions.Scopes.Roles,
+                Permissions.Prefixes.Scope + Scopes.OpenId,
+            },
+            Requirements = { Requirements.Features.ProofKeyForCodeExchange },
+        };
+
+        if (confidential)
+            descriptor.ClientSecret = _options.SharedServicesPortalSecret;
+
+        foreach (var uri in SharedServicesPortalRedirectUris())
+            descriptor.RedirectUris.Add(new Uri(uri));
+        foreach (var uri in SharedServicesPortalPostLogoutRedirectUris())
+            descriptor.PostLogoutRedirectUris.Add(new Uri(uri));
+
+        return descriptor;
+    }
+
+    /// <summary>
+    /// Addresses are only written when the client is created, so moving the portal to a server would need a manual edit. This
+    /// adds the configured addresses that are missing, and nothing else: nothing is removed and nothing an administrator edited
+    /// is touched.
+    /// </summary>
+    private async Task EnsureSharedServicesPortalHasAddressesAsync(CancellationToken cancellationToken)
+    {
+        var application = await _applicationManager.FindByClientIdAsync(SharedServicesPortalClientId, cancellationToken);
+        if (application is null)
+            return;
+
+        var redirects = await _applicationManager.GetRedirectUrisAsync(application, cancellationToken);
+        var logouts = await _applicationManager.GetPostLogoutRedirectUrisAsync(application, cancellationToken);
+        var missingRedirects = SharedServicesPortalRedirectUris().Where(uri => !redirects.Contains(uri, StringComparer.Ordinal)).ToList();
+        var missingLogouts = SharedServicesPortalPostLogoutRedirectUris().Where(uri => !logouts.Contains(uri, StringComparer.Ordinal)).ToList();
+        if (missingRedirects.Count == 0 && missingLogouts.Count == 0)
+            return;
+
+        var descriptor = new OpenIddictApplicationDescriptor();
+        await _applicationManager.PopulateAsync(descriptor, application, cancellationToken);
+        foreach (var uri in missingRedirects)
+            descriptor.RedirectUris.Add(new Uri(uri));
+        foreach (var uri in missingLogouts)
+            descriptor.PostLogoutRedirectUris.Add(new Uri(uri));
+        await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
+
+        _logger.LogInformation("Added {Count} address(es) to client {ClientId}.", missingRedirects.Count + missingLogouts.Count, SharedServicesPortalClientId);
     }
 
     /// <summary>Confidential client for service-to-service calls (Client Credentials).</summary>

@@ -1,0 +1,14 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Đăng nhập";
+    ViewData["Bare"] = true;
+}
+
+<div class="mx-auto" style="max-width: 32rem;">
+    <h1 class="page-title mb-3"><i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập</h1>
+    <div class="alert alert-danger" role="alert" id="login-error">
+        Đăng nhập chưa hoàn tất: tài khoản bị từ chối, bạn đã hủy, hoặc máy chủ định danh (AppInHouse Identity) chưa phản hồi. Hãy thử lại; nếu lỗi lặp lại, báo cho quản trị viên.
+    </div>
+    <a class="btn btn-primary" id="login-retry" asp-page="/Account/Login" asp-route-returnUrl="@Model.ReturnUrl"><i class="bi bi-arrow-repeat me-1"></i>Đăng nhập lại</a>
+</div>

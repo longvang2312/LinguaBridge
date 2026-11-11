@@ -1,0 +1,25 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.Account.AccessDeniedModel
+@{
+    ViewData["Title"] = "Không đủ quyền";
+    ViewData["Bare"] = true;
+}
+
+<div class="mx-auto" style="max-width: 36rem;">
+    <h1 class="page-title text-danger mb-3"><i class="bi bi-shield-lock me-2"></i>Bạn không có quyền quản trị</h1>
+    <p id="denied-message">
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <text>Tài khoản <strong>@(User.FindFirst("email")?.Value ?? User.Identity.Name)</strong> đã đăng nhập thành công nhưng chưa được cấp vai trò <code>@Model.RequiredRole</code>, nên không thể dùng trang quản trị Shared Services.</text>
+        }
+        else
+        {
+            <text>Bạn cần đăng nhập bằng tài khoản có vai trò <code>@Model.RequiredRole</code> để dùng trang quản trị Shared Services.</text>
+        }
+        Hãy liên hệ quản trị viên hệ thống nếu bạn cần quyền truy cập.
+    </p>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" id="switch-account" asp-page="/Account/Login" asp-route-switchAccount="true"><i class="bi bi-person-gear me-1"></i>Đăng nhập bằng tài khoản khác</a>
+        <a class="btn btn-outline-secondary" id="back-home" href="/">Quay lại trang chủ</a>
+    </div>
+</div>
