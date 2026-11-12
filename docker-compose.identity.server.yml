@@ -9,6 +9,8 @@
 #
 # LINGUABRIDGE_WEB_URL (default http://localhost:3000) is where the web client is served; the STS registers its sign-in and
 # sign-out addresses for the "linguabridge-app" client (added to an existing database on the next STS start, nothing removed).
+# SHARED_SERVICES_WEB_URL (default http://localhost:5031) is where the Shared Services portal is served; the same goes for its
+# "shared-services-portal" client.
 services:
   identity-sts:
     environment:
@@ -20,6 +22,10 @@ services:
       Seeding__LinguaBridgeAppPostLogoutRedirectUris__2: http://localhost:3000/login.html
       Seeding__LinguaBridgeAppPostLogoutRedirectUris__3: http://localhost:3000/callback
       Seeding__LinguaBridgeAppPostLogoutRedirectUris__4: http://localhost:5173/login.html
+      Seeding__SharedServicesPortalRedirectUris__0: ${SHARED_SERVICES_WEB_URL:-http://localhost:5031}/signin-oidc
+      Seeding__SharedServicesPortalRedirectUris__1: http://localhost:5031/signin-oidc
+      Seeding__SharedServicesPortalPostLogoutRedirectUris__0: ${SHARED_SERVICES_WEB_URL:-http://localhost:5031}/signout-callback-oidc
+      Seeding__SharedServicesPortalPostLogoutRedirectUris__1: http://localhost:5031/signout-callback-oidc
 
   identity-admin-web:
     ports: !override
