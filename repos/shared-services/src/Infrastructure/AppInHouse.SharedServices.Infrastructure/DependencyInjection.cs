@@ -1,3 +1,9 @@
+using AppInHouse.SharedServices.Application.Jobs;
+using AppInHouse.SharedServices.Application.Platform;
+using AppInHouse.SharedServices.Application.Webhooks;
+using AppInHouse.SharedServices.Infrastructure.Jobs;
+using AppInHouse.SharedServices.Infrastructure.Webhooks;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using AppInHouse.SharedServices.Infrastructure.Storage;
 using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Application.Abstractions;
@@ -55,6 +61,7 @@ public static class DependencyInjection
         AddEmailProviders(services, configuration);
         AddChatProviders(services, configuration);
         AddStorageProviders(services, configuration);
+        AddPlatformInfrastructure(services, configuration);
         return services;
     }
 
@@ -127,5 +134,25 @@ public static class DependencyInjection
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<S3StorageProvider>>()));
         services.AddSingleton(provider => new Application.Configurations.ConfigurationRules(provider.GetRequiredService<IOptions<StorageOptions>>().Value.AllowAbsolutePaths));
         services.AddSingleton<IImageThumbnailService, ImageThumbnailService>();
+    }
+
+    /// <summary>
+    /// The job engine (channels, the worker of the five queues, the scheduler) and the webhook sender. Host settings: sections <c>Jobs</c> and
+    /// <c>Webhooks</c>. The sender's HTTP client follows no redirect and logs nothing, because the address of a webhook can carry a token.
+    /// </summary>
+    private static void AddPlatformInfrastructure(IServiceCollection services, IConfiguration configuration)
+    {
+        var jobs = configuration.GetSection(JobSettings.SectionName).Get<JobSettings>() ?? new JobSettings();
+        services.Replace(ServiceDescriptor.Singleton(jobs));
+        services.AddSingleton<IJobChannels, JobChannels>();
+        services.AddHostedService<BackgroundJobWorker>();
+        services.AddHostedService<ScheduleWorker>();
+
+        services.Configure<WebhookOptions>(configuration.GetSection(WebhookOptions.SectionName));
+        services.AddHttpClient<IWebhookSender, HttpWebhookSender>((provider, client) =>
+                client.Timeout = TimeSpan.FromSeconds(Math.Clamp(provider.GetRequiredService<IOptions<WebhookOptions>>().Value.TimeoutSeconds, 1, 60)))
+            .RemoveAllLoggers()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddSingleton<IInboundSecretProvider, ConfigurationInboundSecretProvider>();
     }
 }

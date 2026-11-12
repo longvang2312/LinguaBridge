@@ -20,6 +20,12 @@ public sealed class SharedServicesDbContext(DbContextOptions<SharedServicesDbCon
     public DbSet<MediaLog> MediaLogs => Set<MediaLog>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<SystemLog> SystemLogs => Set<SystemLog>();
+    public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<ProjectTenant> ProjectTenants => Set<ProjectTenant>();
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
+    public DbSet<InboundWebhookLog> InboundWebhookLogs => Set<InboundWebhookLog>();
+    public DbSet<BackgroundJobRecord> BackgroundJobs => Set<BackgroundJobRecord>();
 
     /// <summary>jsonb on PostgreSQL, plain text on SQLite (development and tests).</summary>
     internal bool UsesJsonb => Database.IsNpgsql();

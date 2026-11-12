@@ -5,6 +5,7 @@
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.*" />
     <PackageReference Include="MailKit" Version="4.*" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.*" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.*" />
     <PackageReference Include="SkiaSharp" Version="4.155.0" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.155.0" />

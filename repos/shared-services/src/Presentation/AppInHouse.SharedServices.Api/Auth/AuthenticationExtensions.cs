@@ -16,6 +16,9 @@ public static class Policies
     public const string StorageUpload = ApiScopes.StorageUpload;
     public const string StorageRead = ApiScopes.StorageRead;
     public const string StorageDelete = ApiScopes.StorageDelete;
+
+    /// <summary>A notification goes out by email, chat or both, so any of the sending scopes is enough to ask for one.</summary>
+    public const string NotificationSend = "notification:send";
 }
 
 /// <summary>Needs one of the scopes in the caller's claims (an API key's scopes, or the scopes of a bearer token).</summary>
@@ -109,6 +112,7 @@ public static class AuthenticationExtensions
             options.AddPolicy(Policies.ChatSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ChatSend, ApiScopes.TelegramSend)));
             options.AddPolicy(Policies.StorageUpload, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageUpload)));
             options.AddPolicy(Policies.StorageRead, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageRead, ApiScopes.StorageUpload, ApiScopes.StorageDelete)));
+            options.AddPolicy(Policies.NotificationSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.EmailSend, ApiScopes.ChatSend, ApiScopes.TelegramSend)));
             options.AddPolicy(Policies.StorageDelete, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageDelete)));
         });
         services.AddSingleton<IAuthorizationHandler, ScopeAuthorizationHandler>();

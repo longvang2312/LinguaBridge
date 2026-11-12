@@ -2,6 +2,7 @@ using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Audit;
 using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Platform;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -45,6 +46,12 @@ public static class DependencyInjection
         services.AddScoped<IDeliveryLogRepository, DeliveryLogRepository>();
         services.AddScoped<IStoredFileRepository, StoredFileRepository>();
         services.AddScoped<IMediaLogRepository, MediaLogRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IWebhookRepository, WebhookRepository>();
+        services.AddScoped<IBackgroundJobRepository, BackgroundJobRepository>();
+        services.AddScoped<IUsageRepository, UsageRepository>();
+        services.AddScoped<IRetentionRepository, RetentionRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IAuditLogWriter, AuditLogWriter>();
         return services;
@@ -70,5 +77,7 @@ public static class DependencyInjection
         var db = scope.ServiceProvider.GetRequiredService<SharedServicesDbContext>();
         if (db.Database.IsNpgsql()) await db.Database.MigrateAsync(cancellationToken);
         else await db.Database.EnsureCreatedAsync(cancellationToken);
+
+        await PlatformSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<TimeProvider>(), cancellationToken);
     }
 }

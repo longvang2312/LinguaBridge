@@ -82,6 +82,7 @@ app.MapEmailEndpoints();
 app.MapChatEndpoints();
 app.MapStorageEndpoints();
 app.MapApiKeyEndpoints();
+app.MapPlatformEndpoints();
 
 app.Run();
 

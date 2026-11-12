@@ -1,47 +1,268 @@
 @page
 @model AppInHouse.SharedServices.Web.Pages.IndexModel
 @{
-    ViewData["Title"] = "Tổng quan";
+    ViewData["Title"] = "Trang chủ Launchpad";
 }
-
-<h1 class="page-title mb-1">Tổng quan</h1>
-<p class="text-muted">Hạ tầng dịch vụ dùng chung cho các dự án AppInHouse: email, Telegram và lưu trữ tệp.</p>
 
 @if (!string.IsNullOrEmpty(Model.LoadError))
 {
-    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+    <div class="alert alert-warning alert-dismissible fade show mb-4" role="alert" id="load-error">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Model.LoadError
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+    </div>
 }
 
-<div class="row g-3 mb-4">
-    @foreach (var channel in Model.Channels)
-    {
-        <div class="col-12 col-md-6 col-xl-4">
-            <div class="card card-stat shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <i class="bi @channel.Icon fs-4 text-primary"></i>
-                        <h2 class="h6 mb-0">@channel.Title</h2>
-                    </div>
-                    <div class="display-6">@channel.Active <small class="fs-6 text-muted">đang hoạt động</small></div>
-                    <div class="text-muted small">@channel.Draft bản nháp</div>
+<!-- Hero Header & Global System Status -->
+<div class="hero-hub-header">
+    <div class="row align-items-center g-3">
+        <div class="col-12 col-lg-8">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="hero-status-pill" id="overall-status" data-status="@Model.OverallStatus">
+                    <span class="pulse-dot"></span>
+                    <span>@Model.OverallText</span>
+                </span>
+                <span class="badge bg-white bg-opacity-10 text-white-50 border border-white border-opacity-10">v2.0.0 Hub</span>
+            </div>
+            <h1 class="display-6 fw-bold mb-2 text-white">AppInHouse Shared Services Hub</h1>
+            <p class="text-white-50 mb-0 fs-6" style="max-width: 650px;">
+                Trung tâm quản trị hạ tầng dùng chung cho toàn bộ hệ sinh thái AppInHouse (Identity, LinguaBridge, CRM). Tích hợp 8 dịch vụ nền tảng vi mô với độ sẵn sàng cao, bảo mật API Key SHA-256 và giám sát tập trung.
+            </p>
+        </div>
+        <div class="col-12 col-lg-4 text-lg-end">
+            <div class="d-inline-flex flex-column align-items-lg-end gap-2 bg-white bg-opacity-10 p-3 rounded-3 border border-white border-opacity-10">
+                <div class="text-white-50 small">Số liệu cập nhật lần cuối</div>
+                <div class="d-flex align-items-center gap-2 text-white fw-semibold">
+                    <i class="bi bi-arrow-repeat text-info"></i>
+                    <span id="metrics-at">@(Model.MetricsAt is { } at ? UiHelpers.FormatRelativeTime(at) : "chưa có")</span>
                 </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="@channel.Page">Quản lý cấu hình</a>
+                <div class="d-flex gap-2 mt-1">
+                    <a asp-page="/Audit" class="btn btn-sm btn-light text-dark fw-semibold">
+                        <i class="bi bi-journal-text me-1"></i>Xem Audit Logs
+                    </a>
+                    <a asp-page="/Configurations/Index" class="btn btn-sm btn-outline-light">
+                        <i class="bi bi-sliders me-1"></i>Tất cả cấu hình
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Metrics Bar -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-primary-subtle text-primary">
+                <i class="bi bi-grid-fill"></i>
+            </div>
+            <div>
+                <div class="quick-metric-val" id="metric-services">@Model.ActiveServicesCount / @Model.TotalServicesCount</div>
+                <div class="quick-metric-lbl">Dịch vụ đang trực tuyến</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-info-subtle text-info">
+                <i class="bi bi-lightning-charge-fill"></i>
+            </div>
+            <div>
+                <div class="quick-metric-val">@Model.TotalRequestsToday.ToString("N0")</div>
+                <div class="quick-metric-lbl">API Requests / 24h</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-success-subtle text-success">
+                <i class="bi bi-shield-check"></i>
+            </div>
+            <div>
+                <div class="quick-metric-val" id="metric-success">@(Model.SuccessDeliveryRate is { } rate ? $"{rate}%" : "—")</div>
+                <div class="quick-metric-lbl">Tỷ lệ gửi thành công</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-purple-subtle" style="background-color: #f5f3ff; color: #7c3aed;">
+                <i class="bi bi-pie-chart-fill"></i>
+            </div>
+            <div>
+                <div class="quick-metric-val">@Model.TotalStorageFormatted</div>
+                <div class="quick-metric-lbl">Dung lượng lưu trữ (@Model.TotalFilesCount tệp)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section Header: Service Launchpad Grid -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h2 class="h5 fw-bold mb-1 text-dark">Khởi chạy Dịch vụ Nền tảng (Service Launchpad)</h2>
+        <p class="text-muted small mb-0">Quản trị cấu hình, thử nghiệm và giám sát cho 8 phân hệ dịch vụ dùng chung</p>
+    </div>
+    <span class="badge bg-light text-secondary border px-3 py-2 fw-normal">
+        <i class="bi bi-check2-all text-success me-1"></i>8 Services Active
+    </span>
+</div>
+
+<!-- Bento Grid: 8 Multi-Services Cards -->
+<div class="bento-launchpad-grid">
+    @foreach (var svc in Model.ServiceCards)
+    {
+        <div class="bento-service-card @svc.AccentClass">
+            <div class="bento-card-body">
+                <div class="bento-card-header">
+                    <div class="service-icon-box @svc.IconClass">
+                        <i class="bi @svc.Icon"></i>
+                    </div>
+                    <div class="service-meta text-end">
+                        <span class="service-category-tag">@svc.Category</span>
+                        <div class="mt-1">
+                            <span class="badge @(svc.Status switch { "Healthy" => "bg-success-subtle text-success border border-success-subtle", "Warning" => "bg-warning-subtle text-warning border border-warning-subtle", "Idle" => "bg-info-subtle text-info border border-info-subtle", _ => "bg-secondary-subtle text-secondary border" }) py-1 px-2 service-status" data-service="@svc.Id" data-status="@svc.Status" style="font-size: 0.72rem;">
+                                <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>@svc.StatusText
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="service-title">
+                    <a href="@svc.ManageUrl" class="text-dark text-decoration-none">@svc.Name</a>
+                </h3>
+                <div class="text-muted small fw-medium mb-2">@svc.Tagline</div>
+                <p class="service-desc">@svc.Description</p>
+
+                <!-- Metric Highlights Pills -->
+                <div class="service-stats-pills">
+                    <div class="metric-pill">
+                        <span class="metric-val">@svc.ActiveCount <small class="fs-6 text-muted">đang hoạt động</small></span>
+                        <span class="metric-lbl">@svc.DraftCount bản nháp</span>
+                    </div>
+                    @foreach (var metric in svc.Metrics)
+                    {
+                        <div class="metric-pill">
+                            <span class="metric-val">@metric.Value</span>
+                            <span class="metric-lbl">@metric.Label</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Card Action Footer -->
+            <div class="bento-card-footer">
+                <a href="@svc.ManageUrl" class="btn btn-sm btn-primary btn-manage d-flex align-items-center gap-1">
+                    <span>Quản lý dịch vụ</span>
+                    <i class="bi bi-arrow-right"></i>
+                </a>
+                <div class="quick-actions">
+                    @foreach (var action in svc.QuickActions)
+                    {
+                        <a href="@action.Url" class="btn btn-sm btn-outline-secondary" title="@action.Title">
+                            @if (!string.IsNullOrEmpty(action.Icon))
+                            {
+                                <i class="bi @action.Icon"></i>
+                            }
+                            else
+                            {
+                                <span>@action.Title</span>
+                            }
+                        </a>
+                    }
                 </div>
             </div>
         </div>
     }
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <h2 class="h6">Vòng đời một cấu hình</h2>
-        <p class="mb-0 text-muted">
-            <span class="badge text-bg-warning">Draft</span> →
-            Thử nghiệm →
-            <span class="badge text-bg-success">Active</span> (phiên bản cũ thành
-            <span class="badge text-bg-secondary">Archived</span>) →
-            Rollback về một phiên bản trước ngay lập tức, không cần khởi động lại dịch vụ.
-        </p>
+<!-- Recent Activity & Delivery Stream -->
+<div class="row g-4">
+    <div class="col-12 col-xl-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
+                <strong class="d-flex align-items-center gap-2">
+                    <i class="bi bi-activity text-primary"></i>Nhật ký Sự kiện &amp; Giao dịch Gần đây
+                </strong>
+                <a asp-page="/Audit" class="btn btn-sm btn-link text-decoration-none p-0">Xem tất cả <i class="bi bi-chevron-right small"></i></a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nguồn</th>
+                            <th>Hành động / Sự kiện</th>
+                            <th>Tác nhân / Dự án</th>
+                            <th>Trạng thái</th>
+                            <th class="text-end">Thời gian</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var act in Model.RecentActivities)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi @act.Icon @act.IconColor fs-6"></i>
+                                        <span class="badge bg-light text-dark border">@act.Type</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold text-dark text-truncate" style="max-width: 280px;" title="@act.Title">@act.Title</div>
+                                    <div class="text-muted small text-truncate" style="max-width: 280px;">@act.Description</div>
+                                </td>
+                                <td>
+                                    <code class="small text-muted">@act.Actor</code>
+                                </td>
+                                <td>
+                                    <span class="badge @act.StatusBadge">@act.Status</span>
+                                </td>
+                                <td class="text-end text-muted small">
+                                    @UiHelpers.FormatRelativeTime(act.Timestamp)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Architecture & Platform Guide -->
+    <div class="col-12 col-xl-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <strong class="d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3 text-info"></i>Mô hình Đa Dịch vụ (Architecture)
+                </strong>
+            </div>
+            <div class="card-body">
+                <div class="p-3 bg-light rounded-3 mb-3">
+                    <div class="fw-semibold text-dark small mb-1">
+                        <i class="bi bi-shield-check text-success me-1"></i>Identity Platform SSO (Port 5001)
+                    </div>
+                    <div class="text-muted smaller" style="font-size: 0.78rem;">
+                        Tất cả phiên làm việc và API access được chứng thực qua chuẩn OAuth2/OIDC với Role <code>GlobalAdmin</code>.
+                    </div>
+                </div>
+
+                <div class="p-3 bg-light rounded-3 mb-3">
+                    <div class="fw-semibold text-dark small mb-1">
+                        <i class="bi bi-layers-half text-primary me-1"></i>Vòng đời Cấu hình Đa phiên bản
+                    </div>
+                    <div class="text-muted smaller" style="font-size: 0.78rem;">
+                        <span class="badge text-bg-warning">Draft</span> → Kiểm thử → <span class="badge text-bg-success">Active</span> (phiên bản cũ chuyển sang <span class="badge text-bg-secondary">Archived</span>) với khả năng Rollback tức thời không downtime.
+                    </div>
+                </div>
+
+                <div class="p-3 bg-light rounded-3">
+                    <div class="fw-semibold text-dark small mb-1">
+                        <i class="bi bi-key text-warning me-1"></i>Bảo mật Khóa API (Platform Key)
+                    </div>
+                    <div class="text-muted smaller" style="font-size: 0.78rem;">
+                        Khóa chỉ hiển thị một lần duy nhất lúc khởi tạo; database chỉ lưu mã băm SHA-256 an toàn và phân vùng dữ liệu theo từng Project Code.
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>

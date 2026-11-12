@@ -1,0 +1,148 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.Webhooks.IndexModel
+@{
+    ViewData["Title"] = "Webhooks";
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Shared Services</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Webhooks</li>
+            </ol>
+        </nav>
+        <h1 class="page-title mb-0 d-flex align-items-center gap-2">
+            <span class="badge rounded-circle p-2 bg-info-subtle text-info"><i class="bi bi-arrow-left-right fs-5"></i></span>
+            Webhook Service
+            <span class="fs-6 text-muted fw-normal ms-2">Inbound Receivers &amp; Outbound Subscriptions</span>
+        </h1>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert" id="flash-message">
+        <i class="bi bi-check-circle-fill me-2"></i>@Model.Message
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" id="flash-error">@Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+@if (Model.NewSecret is { } secret && Model.CreatedSubscription is { } created)
+{
+    <div class="alert alert-warning" role="alert" id="new-secret-box">
+        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Khóa ký của đăng ký "@created.Name" chỉ hiển thị một lần.</div>
+        <div class="small mb-2">Hãy cất vào nơi an toàn của ứng dụng nhận. Ứng dụng kiểm tra mỗi lần gọi bằng cách tính <code>HMAC-SHA256</code> của nội dung với khóa này và so với tiêu đề <code>X-AIH-Signature: sha256=…</code>. Sau khi rời trang này không xem lại được; nếu mất, hãy tạo đăng ký mới.</div>
+        <input type="text" class="form-control font-monospace" id="new-secret" value="@secret" readonly onfocus="this.select()" />
+    </div>
+}
+
+<!-- Inbound -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3"><strong><i class="bi bi-box-arrow-in-down me-1 text-info"></i>Cổng nhận Webhook (Inbound)</strong></div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0" id="inbound-table">
+            <thead class="table-light">
+                <tr><th>Nguồn</th><th>Địa chỉ</th><th>Xác thực</th><th class="text-center">Nhận (24h)</th><th class="text-center">Từ chối (24h)</th><th>Trạng thái</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var source in Model.InboundEndpoints)
+                {
+                    <tr data-source="@source.Source">
+                        <td><div class="fw-semibold">@source.Source</div><div class="text-muted small">@source.Description</div></td>
+                        <td><code>@source.Path</code></td>
+                        <td class="small text-muted">@source.Verification</td>
+                        <td class="text-center fw-semibold">@source.Received24h</td>
+                        <td class="text-center">@if (source.Rejected24h > 0) { <span class="badge text-bg-danger">@source.Rejected24h</span> } else { <span class="text-muted">0</span> }</td>
+                        <td>
+                            @if (source.Configured) { <span class="badge text-bg-success">Đã cấu hình bí mật</span> }
+                            else { <span class="badge text-bg-warning" title="Webhooks:Inbound:@source.Source:Secret">Chưa có bí mật: từ chối mọi lời gọi</span> }
+                        </td>
+                    </tr>
+                }
+                @if (Model.InboundEndpoints.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4" id="no-inbound">Không tải được danh sách cổng nhận.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Outbound -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3"><strong><i class="bi bi-box-arrow-up me-1 text-primary"></i>Đăng ký nhận sự kiện (Outbound)</strong></div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0" id="subscriptions-table">
+            <thead class="table-light">
+                <tr><th>Tên &amp; Địa chỉ</th><th>Dự án</th><th>Sự kiện</th><th>Khóa ký</th><th>Gần nhất</th><th class="text-center">Thành công</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var sub in Model.Subscriptions)
+                {
+                    <tr data-subscription="@sub.Id">
+                        <td><div class="fw-semibold">@sub.Name</div><div class="small text-muted text-break"><code>@sub.TargetUrl</code></div></td>
+                        <td>@sub.ProjectCode</td>
+                        <td>@foreach (var e in sub.Events) { <span class="badge text-bg-light border me-1">@e</span> }</td>
+                        <td><code>@sub.SecretMask</code></td>
+                        <td class="small">
+                            @if (sub.LastDeliveryAt is null) { <span class="text-muted">Chưa gửi</span> }
+                            else { <span>@UiHelpers.FormatRelativeTime(sub.LastDeliveryAt)</span><div class="text-muted">@sub.LastStatus</div> }
+                        </td>
+                        <td class="text-center fw-semibold">@(sub.SuccessRatePercent is { } pct ? $"{pct}%" : "—") <div class="small text-muted fw-normal">@sub.SuccessCount / @(sub.SuccessCount + sub.FailureCount)</div></td>
+                        <td class="text-end text-nowrap">
+                            <form method="post" asp-page-handler="Test" asp-route-id="@sub.Id" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-primary test-button"><i class="bi bi-shield-check"></i> Gửi thử</button></form>
+                            <form method="post" asp-page-handler="Delete" asp-route-id="@sub.Id" class="d-inline" onsubmit="return confirm('Xóa đăng ký này? Ứng dụng nhận sẽ không còn nhận sự kiện.');"><button type="submit" class="btn btn-sm btn-outline-danger delete-button"><i class="bi bi-trash"></i></button></form>
+                        </td>
+                    </tr>
+                }
+                @if (Model.Subscriptions.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-4" id="no-subscriptions">Chưa có ứng dụng nào đăng ký nhận sự kiện.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- New subscription -->
+<form method="post" asp-page-handler="Create" class="card shadow-sm" id="new-subscription-form">
+    <div class="card-header bg-transparent"><strong><i class="bi bi-plus-circle me-1"></i>Đăng ký nhận sự kiện</strong></div>
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(Model.FormError))
+        {
+            <div class="alert alert-danger" role="alert" id="form-error">@Model.FormError</div>
+        }
+        <div class="row g-3">
+            <div class="col-12 col-md-3"><label class="form-label" for="Form_ProjectCode">Dự án</label><input class="form-control" id="Form_ProjectCode" name="Form.ProjectCode" value="@Model.Form.ProjectCode" maxlength="50" autocomplete="off" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="Form_Name">Tên</label><input class="form-control" id="Form_Name" name="Form.Name" value="@Model.Form.Name" maxlength="100" required autocomplete="off" /></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="Form_TargetUrl">Địa chỉ nhận (http/https)</label><input class="form-control" id="Form_TargetUrl" name="Form.TargetUrl" value="@Model.Form.TargetUrl" maxlength="500" placeholder="https://app.example.com/webhooks/shared-services" required autocomplete="off" /></div>
+            <div class="col-12">
+                <label class="form-label d-block">Sự kiện</label>
+                @foreach (var name in IndexModel.Events)
+                {
+                    var id = "event_" + name.Replace('.', '_');
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="@id" name="Form.Events" value="@name" checked="@Model.Form.Events.Contains(name)" />
+                        <label class="form-check-label" for="@id"><code>@name</code></label>
+                    </div>
+                }
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" id="event_all" name="Form.Events" value="*" checked="@Model.Form.Events.Contains("*")" />
+                    <label class="form-check-label" for="event_all"><code>*</code> (tất cả)</label>
+                </div>
+            </div>
+            <div class="col-12 col-md-6"><label class="form-label" for="Form_SecretKey">Khóa ký (tùy chọn, tối thiểu 16 ký tự)</label><input class="form-control font-monospace" id="Form_SecretKey" name="Form.SecretKey" autocomplete="off" placeholder="để trống: hệ thống tự tạo" /></div>
+        </div>
+    </div>
+    <div class="card-footer bg-transparent">
+        <button type="submit" class="btn btn-primary" id="create-subscription-button"><i class="bi bi-plus-lg me-1"></i>Đăng ký</button>
+    </div>
+</form>

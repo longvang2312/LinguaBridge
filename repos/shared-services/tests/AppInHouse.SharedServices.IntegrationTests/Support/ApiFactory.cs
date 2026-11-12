@@ -6,7 +6,9 @@ using AppInHouse.SharedServices.Infrastructure.Storage;
 using AppInHouse.SharedServices.Domain;
 using System.Net;
 using AppInHouse.SharedServices.Infrastructure.Chat;
+using AppInHouse.SharedServices.Application.Webhooks;
 using AppInHouse.SharedServices.Infrastructure.Email;
+using AppInHouse.SharedServices.Infrastructure.Webhooks;
 using AppInHouse.SharedServices.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -39,6 +41,9 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
     /// <summary>What the service sent to "SendGrid": the real HTTP client is replaced by this recorder.</summary>
     public RecordingHandler SendGrid { get; } = new();
 
+    /// <summary>Stands in for the applications that subscribed to webhooks: every outbound webhook the service posted is recorded here.</summary>
+    public RecordingHandler Webhook { get; } = new() { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) };
+
     /// <summary>Stands in for api.telegram.org, discord.com and hooks.slack.com: every chat request the service made is recorded here.</summary>
     public RecordingHandler Chat { get; } = new() { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"ok\":true,\"result\":{\"message_id\":77}}") } };
 
@@ -65,6 +70,13 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
             ["Authentication:Authority"] = string.Empty,
             ["Email:AllowPrivateNetworkHosts"] = "true",   // the fake SMTP server is on the loopback address
             ["Storage:BasePath"] = StoragePath,
+
+            // The job engine without waiting: retries at once, no timer-driven tasks (a test runs a task by hand), metrics never reused.
+            ["Jobs:RetryDelaysSeconds:0"] = "0",
+            ["Jobs:RetryDelaysSeconds:1"] = "0",
+            ["Jobs:RetryDelaysSeconds:2"] = "0",
+            ["Jobs:SchedulesEnabled"] = "false",
+            ["Jobs:MetricsCacheSeconds"] = "0",
         };
 
         foreach (var (key, value) in ExtraSettings) settings[key] = value;   // a test host can change any of the above
@@ -76,6 +88,7 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
         {
             services.AddHttpClient<SendGridEmailProvider>().ConfigurePrimaryHttpMessageHandler(() => SendGrid);
             services.AddHttpClient<TelegramBotChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddHttpClient<IWebhookSender, HttpWebhookSender>().ConfigurePrimaryHttpMessageHandler(() => Webhook);
             services.AddHttpClient<DiscordWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
             services.AddHttpClient<SlackWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
             services.AddSingleton<Amazon.Runtime.HttpClientFactory>(new StubS3HttpClientFactory(S3));

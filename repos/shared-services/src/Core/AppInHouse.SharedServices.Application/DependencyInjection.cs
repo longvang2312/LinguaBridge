@@ -3,7 +3,11 @@ using AppInHouse.SharedServices.Application.Audit;
 using AppInHouse.SharedServices.Application.Chat;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Jobs;
+using AppInHouse.SharedServices.Application.Notifications;
+using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Application.Storage;
+using AppInHouse.SharedServices.Application.Webhooks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -31,6 +35,42 @@ public static class DependencyInjection
         // Storage: the providers (local disk, S3, mock) and the thumbnail service are registered by the infrastructure layer.
         services.AddScoped<IStorageService, StorageService>();
         services.AddScoped<IStorageTestService, StorageTestService>();
+
+        AddPlatformServices(services);
         return services;
+    }
+    /// <summary>Projects and quotas, notifications, the job engine, webhooks and metrics. Their stores and workers come from the other layers.</summary>
+    private static void AddPlatformServices(IServiceCollection services)
+    {
+        services.TryAddSingleton(new JobSettings());
+
+        services.AddScoped<IQuotaGuard, QuotaGuard>();
+        services.AddScoped<IProjectManager, ProjectManager>();
+
+        services.AddSingleton<INotificationChannelSender, ScopedNotificationChannelSender>();
+        services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
+
+        services.AddScoped<IJobQueue, JobQueueService>();
+        services.AddScoped<IJobHandler, EmailJobHandler>();
+        services.AddScoped<IJobHandler, ChatJobHandler>();
+        services.AddScoped<IJobHandler, MediaThumbnailJobHandler>();
+        services.AddScoped<IJobHandler, OutboxJobHandler>();
+        services.AddScoped<IJobHandler, WebhookJobHandler>();
+        services.AddScoped<IThumbnailRebuilder, ThumbnailRebuilder>();
+
+        services.AddScoped<IWebhookDeliverer, WebhookDeliverer>();
+        services.AddScoped<IWebhookManager, WebhookManager>();
+        services.AddScoped<IEventPublisher, OutboxEventPublisher>();
+        services.AddScoped<IInboundWebhookReceiver, InboundWebhookReceiver>();
+
+        services.AddSingleton<ScheduleState>();
+        services.AddSingleton<ScheduleRunner>();
+        services.AddSingleton<IScheduleService>(provider => provider.GetRequiredService<ScheduleRunner>());
+        services.AddScoped<IScheduledTask, LogRetentionTask>();
+        services.AddScoped<IScheduledTask, JobHousekeepingTask>();
+        services.AddScoped<IScheduledTask, MetricsAggregationTask>();
+
+        services.AddSingleton<MetricsSnapshotStore>();
+        services.AddScoped<IMetricsCollector, MetricsCollector>();
     }
 }

@@ -154,6 +154,94 @@ public sealed record RotateApiKeyResponse(ApiKeyDto Key, string ApiKey, ApiKeyDt
 /// <summary>One audit entry. <see cref="DetailsJson"/> has been cleaned of anything that looks like a secret.</summary>
 public sealed record AuditLogDto(Guid Id, string Actor, string Action, string ResourceType, string ResourceId, string? DetailsJson, DateTimeOffset CreatedAt);
 
+// ------------------------------------------------------------------------------------------------ notifications
+
+/// <summary>
+/// Send a notification built from a template. <see cref="Data"/> fills the <c>{{placeholders}}</c> (text, numbers, true/false). With
+/// <see cref="Queue"/> the messages are queued and retried by the service instead of being sent now.
+/// </summary>
+public sealed record DispatchNotificationRequest(
+    string TemplateCode, IReadOnlyDictionary<string, string>? Data = null, string? RecipientEmail = null, string? RecipientChatId = null,
+    string? ProjectCode = null, string? Priority = null, bool? Queue = null);
+
+public sealed record NotificationChannelResult(string Channel, bool Success, string? Error, Guid? DeliveryLogId, bool IsFallback);
+
+/// <summary>Status: Sent, Partial (one of two channels delivered), Fallback (the other channel delivered a summary), or Queued.</summary>
+public sealed record DispatchNotificationResponse(
+    bool Success, string Status, IReadOnlyList<NotificationChannelResult> Channels, int LatencyMs, Guid LogId, IReadOnlyList<Guid> JobIds);
+
+public sealed record NotificationTemplateDto(
+    string Code, string Name, string SubjectTemplate, string BodyTemplate, string DefaultChannel, string Priority, bool IsActive,
+    IReadOnlyList<string> Placeholders);
+
+public sealed record NotificationLogDto(
+    Guid Id, string ProjectCode, string TemplateCode, string Channels, string Status, string? Recipient, int LatencyMs, DateTimeOffset CreatedAt);
+
+// ------------------------------------------------------------------------------------------------ jobs
+
+public sealed record JobQueueStatusDto(string Name, string Purpose, int Pending, int Processing, int CompletedLast24h, int Failed, string Status);
+
+public sealed record RetryFailedResponse(string Queue, int Requeued);
+
+public sealed record ScheduledTaskDto(
+    string Id, string Name, string Description, string Cron, DateTimeOffset? LastRunAt, DateTimeOffset NextRunAt,
+    string? LastStatus, string? LastError, int Runs, bool IsRunning);
+
+public sealed record QueueThumbnailResponse(Guid JobId);
+
+// ------------------------------------------------------------------------------------------------ webhooks
+
+public sealed record WebhookSubscriptionDto(
+    Guid Id, string ProjectCode, string Name, string TargetUrl, string SecretMask, IReadOnlyList<string> Events, bool IsActive,
+    DateTimeOffset CreatedAt, DateTimeOffset? LastDeliveryAt, string? LastStatus, int SuccessCount, int FailureCount, int? SuccessRatePercent);
+
+/// <summary>Subscribe an address to events (<c>email.sent</c>, <c>email.failed</c>, <c>chat.sent</c>, <c>chat.failed</c>, <c>file.uploaded</c>, <c>webhook.received</c> or <c>*</c>). The key is generated when left out.</summary>
+public sealed record CreateWebhookSubscriptionRequest(string Name, string TargetUrl, IReadOnlyList<string> Events, string? SecretKey = null, string? ProjectCode = null);
+
+/// <summary>The subscription and its signing key, shown this one time only. Each post carries <c>X-AIH-Signature: sha256={hex HMAC-SHA256 of the body}</c>.</summary>
+public sealed record CreateWebhookSubscriptionResponse(WebhookSubscriptionDto Subscription, string SecretKey)
+{
+    public override string ToString() => $"CreateWebhookSubscriptionResponse {Subscription.Id}";
+}
+
+public sealed record WebhookTestResult(bool Success, int? StatusCode, string? Error, int LatencyMs);
+
+public sealed record InboundSourceDto(
+    string Source, string Path, string Verification, string Description, bool Configured, int Received24h, int Rejected24h, DateTimeOffset? LastReceivedAt);
+
+// ------------------------------------------------------------------------------------------------ projects
+
+public sealed record ProjectTenantDto(
+    string ProjectCode, string Name, string Description, string Environment, int? DailyEmailQuota, int? DailyChatQuota,
+    long? StorageQuotaBytes, bool IsActive, DateTimeOffset CreatedAt);
+
+/// <summary>Register a project. A quota left out means no limit; <see cref="Environment"/> is <c>Staging</c> or <c>Production</c>.</summary>
+public sealed record CreateProjectRequest(
+    string ProjectCode, string Name, string? Description = null, string? Environment = null,
+    int? DailyEmailQuota = null, int? DailyChatQuota = null, long? StorageQuotaBytes = null);
+
+/// <summary>Replaces the project's description, environment, quotas and state: send every field.</summary>
+public sealed record UpdateProjectRequest(
+    string Name, string? Description = null, string? Environment = null,
+    int? DailyEmailQuota = null, int? DailyChatQuota = null, long? StorageQuotaBytes = null, bool? IsActive = null);
+
+public sealed record ProjectUsageDto(
+    string ProjectCode, DateOnly Date, int EmailsSentToday, int? DailyEmailQuota, int ChatSentToday, int? DailyChatQuota,
+    long StorageBytes, long? StorageQuotaBytes, int FileCount, int ActiveApiKeys);
+
+// ------------------------------------------------------------------------------------------------ metrics
+
+public sealed record ServiceHealthDto(string Id, string Name, string Status, string Detail, IReadOnlyDictionary<string, string> Metrics);
+
+public sealed record HealthStatusDto(string Overall, DateTimeOffset GeneratedAt, IReadOnlyList<ServiceHealthDto> Services);
+
+public sealed record SystemMetricsOverviewDto(
+    DateTimeOffset GeneratedAt, DateTimeOffset StartedAt, long UptimeSeconds,
+    int ServicesTotal, int ServicesHealthy, int ServicesDegraded, int ServicesIdle,
+    long TotalRequests24h, int DeliveriesSent24h, int DeliveriesFailed24h, double? SuccessRatePercent,
+    long StorageBytes, int FileCount, int ActiveApiKeys, int ActiveProjects, int PendingJobs, int FailedJobs,
+    IReadOnlyList<ServiceHealthDto> Services);
+
 /// <summary>The API refused or failed a call. <see cref="Errors"/> holds field-level messages for a 400.</summary>
 public sealed class SharedServicesApiException(int statusCode, string message, IReadOnlyDictionary<string, string[]>? errors = null)
     : Exception(message)

@@ -1,0 +1,178 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.Projects.IndexModel
+@{
+    ViewData["Title"] = "Dự án & Phân quyền";
+
+    string Bar(int? percent) => percent switch { null => "bg-secondary", >= 90 => "bg-danger", >= 70 => "bg-warning", _ => "bg-success" };
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Shared Services</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Dự án &amp; Định danh</li>
+            </ol>
+        </nav>
+        <h1 class="page-title mb-0 d-flex align-items-center gap-2">
+            <span class="badge rounded-circle p-2 bg-warning-subtle text-warning"><i class="bi bi-folder2-open fs-5"></i></span>
+            Project &amp; Access Service
+            <span class="fs-6 text-muted fw-normal ms-2">Không gian làm việc &amp; Hạn ngạch (quota)</span>
+        </h1>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a asp-page="/ApiKeys" class="btn btn-outline-primary d-flex align-items-center gap-2"><i class="bi bi-key-fill"></i>Quản lý API Keys</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert" id="flash-message">
+        <i class="bi bi-check-circle-fill me-2"></i>@Model.Message
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+
+<!-- Metrics Bar -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-warning-subtle text-warning"><i class="bi bi-folder-check"></i></div>
+            <div>
+                <div class="quick-metric-val" id="metric-projects">@Model.Projects.Count</div>
+                <div class="quick-metric-lbl">Dự án</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-primary-subtle text-primary"><i class="bi bi-key"></i></div>
+            <div>
+                <div class="quick-metric-val" id="metric-keys">@Model.TotalApiKeys</div>
+                <div class="quick-metric-lbl">API Keys đang hoạt động</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Projects -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3"><strong><i class="bi bi-buildings me-1 text-warning"></i>Danh sách dự án &amp; mức dùng hôm nay (UTC)</strong></div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0" id="projects-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Dự án</th>
+                    <th>Môi trường</th>
+                    <th class="text-center">API Keys</th>
+                    <th style="min-width: 11rem;">Email hôm nay</th>
+                    <th style="min-width: 11rem;">Chat hôm nay</th>
+                    <th style="min-width: 12rem;">Lưu trữ</th>
+                    <th>Trạng thái</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Projects)
+                {
+                    var p = item.Project;
+                    var u = item.Usage;
+                    var emailPct = u is null ? null : IndexModel.Percent(u.EmailsSentToday, p.DailyEmailQuota);
+                    var chatPct = u is null ? null : IndexModel.Percent(u.ChatSentToday, p.DailyChatQuota);
+                    var storagePct = u is null ? null : IndexModel.Percent(u.StorageBytes, p.StorageQuotaBytes);
+                    var panel = "edit-" + p.ProjectCode;
+                    <tr data-project="@p.ProjectCode">
+                        <td>
+                            <div class="fw-semibold"><code>@p.ProjectCode</code> · @p.Name</div>
+                            <div class="text-muted small">@p.Description</div>
+                        </td>
+                        <td><span class="badge @(p.Environment == "Production" ? "text-bg-primary" : "text-bg-secondary")">@p.Environment</span></td>
+                        <td class="text-center">@item.ApiKeys</td>
+                        <td>
+                            <div class="small">@(u?.EmailsSentToday ?? 0) / @IndexModel.Quota(p.DailyEmailQuota, "")</div>
+                            <div class="progress" style="height: 6px;"><div class="progress-bar @Bar(emailPct)" style="width: @(emailPct ?? 0)%"></div></div>
+                        </td>
+                        <td>
+                            <div class="small">@(u?.ChatSentToday ?? 0) / @IndexModel.Quota(p.DailyChatQuota, "")</div>
+                            <div class="progress" style="height: 6px;"><div class="progress-bar @Bar(chatPct)" style="width: @(chatPct ?? 0)%"></div></div>
+                        </td>
+                        <td>
+                            <div class="small">@UiHelpers.FormatBytes(u?.StorageBytes ?? 0) / @IndexModel.QuotaBytes(p.StorageQuotaBytes) · @(u?.FileCount ?? 0) tệp</div>
+                            <div class="progress" style="height: 6px;"><div class="progress-bar @Bar(storagePct)" style="width: @(storagePct ?? 0)%"></div></div>
+                        </td>
+                        <td>
+                            @if (p.IsActive) { <span class="badge text-bg-success">Hoạt động</span> } else { <span class="badge text-bg-danger">Đã tắt</span> }
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary edit-button" data-bs-toggle="collapse" data-bs-target="#@panel" aria-expanded="false"><i class="bi bi-pencil"></i> Sửa</button>
+                        </td>
+                    </tr>
+                    <tr class="collapse" id="@panel">
+                        <td colspan="8" class="bg-light">
+                            <form method="post" asp-page-handler="Update" class="row g-2 align-items-end p-2">
+                                <input type="hidden" name="Form.ProjectCode" value="@p.ProjectCode" />
+                                <div class="col-12 col-md-3"><label class="form-label small mb-1">Tên</label><input class="form-control form-control-sm" name="Form.Name" value="@p.Name" maxlength="100" required /></div>
+                                <div class="col-12 col-md-5"><label class="form-label small mb-1">Mô tả</label><input class="form-control form-control-sm" name="Form.Description" value="@p.Description" maxlength="500" /></div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label small mb-1">Môi trường</label>
+                                    <select class="form-select form-select-sm" name="Form.Environment">
+                                        <option value="Staging" selected="@(p.Environment == "Staging")">Staging</option>
+                                        <option value="Production" selected="@(p.Environment == "Production")">Production</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-md-2"><label class="form-label small mb-1">Email / ngày</label><input class="form-control form-control-sm" type="number" min="0" name="Form.DailyEmailQuota" value="@p.DailyEmailQuota" placeholder="không giới hạn" /></div>
+                                <div class="col-6 col-md-2"><label class="form-label small mb-1">Chat / ngày</label><input class="form-control form-control-sm" type="number" min="0" name="Form.DailyChatQuota" value="@p.DailyChatQuota" placeholder="không giới hạn" /></div>
+                                <div class="col-6 col-md-2"><label class="form-label small mb-1">Lưu trữ (GB)</label><input class="form-control form-control-sm" type="number" min="0" step="any" name="Form.StorageQuotaGb" value="@(p.StorageQuotaBytes is { } q ? (q / 1073741824m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "")" placeholder="không giới hạn" /></div>
+                                <div class="col-6 col-md-2">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="Form.IsActive" value="true" id="active-@p.ProjectCode" checked="@p.IsActive" disabled="@(p.ProjectCode == "default")" />
+                                        <input type="hidden" name="Form.IsActive" value="@(p.ProjectCode == "default" ? "true" : "false")" />
+                                        <label class="form-check-label small" for="active-@p.ProjectCode">Đang hoạt động</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-2"><button type="submit" class="btn btn-sm btn-primary save-button"><i class="bi bi-check-lg me-1"></i>Lưu</button></div>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                @if (Model.Projects.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-4" id="no-projects">Chưa có dự án nào.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- New project -->
+<form method="post" asp-page-handler="Create" class="card shadow-sm" id="new-project-form">
+    <div class="card-header bg-transparent"><strong><i class="bi bi-plus-circle me-1"></i>Đăng ký dự án mới</strong></div>
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(Model.FormError))
+        {
+            <div class="alert alert-danger" role="alert" id="form-error">@Model.FormError</div>
+        }
+        <div class="row g-3">
+            <div class="col-12 col-md-3"><label class="form-label" for="Form_ProjectCode">Mã dự án</label><input class="form-control" id="Form_ProjectCode" name="Form.ProjectCode" value="@Model.Form.ProjectCode" maxlength="50" placeholder="vd: billing" required autocomplete="off" /></div>
+            <div class="col-12 col-md-4"><label class="form-label" for="Form_Name">Tên</label><input class="form-control" id="Form_Name" name="Form.Name" value="@Model.Form.Name" maxlength="100" required autocomplete="off" /></div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="Form_Environment">Môi trường</label>
+                <select class="form-select" id="Form_Environment" name="Form.Environment">
+                    <option value="Staging" selected="@(Model.Form.Environment == "Staging")">Staging</option>
+                    <option value="Production" selected="@(Model.Form.Environment == "Production")">Production</option>
+                </select>
+            </div>
+            <div class="col-12"><label class="form-label" for="Form_Description">Mô tả</label><input class="form-control" id="Form_Description" name="Form.Description" value="@Model.Form.Description" maxlength="500" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="Form_DailyEmailQuota">Email mỗi ngày</label><input class="form-control" id="Form_DailyEmailQuota" name="Form.DailyEmailQuota" type="number" min="0" value="@Model.Form.DailyEmailQuota" placeholder="không giới hạn" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="Form_DailyChatQuota">Chat mỗi ngày</label><input class="form-control" id="Form_DailyChatQuota" name="Form.DailyChatQuota" type="number" min="0" value="@Model.Form.DailyChatQuota" placeholder="không giới hạn" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="Form_StorageQuotaGb">Lưu trữ (GB)</label><input class="form-control" id="Form_StorageQuotaGb" name="Form.StorageQuotaGb" type="number" min="0" step="any" value="@Model.Form.StorageQuotaGb?.ToString(System.Globalization.CultureInfo.InvariantCulture)" placeholder="không giới hạn" /></div>
+        </div>
+    </div>
+    <div class="card-footer bg-transparent">
+        <button type="submit" class="btn btn-primary" id="create-project-button"><i class="bi bi-plus-lg me-1"></i>Tạo dự án</button>
+    </div>
+</form>

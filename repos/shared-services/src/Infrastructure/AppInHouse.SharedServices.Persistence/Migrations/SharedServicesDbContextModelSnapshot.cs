@@ -133,6 +133,77 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                     b.ToTable("audit_logs", "shared");
                 });
 
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.BackgroundJobRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("last_error");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_attempts");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("Queue")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("queue");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_background_jobs");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_background_jobs_created_at");
+
+                    b.HasIndex("Queue", "Status")
+                        .HasDatabaseName("ix_background_jobs_queue_status");
+
+                    b.ToTable("background_jobs", "shared");
+                });
+
             modelBuilder.Entity("AppInHouse.SharedServices.Domain.ChannelConfiguration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -268,6 +339,59 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                     b.ToTable("delivery_logs", "shared");
                 });
 
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.InboundWebhookLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Payload")
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<int>("PayloadSize")
+                        .HasColumnType("integer")
+                        .HasColumnName("payload_size");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<bool>("SignatureValid")
+                        .HasColumnType("boolean")
+                        .HasColumnName("signature_valid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_inbound_webhook_logs");
+
+                    b.HasIndex("Source", "CreatedAt")
+                        .HasDatabaseName("ix_inbound_webhook_logs_source_created_at");
+
+                    b.ToTable("inbound_webhook_logs", "shared");
+                });
+
             modelBuilder.Entity("AppInHouse.SharedServices.Domain.MediaLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -315,6 +439,183 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                         .HasDatabaseName("ix_media_logs_project_code_created_at");
 
                     b.ToTable("media_logs", "shared");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.NotificationLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Channels")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("channels");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("LatencyMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("latency_ms");
+
+                    b.Property<string>("ProjectCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("project_code");
+
+                    b.Property<string>("Recipient")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("recipient");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TemplateCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("template_code");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notification_logs");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_notification_logs_created_at");
+
+                    b.HasIndex("ProjectCode", "CreatedAt")
+                        .HasDatabaseName("ix_notification_logs_project_code_created_at");
+
+                    b.ToTable("notification_logs", "shared");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.NotificationTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BodyTemplate")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body_template");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DefaultChannel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("default_channel");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("priority");
+
+                    b.Property<string>("SubjectTemplate")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject_template");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notification_templates");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notification_templates_code");
+
+                    b.ToTable("notification_templates", "shared");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.ProjectTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("DailyChatQuota")
+                        .HasColumnType("integer")
+                        .HasColumnName("daily_chat_quota");
+
+                    b.Property<int?>("DailyEmailQuota")
+                        .HasColumnType("integer")
+                        .HasColumnName("daily_email_quota");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("environment");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ProjectCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("project_code");
+
+                    b.Property<long?>("StorageQuotaBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("storage_quota_bytes");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_tenants");
+
+                    b.HasIndex("ProjectCode")
+                        .IsUnique()
+                        .HasDatabaseName("ix_project_tenants_project_code");
+
+                    b.ToTable("project_tenants", "shared");
                 });
 
             modelBuilder.Entity("AppInHouse.SharedServices.Domain.StoredFile", b =>
@@ -425,6 +726,82 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                         .HasDatabaseName("ix_system_logs_created_at");
 
                     b.ToTable("system_logs", "shared");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.WebhookSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("FailureCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("failure_count");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateTimeOffset?>("LastDeliveryAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_delivery_at");
+
+                    b.Property<string>("LastStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_status");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ProjectCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("project_code");
+
+                    b.Property<string>("ProtectedSecret")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("protected_secret");
+
+                    b.Property<string>("SecretHint")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("secret_hint");
+
+                    b.Property<string>("SubscribedEvents")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("subscribed_events");
+
+                    b.Property<int>("SuccessCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("success_count");
+
+                    b.Property<string>("TargetUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("target_url");
+
+                    b.HasKey("Id")
+                        .HasName("pk_webhook_subscriptions");
+
+                    b.HasIndex("ProjectCode")
+                        .HasDatabaseName("ix_webhook_subscriptions_project_code");
+
+                    b.ToTable("webhook_subscriptions", "shared");
                 });
 
             modelBuilder.Entity("AppInHouse.SharedServices.Domain.MediaLog", b =>

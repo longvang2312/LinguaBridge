@@ -69,6 +69,61 @@ public interface ISharedServicesClient
         string? actor = null, string? action = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<string>> GetAuditActionsAsync(CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- notifications
+
+    /// <summary>
+    /// Fills a template and sends it by email, chat or both. A notification that could not be delivered throws <see cref="SharedServicesApiException"/> (502),
+    /// an unknown template is 404, a missing placeholder value 400, a project over its daily quota 429. With <c>Queue</c> the answer is <c>Queued</c>.
+    /// </summary>
+    Task<DispatchNotificationResponse> DispatchNotificationAsync(DispatchNotificationRequest request, CancellationToken ct = default);
+
+    Task<IReadOnlyList<NotificationTemplateDto>> GetNotificationTemplatesAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<NotificationLogDto>> GetNotificationLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- background jobs (the platform's keys only)
+
+    Task<IReadOnlyList<JobQueueStatusDto>> GetJobQueuesAsync(CancellationToken ct = default);
+
+    Task<RetryFailedResponse> RetryFailedJobsAsync(string queueName, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ScheduledTaskDto>> GetJobSchedulesAsync(CancellationToken cancellationToken = default);
+
+    Task<ScheduledTaskDto> RunScheduledTaskAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>Queues the rebuilding of the thumbnail of an image; returns the id of the job.</summary>
+    Task<QueueThumbnailResponse> QueueThumbnailRebuildAsync(Guid fileId, CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- webhooks
+
+    Task<IReadOnlyList<WebhookSubscriptionDto>> GetWebhookSubscriptionsAsync(CancellationToken ct = default);
+
+    /// <summary>Creates a subscription. The signing key is in the answer and never available again.</summary>
+    Task<CreateWebhookSubscriptionResponse> CreateWebhookSubscriptionAsync(CreateWebhookSubscriptionRequest request, CancellationToken cancellationToken = default);
+
+    Task DeleteWebhookSubscriptionAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Posts a <c>webhook.test</c> event to the subscription and reports what the application answered (a failed post is an answer, not an exception).</summary>
+    Task<WebhookTestResult> TestWebhookSubscriptionAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<InboundSourceDto>> GetInboundWebhookSourcesAsync(CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- projects
+
+    Task<IReadOnlyList<ProjectTenantDto>> GetProjectsAsync(CancellationToken ct = default);
+
+    Task<ProjectTenantDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken cancellationToken = default);
+
+    Task<ProjectTenantDto> UpdateProjectAsync(string projectCode, UpdateProjectRequest request, CancellationToken cancellationToken = default);
+
+    Task<ProjectUsageDto> GetProjectUsageAsync(string projectCode, CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- metrics (the platform's keys only)
+
+    Task<SystemMetricsOverviewDto> GetMetricsOverviewAsync(CancellationToken ct = default);
+
+    Task<HealthStatusDto> GetHealthStatusAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClient
@@ -249,6 +304,131 @@ public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClien
     {
         using var response = await http.GetAsync("api/v1/audit-logs/actions", cancellationToken);
         return await ReadAsync<List<string>>(response, cancellationToken);
+    }
+
+    // ------------------------------------------------------------------------------------------------ notifications
+
+    public async Task<DispatchNotificationResponse> DispatchNotificationAsync(DispatchNotificationRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/notifications/dispatch", request, Json, ct);
+        return await ReadAsync<DispatchNotificationResponse>(response, ct);
+    }
+
+    public async Task<IReadOnlyList<NotificationTemplateDto>> GetNotificationTemplatesAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/notifications/templates", ct);
+        return await ReadAsync<List<NotificationTemplateDto>>(response, ct);
+    }
+
+    public async Task<IReadOnlyList<NotificationLogDto>> GetNotificationLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
+        using var response = await http.GetAsync($"api/v1/notifications/logs?{query}", cancellationToken);
+        return await ReadAsync<List<NotificationLogDto>>(response, cancellationToken);
+    }
+
+    // ------------------------------------------------------------------------------------------------ jobs
+
+    public async Task<IReadOnlyList<JobQueueStatusDto>> GetJobQueuesAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/jobs/queues", ct);
+        return await ReadAsync<List<JobQueueStatusDto>>(response, ct);
+    }
+
+    public async Task<RetryFailedResponse> RetryFailedJobsAsync(string queueName, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"api/v1/jobs/queues/{Uri.EscapeDataString(queueName)}/retry-failed", null, cancellationToken);
+        return await ReadAsync<RetryFailedResponse>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ScheduledTaskDto>> GetJobSchedulesAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync("api/v1/jobs/schedules", cancellationToken);
+        return await ReadAsync<List<ScheduledTaskDto>>(response, cancellationToken);
+    }
+
+    public async Task<ScheduledTaskDto> RunScheduledTaskAsync(string id, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"api/v1/jobs/schedules/{Uri.EscapeDataString(id)}/run", null, cancellationToken);
+        return await ReadAsync<ScheduledTaskDto>(response, cancellationToken);
+    }
+
+    public async Task<QueueThumbnailResponse> QueueThumbnailRebuildAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"api/v1/storage/files/{fileId}/thumbnail", null, cancellationToken);
+        return await ReadAsync<QueueThumbnailResponse>(response, cancellationToken);
+    }
+
+    // ------------------------------------------------------------------------------------------------ webhooks
+
+    public async Task<IReadOnlyList<WebhookSubscriptionDto>> GetWebhookSubscriptionsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/webhooks/subscriptions", ct);
+        return await ReadAsync<List<WebhookSubscriptionDto>>(response, ct);
+    }
+
+    public async Task<CreateWebhookSubscriptionResponse> CreateWebhookSubscriptionAsync(CreateWebhookSubscriptionRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/webhooks/subscriptions", request, Json, cancellationToken);
+        return await ReadAsync<CreateWebhookSubscriptionResponse>(response, cancellationToken);
+    }
+
+    public async Task DeleteWebhookSubscriptionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/webhooks/subscriptions/{id}", cancellationToken);
+        if (!response.IsSuccessStatusCode) throw await ToExceptionAsync(response, cancellationToken);
+    }
+
+    public async Task<WebhookTestResult> TestWebhookSubscriptionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"api/v1/webhooks/subscriptions/{id}/test", null, cancellationToken);
+        return await ReadAsync<WebhookTestResult>(response, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<InboundSourceDto>> GetInboundWebhookSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync("api/v1/webhooks/inbound", cancellationToken);
+        return await ReadAsync<List<InboundSourceDto>>(response, cancellationToken);
+    }
+
+    // ------------------------------------------------------------------------------------------------ projects
+
+    public async Task<IReadOnlyList<ProjectTenantDto>> GetProjectsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/projects", ct);
+        return await ReadAsync<List<ProjectTenantDto>>(response, ct);
+    }
+
+    public async Task<ProjectTenantDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/projects", request, Json, cancellationToken);
+        return await ReadAsync<ProjectTenantDto>(response, cancellationToken);
+    }
+
+    public async Task<ProjectTenantDto> UpdateProjectAsync(string projectCode, UpdateProjectRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/v1/projects/{Uri.EscapeDataString(projectCode)}", request, Json, cancellationToken);
+        return await ReadAsync<ProjectTenantDto>(response, cancellationToken);
+    }
+
+    public async Task<ProjectUsageDto> GetProjectUsageAsync(string projectCode, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync($"api/v1/projects/{Uri.EscapeDataString(projectCode)}/usage", cancellationToken);
+        return await ReadAsync<ProjectUsageDto>(response, cancellationToken);
+    }
+
+    // ------------------------------------------------------------------------------------------------ metrics
+
+    public async Task<SystemMetricsOverviewDto> GetMetricsOverviewAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/metrics/overview", ct);
+        return await ReadAsync<SystemMetricsOverviewDto>(response, ct);
+    }
+
+    public async Task<HealthStatusDto> GetHealthStatusAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync("api/v1/metrics/health-status", cancellationToken);
+        return await ReadAsync<HealthStatusDto>(response, cancellationToken);
     }
 
     /// <summary>A body to stream: the response stays open until the caller disposes the result. A 404 is null.</summary>

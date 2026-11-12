@@ -1,5 +1,6 @@
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Common;
+using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -29,6 +30,28 @@ public sealed class SharedServicesExceptionHandler(IProblemDetailsService proble
                 // A body that is not valid JSON, an unknown enum name, a missing required value. In development minimal APIs throw this
                 // instead of answering 400 themselves, so without this case it would fall through to the 500 below.
                 problem = new ProblemDetails { Status = badRequest.StatusCode, Title = "The request is not valid", Detail = "The request could not be read: check its format and values." };
+                break;
+            case QuotaExceededException quota:
+                problem = new ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests,
+                    Title = quota.Kind == QuotaKind.Storage ? "Storage quota exceeded" : "Daily quota exceeded",
+                    Detail = quota.Message,
+                };
+                problem.Extensions["quota"] = quota.Limit;
+                problem.Extensions["used"] = quota.Used;
+                if (quota.ResetsAt is { } resets)
+                {
+                    problem.Extensions["resetsAt"] = resets;
+                    context.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling((resets - DateTimeOffset.UtcNow).TotalSeconds)).ToString();
+                }
+
+                break;
+            case ProjectInactiveException inactive:
+                problem = new ProblemDetails { Status = StatusCodes.Status403Forbidden, Title = "The project is deactivated", Detail = inactive.Message };
+                break;
+            case ChannelNotPermittedException denied:
+                problem = new ProblemDetails { Status = StatusCodes.Status403Forbidden, Title = "The key may not use this channel", Detail = denied.Message };
                 break;
             case NotFoundException notFound:
                 problem = new ProblemDetails { Status = StatusCodes.Status404NotFound, Title = "Not found", Detail = notFound.Message };

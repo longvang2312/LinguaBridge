@@ -2,6 +2,7 @@ using System.Diagnostics;
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Configurations;
+using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.Extensions.Logging;
 
@@ -19,7 +20,9 @@ public sealed class EmailDispatcher(
     IDeliveryLogRepository deliveryLogs,
     IUnitOfWork unitOfWork,
     TimeProvider clock,
-    ILogger<EmailDispatcher> logger) : IEmailDispatcher
+    ILogger<EmailDispatcher> logger,
+    IQuotaGuard? quotas = null,
+    IEventPublisher? events = null) : IEmailDispatcher
 {
     public const string FallbackProject = "default";
     public const int MaxSubjectLength = 200;
@@ -30,6 +33,7 @@ public sealed class EmailDispatcher(
     {
         var project = ChannelConfigurationValidator.NormalizeProjectCode(command.ProjectCode);
         var message = Prepare(command, project);
+        if (quotas is not null) await quotas.EnsureCanSendAsync(project, ChannelType.Email, cancellationToken);
 
         ChannelRuntimeConfiguration? configuration;
         try
@@ -131,6 +135,12 @@ public sealed class EmailDispatcher(
             text.Length > 500 ? text[..500] : text, latencyMs, clock.GetUtcNow());
         deliveryLogs.Add(log);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (events is not null)
+        {
+            await events.PublishAsync(
+                failure == EmailFailure.None ? WebhookEvents.EmailSent : WebhookEvents.EmailFailed, project,
+                new { recipient, deliveryLogId = log.Id, latencyMs, error = failure == EmailFailure.None ? null : text }, cancellationToken);
+        }
 
         return new SendEmailResult(
             failure == EmailFailure.None, failure, log.Id, latencyMs, failure == EmailFailure.None ? null : text,

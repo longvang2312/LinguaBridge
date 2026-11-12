@@ -1,0 +1,181 @@
+@page
+@model AppInHouse.SharedServices.Web.Pages.Jobs.IndexModel
+@{
+    ViewData["Title"] = "Background Jobs & Queues";
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Shared Services</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Background Jobs</li>
+            </ol>
+        </nav>
+        <h1 class="page-title mb-0 d-flex align-items-center gap-2">
+            <span class="badge rounded-circle p-2 bg-success-subtle text-success"><i class="bi bi-cpu-fill fs-5"></i></span>
+            Background Job Service
+            <span class="fs-6 text-muted fw-normal ms-2">Hàng đợi tác vụ ngầm &amp; Lập lịch Cron</span>
+        </h1>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert" id="flash-message">
+        <i class="bi bi-check-circle-fill me-2"></i>@Model.Message
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" id="flash-error">@Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.LoadError))
+{
+    <div class="alert alert-warning" role="alert" id="load-error"><i class="bi bi-exclamation-triangle me-1"></i>@Model.LoadError</div>
+}
+
+<!-- Metrics Bar -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-success-subtle text-success"><i class="bi bi-stack"></i></div>
+            <div>
+                <div class="quick-metric-val" id="metric-queues">@Model.Queues.Count</div>
+                <div class="quick-metric-lbl">Hàng đợi hoạt động</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-primary-subtle text-primary"><i class="bi bi-check-all"></i></div>
+            <div>
+                <div class="quick-metric-val" id="metric-completed">@Model.TotalCompleted</div>
+                <div class="quick-metric-lbl">Tác vụ hoàn tất (24h)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon bg-info-subtle text-info"><i class="bi bi-hourglass-split"></i></div>
+            <div>
+                <div class="quick-metric-val" id="metric-pending">@Model.TotalPending</div>
+                <div class="quick-metric-lbl">Đang chờ / đang chạy (@Model.TotalProcessing)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="quick-metric-card">
+            <div class="quick-metric-icon @(Model.TotalFailed > 0 ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning")"><i class="bi bi-exclamation-octagon"></i></div>
+            <div>
+                <div class="quick-metric-val" id="metric-failed">@Model.TotalFailed</div>
+                <div class="quick-metric-lbl">Tác vụ lỗi chờ xử lý</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Queues Table -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
+        <strong class="d-flex align-items-center gap-2"><i class="bi bi-hdd-stack text-success"></i>Trạng thái Hàng đợi (Message Queues)</strong>
+        <span class="badge bg-light text-dark border">Thử lại 1 s · 5 s · 15 s</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="queues-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Tên hàng đợi</th>
+                    <th>Mục đích nghiệp vụ</th>
+                    <th class="text-center">Đang chờ</th>
+                    <th class="text-center">Đang chạy</th>
+                    <th class="text-center">Hoàn tất (24h)</th>
+                    <th class="text-center">Lỗi (Failed)</th>
+                    <th>Trạng thái</th>
+                    <th class="text-end"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var q in Model.Queues)
+                {
+                    <tr data-queue="@q.Name">
+                        <td><code class="fw-bold text-dark">@q.Name</code></td>
+                        <td class="text-muted small">@q.Purpose</td>
+                        <td class="text-center fw-semibold">@if (q.Pending > 0) { <span class="badge bg-warning text-dark">@q.Pending</span> } else { <span class="text-muted">0</span> }</td>
+                        <td class="text-center fw-semibold">@if (q.Processing > 0) { <span class="badge bg-info">@q.Processing</span> } else { <span class="text-muted">0</span> }</td>
+                        <td class="text-center fw-bold text-success">@q.CompletedLast24h</td>
+                        <td class="text-center">@if (q.Failed > 0) { <span class="badge bg-danger">@q.Failed</span> } else { <span class="text-muted">0</span> }</td>
+                        <td>
+                            <span class="badge @UiHelpers.StatusBadge(q.Status)">
+                                <i class="bi @(q.Status == "Healthy" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-1"></i>@q.Status
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            @if (q.Failed > 0)
+                            {
+                                <form method="post" asp-page-handler="Retry" asp-route-queue="@q.Name" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger retry-button" title="Thử lại các tác vụ lỗi"><i class="bi bi-arrow-repeat me-1"></i>Thử lại</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Queues.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-4" id="no-queues">Không tải được trạng thái hàng đợi.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Scheduled Tasks (Cron Jobs) -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
+        <strong class="d-flex align-items-center gap-2"><i class="bi bi-calendar-check text-primary"></i>Tác vụ Lập lịch Định kỳ (Cron, UTC)</strong>
+        <span class="text-muted small">Tự động kích hoạt ngầm</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="schedules-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Tên tác vụ &amp; Mô tả</th>
+                    <th>Biểu thức Cron</th>
+                    <th>Lần chạy gần nhất</th>
+                    <th>Lần chạy kế tiếp (UTC)</th>
+                    <th>Kết quả</th>
+                    <th class="text-end">Hành động</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var cron in Model.CronJobs)
+                {
+                    <tr data-task="@cron.Id">
+                        <td>
+                            <div class="fw-semibold text-dark">@cron.Name</div>
+                            <div class="text-muted small">@cron.Description</div>
+                        </td>
+                        <td><code>@cron.Cron</code></td>
+                        <td class="text-muted small">@UiHelpers.FormatRelativeTime(cron.LastRunAt)</td>
+                        <td class="text-muted small text-nowrap"><i class="bi bi-clock me-1 text-primary"></i>@cron.NextRunAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="small">
+                            @if (cron.LastStatus is null) { <span class="text-muted">Chưa chạy</span> }
+                            else if (cron.LastError is not null) { <span class="text-danger">@cron.LastStatus: @cron.LastError</span> }
+                            else { <span class="text-success">@cron.LastStatus</span> }
+                        </td>
+                        <td class="text-end">
+                            <form method="post" asp-page-handler="Trigger" asp-route-id="@cron.Id" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-primary trigger-button" title="Chạy ngay"><i class="bi bi-play-fill me-1"></i>Chạy ngay</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                @if (Model.CronJobs.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4" id="no-schedules">Không tải được danh sách tác vụ định kỳ.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

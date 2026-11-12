@@ -85,7 +85,24 @@ services.AddSharedServicesClient(options =>
 ```
 
 `ISharedServicesClient` covers configurations (list, get, save, activate, rollback), email (send, test, delivery logs), chat (send, test,
-delivery logs), storage (upload, download, thumbnail, metadata, list, delete, test, media logs), API keys (create, list, revoke, rotate) and the audit log.
+delivery logs), storage (upload, download, thumbnail, metadata, list, delete, test, media logs, queue a thumbnail rebuild), API keys (create, list,
+revoke, rotate), the audit log, and the platform services: notifications (dispatch, templates, logs), background jobs (queues, retry, schedules),
+webhooks (subscriptions, test, inbound sources), projects (list, create, update, usage) and metrics (overview, health status).
+
+## The platform services
+
+Eight services share one API. The first three (email, chat, storage) are described above; the rest sit on top of them.
+
+| Service | Endpoints | In short |
+|---|---|---|
+| Notifications | `POST /api/v1/notifications/dispatch`, `GET .../templates`, `GET .../logs` | A template with `{{placeholders}}` sent by email, chat or both (side by side). A value that is missing is a **400**, never a half-filled message. Five stock templates: `UserRegistered`, `PasswordReset`, `SecurityAlert`, `SystemMaintenance`, `PaymentSuccess`. A **High** or **Critical** notification whose only channel fails is tried on the other one: a failed email gives chat a *summary* (subject and reason, never the body, which may carry a one-time link); a failed chat message gives the recipient the full email. With `"queue": true` the messages are queued (answer **202**) |
+| Background jobs | `GET /api/v1/jobs/queues`, `POST .../queues/{name}/retry-failed`, `GET .../schedules`, `POST .../schedules/{id}/run` | Five queues (`email`, `chat`, `media-thumbnail`, `outbox`, `webhook`), each with its own workers (`System.Threading.Channels` wake them; the `background_jobs` table is the truth, so a restart loses nothing). A failed attempt waits **1 s, 5 s, 15 s** and tries again (four attempts); a failure that waiting cannot cure (no configuration, an exhausted quota, a 4xx from the application) fails at once. A job cut off by a restart is done again |
+| Scheduled tasks | (same) | Cron in UTC: log retention (`0 2 * * *`, delivery, media, system and notification logs older than `Jobs:LogRetentionDays`; the audit log is never deleted), housekeeping (`30 2 * * *`, finished jobs and old inbound calls), metrics aggregation (`*/5 * * * *`). There are no temporary files to clean: an upload is held in memory and written once |
+| Webhooks | `POST /api/v1/webhooks/incoming/{source}`, `GET/POST/DELETE .../subscriptions`, `POST .../subscriptions/{id}/test`, `GET .../inbound` | **Inbound**: `telegram` (secret token header), `github` (HMAC-SHA256 of the body), `stripe` (timestamp + HMAC, 5 minutes). A source without a secret in this installation refuses every call (**503**); a wrong signature is **401** and the body is not stored. **Outbound**: an application subscribes to `email.sent`, `email.failed`, `chat.sent`, `chat.failed`, `file.uploaded`, `webhook.received` (or `*`). Each post carries `X-AIH-Signature: sha256={hex HMAC-SHA256 of the exact body}`, `X-AIH-Event`, `X-AIH-Delivery` (the same id on every retry) and `X-AIH-Timestamp`; the signing key is shown once and stored only protected |
+| Projects | `GET/POST /api/v1/projects`, `PUT .../{code}`, `GET .../{code}/usage` | Each application is a project with daily email and chat quotas and a storage quota (empty = no limit). Over the quota: **429** with `Retry-After` for the daily ones; a deactivated project gets **403**. Only delivered messages count; the day is the UTC day. Only the platform creates or changes projects |
+| Metrics | `GET /api/v1/metrics/overview`, `GET .../health-status` | The last 24 hours across the eight services; each is **Healthy**, **Degraded** (more than a fifth of at least five operations failed; for jobs, any failed job) or **Idle** (nothing configured). Platform only |
+
+A project key sees only its own subscriptions, notifications and usage; jobs, schedules, inbound sources and metrics are for the platform.
 
 ## API keys
 
@@ -125,6 +142,10 @@ file reads and deletes, and the logs. A *public* file can be read by anyone; it 
 | `Storage:AllowPrivateNetworkHosts` | Whether an S3 `serviceUrl` (MinIO, R2) may be on a private or loopback network (off). **Independent of** `Email:AllowPrivateNetworkHosts`. Link-local and metadata addresses are never allowed |
 | `Email:AllowPrivateNetworkHosts` | The same switch for SMTP hosts (off) |
 | `Chat:TelegramBaseUrl` | The Telegram Bot API address (a host setting on purpose: the bot token is in the request path) |
+| `Jobs:RetryDelaysSeconds` | The waits between attempts (default 1, 5, 15). The number of attempts is one more than the number of waits |
+| `Jobs:WorkersPerQueue`, `Jobs:LogRetentionDays`, `Jobs:FinishedJobRetentionDays`, `Jobs:MetricsCacheSeconds`, `Jobs:SchedulesEnabled` | Workers (2), retention (90 and 7 days), how long a metrics snapshot is reused (60 s), the timer of the scheduled tasks |
+| `Webhooks:AllowPrivateNetworkHosts` | Whether an outbound webhook may go to a private or loopback address (off; **switch on where the applications are on the same private network**). Link-local and metadata addresses are never allowed. Independent of the email and storage switches |
+| `Webhooks:Inbound:{telegram,github,stripe}:Secret` | The secret of each inbound source. Without it the source refuses every call |
 | `Authentication:Authority` | Optional: the Identity STS, to accept bearer tokens as well as API keys |
 | `SharedServices:Api:BaseUrl`, `SharedServices:Api:ApiKey` | (Web) where the API is and the key the portal uses |
 
@@ -147,5 +168,8 @@ file reads and deletes, and the logs. A *public* file can be read by anyone; it 
   revoke keys, read the audit log, and read and delete files of every project. Keep it on a trusted network until single sign-on with the
   Identity STS is added.
 - The containers run as root (the key-ring path is under `/root`, as the deployment spec asks).
-- No rate limiting, no per-project quotas, no virus scan of uploads.
+- No rate limiting of the API (the inbound webhook endpoint is anonymous: it caps a body at 256 KB and logs refusals, but a flood is for a firewall), no virus scan of uploads.
+- A quota is checked before a send and the send is a separate step, so requests that arrive together can overshoot a quota by a few messages.
+- Events are delivered at least once: an application that answers slowly or fails after processing may see the same event again (same `X-AIH-Delivery`).
+- A queue item is lost with the process, a job is not: it is found in the table at the next start. The metrics are computed from the database on request (and cached for `Jobs:MetricsCacheSeconds`), not by a separate metrics store.
 - Not registered in the root `AppInHouse.sln`.

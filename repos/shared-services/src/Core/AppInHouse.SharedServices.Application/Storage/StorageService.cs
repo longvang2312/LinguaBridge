@@ -3,6 +3,7 @@ using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.Extensions.Logging;
 
@@ -24,7 +25,9 @@ public sealed class StorageService(
     IMediaLogRepository mediaLogs,
     IUnitOfWork unitOfWork,
     TimeProvider clock,
-    ILogger<StorageService> logger) : IStorageService
+    ILogger<StorageService> logger,
+    IQuotaGuard? quotas = null,
+    IEventPublisher? events = null) : IStorageService
 {
     public const string FallbackProject = "default";
     private const int MaxRecent = 100;
@@ -66,11 +69,15 @@ public sealed class StorageService(
         if (problems.Count > 0)
             return await Failed(project, StorageFailure.ProviderFailure, "The storage configuration is incomplete: " + string.Join(" ", problems), cancellationToken);
 
+        // Is there room at all? Asked before any byte is read, so a project over its quota does not make the service receive the file first.
+        if (quotas is not null) await quotas.EnsureCanStoreAsync(project, 0, cancellationToken);
+
         // 1. The bytes, with the limit enforced as they arrive, and the hash.
         var read = await ReadBounded(command.Content, settings.MaxFileSizeBytes, cancellationToken);
         if (read.TooLarge)
             return await Failed(project, StorageFailure.TooLarge, $"The file is larger than {settings.MaxFileSizeBytes / 1024 / 1024} MB.", cancellationToken);
         if (read.Length == 0) throw await Refused(project, "Content", "The file is empty.", cancellationToken);
+        if (quotas is not null) await quotas.EnsureCanStoreAsync(project, read.Length, cancellationToken);
 
         // 2. What it really is.
         var mime = MagicBytes.Detect(read.Content.Span[..Math.Min(read.Content.Length, MagicBytes.HeaderLength)]);
@@ -130,6 +137,9 @@ public sealed class StorageService(
             await Cleanup(provider, configuration, written);
             throw;
         }
+
+        if (events is not null)
+            await events.PublishAsync(WebhookEvents.FileUploaded, project, new { fileId = file.Id, fileName = file.OriginalFileName, mimeType = file.MimeType, sizeBytes = file.FileSizeBytes, isPublic = file.IsPublic }, cancellationToken);
 
         var publicUrl = file.IsPublic && settings.PublicUrlBase is { Length: > 0 } baseUrl ? $"{baseUrl.TrimEnd('/')}/{file.ObjectKey}" : null;
         return new UploadFileResult(true, StorageFailure.None, ToDto(file), null, publicUrl);

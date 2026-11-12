@@ -154,6 +154,174 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
         return Task.FromResult<IReadOnlyList<string>>(AuditActions);
     }
 
+    // ---- platform services (notifications, jobs, webhooks, projects, metrics)
+
+    public List<NotificationTemplateDto> Templates { get; set; } =
+    [
+        new("UserRegistered", "Welcome", "Welcome {{UserName}}", "Hello {{UserName}}", "Email", "Normal", true, ["UserName"]),
+        new("SecurityAlert", "Security alert", "Alert for {{UserName}}", "Details: {{Details}}", "Both", "Critical", true, ["UserName", "Details"]),
+    ];
+
+    public List<NotificationLogDto> NotificationLogs { get; set; } = [];
+    public DispatchNotificationResponse? DispatchResponse { get; set; }
+    public DispatchNotificationRequest? LastDispatch { get; private set; }
+    public List<JobQueueStatusDto> Queues { get; set; } = [.. new[] { "email", "chat", "media-thumbnail", "outbox", "webhook" }.Select(n => new JobQueueStatusDto(n, "purpose of " + n, 0, 0, 3, 0, "Healthy"))];
+    public List<ScheduledTaskDto> Schedules { get; set; } = [new("log-retention", "Delete old logs", "Removes old logs", "0 2 * * *", null, DateTimeOffset.UtcNow.AddHours(5), null, null, 0, false)];
+    public List<WebhookSubscriptionDto> Subscriptions { get; set; } = [];
+    public List<InboundSourceDto> InboundSources { get; set; } = [new("telegram", "/api/v1/webhooks/incoming/telegram", "Secret token", "Telegram updates", true, 4, 1, null)];
+    public CreateWebhookSubscriptionRequest? LastSubscription { get; private set; }
+    public WebhookTestResult TestResult { get; set; } = new(true, 200, null, 12);
+    public List<ProjectTenantDto> Projects { get; set; } =
+    [
+        new("default", "Platform Core", "The platform", "Production", null, null, null, true, DateTimeOffset.UtcNow),
+        new("crm", "CRM", "Customers", "Staging", 100, 50, 1024L * 1024 * 1024, true, DateTimeOffset.UtcNow),
+    ];
+
+    public CreateProjectRequest? LastCreatedProject { get; private set; }
+    public (string Code, UpdateProjectRequest Request)? LastUpdatedProject { get; private set; }
+    public SystemMetricsOverviewDto? Overview { get; set; }
+
+    public const string IssuedWebhookSecret = "whsec_FakeIssuedSigningKeyValue0123456789";
+
+    public static SystemMetricsOverviewDto HealthyOverview(string? degraded = null) => new(
+        DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(-3), 3 * 3600, 8, degraded is null ? 8 : 7, degraded is null ? 0 : 1, 0, 120, 95, 5, 95.0, 2048, 3, 4, 4, 0, 0,
+        [.. new[] { "email", "chat", "storage", "projects", "notifications", "jobs", "webhooks", "monitoring" }.Select(id =>
+            new ServiceHealthDto(id, id + " service", id == degraded ? "Degraded" : "Healthy", "detail of " + id, new Dictionary<string, string> { ["sent24h"] = "9", ["failed24h"] = "1", ["activeProjects"] = "4", ["activeTemplates"] = "5", ["dispatched24h"] = "7", ["pending"] = "0", ["failed"] = "0", ["inboundAccepted24h"] = "4", ["activeSubscriptions"] = "1" }))]);
+
+    public Task<DispatchNotificationResponse> DispatchNotificationAsync(DispatchNotificationRequest request, CancellationToken ct = default)
+    {
+        Enter($"dispatch:{request.TemplateCode}");
+        LastDispatch = request;
+        return Task.FromResult(DispatchResponse ?? new DispatchNotificationResponse(true, request.Queue == true ? "Queued" : "Sent", [new("Email", true, null, Guid.NewGuid(), false)], 12, Guid.NewGuid(), request.Queue == true ? [Guid.NewGuid()] : []));
+    }
+
+    public Task<IReadOnlyList<NotificationTemplateDto>> GetNotificationTemplatesAsync(CancellationToken ct = default)
+    {
+        Enter("templates");
+        return Task.FromResult<IReadOnlyList<NotificationTemplateDto>>(Templates);
+    }
+
+    public Task<IReadOnlyList<NotificationLogDto>> GetNotificationLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        Enter($"notification-logs:{projectCode}:{limit}");
+        return Task.FromResult<IReadOnlyList<NotificationLogDto>>(NotificationLogs);
+    }
+
+    public Task<IReadOnlyList<JobQueueStatusDto>> GetJobQueuesAsync(CancellationToken ct = default)
+    {
+        Enter("queues");
+        return Task.FromResult<IReadOnlyList<JobQueueStatusDto>>(Queues);
+    }
+
+    public Task<RetryFailedResponse> RetryFailedJobsAsync(string queueName, CancellationToken cancellationToken = default)
+    {
+        Enter($"retry-failed:{queueName}");
+        var failed = Queues.FirstOrDefault(q => q.Name == queueName)?.Failed ?? 0;
+        return Task.FromResult(new RetryFailedResponse(queueName, failed));
+    }
+
+    public Task<IReadOnlyList<ScheduledTaskDto>> GetJobSchedulesAsync(CancellationToken cancellationToken = default)
+    {
+        Enter("schedules");
+        return Task.FromResult<IReadOnlyList<ScheduledTaskDto>>(Schedules);
+    }
+
+    public Task<ScheduledTaskDto> RunScheduledTaskAsync(string id, CancellationToken cancellationToken = default)
+    {
+        Enter($"run-task:{id}");
+        var task = Schedules.FirstOrDefault(s => s.Id == id) ?? throw new SharedServicesApiException(404, $"There is no scheduled task '{id}'.");
+        return Task.FromResult(task with { LastRunAt = DateTimeOffset.UtcNow, LastStatus = "Success: 0 old log rows removed.", Runs = task.Runs + 1 });
+    }
+
+    public Task<QueueThumbnailResponse> QueueThumbnailRebuildAsync(Guid fileId, CancellationToken cancellationToken = default)
+    {
+        Enter($"rebuild-thumbnail:{fileId}");
+        return Task.FromResult(new QueueThumbnailResponse(Guid.NewGuid()));
+    }
+
+    public Task<IReadOnlyList<WebhookSubscriptionDto>> GetWebhookSubscriptionsAsync(CancellationToken ct = default)
+    {
+        Enter("subscriptions");
+        return Task.FromResult<IReadOnlyList<WebhookSubscriptionDto>>(Subscriptions);
+    }
+
+    public Task<CreateWebhookSubscriptionResponse> CreateWebhookSubscriptionAsync(CreateWebhookSubscriptionRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"create-subscription:{request.Name}");
+        LastSubscription = request;
+        var subscription = new WebhookSubscriptionDto(Guid.NewGuid(), request.ProjectCode ?? "default", request.Name, request.TargetUrl, "••••••••6789", request.Events, true, DateTimeOffset.UtcNow, null, null, 0, 0, null);
+        Subscriptions.Add(subscription);
+        return Task.FromResult(new CreateWebhookSubscriptionResponse(subscription, IssuedWebhookSecret));
+    }
+
+    public Task DeleteWebhookSubscriptionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        Enter($"delete-subscription:{id}");
+        Subscriptions.RemoveAll(s => s.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<WebhookTestResult> TestWebhookSubscriptionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        Enter($"test-subscription:{id}");
+        return Task.FromResult(TestResult);
+    }
+
+    public Task<IReadOnlyList<InboundSourceDto>> GetInboundWebhookSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        Enter("inbound-sources");
+        return Task.FromResult<IReadOnlyList<InboundSourceDto>>(InboundSources);
+    }
+
+    public Task<IReadOnlyList<ProjectTenantDto>> GetProjectsAsync(CancellationToken ct = default)
+    {
+        Enter("projects");
+        return Task.FromResult<IReadOnlyList<ProjectTenantDto>>(Projects);
+    }
+
+    public Task<ProjectTenantDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"create-project:{request.ProjectCode}");
+        LastCreatedProject = request;
+        var project = new ProjectTenantDto(request.ProjectCode, request.Name, request.Description ?? string.Empty, request.Environment ?? "Staging", request.DailyEmailQuota, request.DailyChatQuota, request.StorageQuotaBytes, true, DateTimeOffset.UtcNow);
+        Projects.Add(project);
+        return Task.FromResult(project);
+    }
+
+    public Task<ProjectTenantDto> UpdateProjectAsync(string projectCode, UpdateProjectRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"update-project:{projectCode}");
+        LastUpdatedProject = (projectCode, request);
+        var index = Projects.FindIndex(p => p.ProjectCode == projectCode);
+        if (index < 0) throw new SharedServicesApiException(404, $"Project '{projectCode}' does not exist.");
+        Projects[index] = Projects[index] with
+        {
+            Name = request.Name, Description = request.Description ?? string.Empty, Environment = request.Environment ?? "Staging",
+            DailyEmailQuota = request.DailyEmailQuota, DailyChatQuota = request.DailyChatQuota, StorageQuotaBytes = request.StorageQuotaBytes, IsActive = request.IsActive ?? true,
+        };
+        return Task.FromResult(Projects[index]);
+    }
+
+    public Task<ProjectUsageDto> GetProjectUsageAsync(string projectCode, CancellationToken cancellationToken = default)
+    {
+        Enter($"project-usage:{projectCode}");
+        var project = Projects.FirstOrDefault(p => p.ProjectCode == projectCode) ?? throw new SharedServicesApiException(404, $"Project '{projectCode}' does not exist.");
+        return Task.FromResult(new ProjectUsageDto(projectCode, DateOnly.FromDateTime(DateTime.UtcNow), 10, project.DailyEmailQuota, 4, project.DailyChatQuota, 2048, project.StorageQuotaBytes, 3, 2));
+    }
+
+    public Task<SystemMetricsOverviewDto> GetMetricsOverviewAsync(CancellationToken ct = default)
+    {
+        Enter("metrics-overview");
+        return Task.FromResult(Overview ?? HealthyOverview());
+    }
+
+    public Task<HealthStatusDto> GetHealthStatusAsync(CancellationToken cancellationToken = default)
+    {
+        Enter("health-status");
+        var overview = Overview ?? HealthyOverview();
+        return Task.FromResult(new HealthStatusDto("Healthy", overview.GeneratedAt, overview.Services));
+    }
+
     // ---- storage
 
     public List<StoredFileDto> StoredFiles { get; set; } = [];

@@ -3,6 +3,7 @@ using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.Extensions.Logging;
 
@@ -19,7 +20,9 @@ public sealed class ChatDispatcher(
     IDeliveryLogRepository deliveryLogs,
     IUnitOfWork unitOfWork,
     TimeProvider clock,
-    ILogger<ChatDispatcher> logger) : IChatDispatcher
+    ILogger<ChatDispatcher> logger,
+    IQuotaGuard? quotas = null,
+    IEventPublisher? events = null) : IChatDispatcher
 {
     public const string FallbackProject = "default";
 
@@ -33,6 +36,7 @@ public sealed class ChatDispatcher(
     {
         var project = ChannelConfigurationValidator.NormalizeProjectCode(command.ProjectCode);
         var message = Prepare(command, project);
+        if (quotas is not null) await quotas.EnsureCanSendAsync(project, ChannelType.Chat, cancellationToken);
 
         ChannelRuntimeConfiguration? configuration;
         try
@@ -141,6 +145,12 @@ public sealed class ChatDispatcher(
             text.Length > 500 ? text[..500] : text, latencyMs, clock.GetUtcNow());
         deliveryLogs.Add(log);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (events is not null)
+        {
+            await events.PublishAsync(
+                failure == ChatFailure.None ? WebhookEvents.ChatSent : WebhookEvents.ChatFailed, project,
+                new { target = log.Recipient, deliveryLogId = log.Id, latencyMs, error = failure == ChatFailure.None ? null : text }, cancellationToken);
+        }
 
         return new SendChatResult(
             failure == ChatFailure.None, failure, log.Id, latencyMs, failure == ChatFailure.None ? null : text,
