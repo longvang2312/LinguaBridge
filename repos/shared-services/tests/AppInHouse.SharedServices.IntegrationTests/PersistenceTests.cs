@@ -45,7 +45,10 @@ public class SqlitePersistenceTests : IAsyncLifetime
         Assert.Equal(("shared", "webhook_subscriptions"), tables[nameof(WebhookSubscription)]);
         Assert.Equal(("shared", "inbound_webhook_logs"), tables[nameof(InboundWebhookLog)]);
         Assert.Equal(("shared", "background_jobs"), tables[nameof(BackgroundJobRecord)]);
-        Assert.Equal(13, tables.Count);
+        Assert.Equal(("shared", "conversations"), tables[nameof(Conversation)]);
+        Assert.Equal(("shared", "conversation_members"), tables[nameof(ConversationMember)]);
+        Assert.Equal(("shared", "chat_messages"), tables[nameof(ChatMessage)]);
+        Assert.Equal(16, tables.Count);
     }
 
     [Fact]
@@ -232,7 +235,7 @@ public class SqlitePersistenceTests : IAsyncLifetime
 public class PostgresPersistenceTests
 {
     [PostgresFact]
-    public async Task TheMigrations_CreateTheThirteenTablesOfTheSharedSchema_WithJsonbColumns()
+    public async Task TheMigrations_CreateTheSixteenTablesOfTheSharedSchema_WithJsonbColumns()
     {
         await using var host = await PersistenceHost.CreatePostgresAsync(PostgresFactAttribute.ServerConnectionString!);
         using var scope = host.CreateScope();
@@ -244,8 +247,9 @@ public class PostgresPersistenceTests
             "SELECT table_name || '.' || column_name AS \"Value\" FROM information_schema.columns WHERE table_schema = 'shared' AND data_type = 'jsonb' ORDER BY 1").ToListAsync();
 
         Assert.Equal(
-            ["api_keys", "audit_logs", "background_jobs", "channel_configurations", "delivery_logs", "inbound_webhook_logs", "media_logs", "notification_logs",
-             "notification_templates", "project_tenants", "stored_files", "system_logs", "webhook_subscriptions"], tables);
+            ["api_keys", "audit_logs", "background_jobs", "channel_configurations", "chat_messages", "conversation_members", "conversations", "delivery_logs",
+             "inbound_webhook_logs", "media_logs", "notification_logs", "notification_templates", "project_tenants", "stored_files", "system_logs",
+             "webhook_subscriptions"], tables);
         Assert.Equal(["audit_logs.details_json", "channel_configurations.settings_json"], jsonColumns);
         Assert.Empty(await db.Database.GetPendingMigrationsAsync());
     }

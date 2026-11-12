@@ -52,7 +52,7 @@ public class ProjectIsolationTests(ApiFactory factory) : IClassFixture<ApiFactor
         var storage = await SaveAsync(master, victim, "Storage", "LocalDisk", new { rootPath = root }, "Storage", activate: true);
 
         await victimClient.PostAsJsonAsync("/api/v1/emails/send", new { to = "someone@example.com", subject = "Hello", htmlBody = "<p>Hi</p>" });
-        await victimClient.PostAsJsonAsync("/api/v1/chat/send", new { text = "hello" });
+        await victimClient.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "hello" });
         var upload = await victimClient.PostAsync("/api/v1/storage/upload", new MultipartFormDataContent { { new ByteArrayContent(TestFiles.Png()), "file", "secret-plans.png" } });
         Assert.Equal(HttpStatusCode.Created, upload.StatusCode);
         var fileId = (await ReadAsync(upload)).GetProperty("file").GetProperty("id").GetGuid();
@@ -84,14 +84,13 @@ public class ProjectIsolationTests(ApiFactory factory) : IClassFixture<ApiFactor
         ("activate a configuration of the victim", c => c.PostAsync($"{Configs}/{w.EmailDraft}/activate", null)),
         ("roll back a configuration of the victim", c => c.PostAsJsonAsync($"{Configs}/rollback", new { projectCode = w.Victim, channelType = "Email", name = "Mail" })),
         ("send an email for the victim", c => c.PostAsJsonAsync("/api/v1/emails/send", new { projectCode = w.Victim, to = "x@example.com", subject = "s", htmlBody = "b" })),
-        ("send a chat message for the victim", c => c.PostAsJsonAsync("/api/v1/chat/send", new { projectCode = w.Victim, text = "hi" })),
+        ("send a chat message for the victim", c => c.PostAsJsonAsync("/api/v1/notifications/channels/send", new { projectCode = w.Victim, text = "hi" })),
         ("upload a file to the victim", c => c.PostAsync("/api/v1/storage/upload", new MultipartFormDataContent { { new ByteArrayContent(TestFiles.Png()), "file", "a.png" }, { new StringContent(w.Victim), "projectCode" } })),
         ("test the victim's saved email configuration", c => c.PostAsJsonAsync("/api/v1/emails/test", new { testRecipient = "x@example.com", configurationId = w.EmailConfig })),
-        ("test the victim's saved chat configuration", c => c.PostAsJsonAsync("/api/v1/chat/test", new { configurationId = w.ChatConfig })),
-        ("test the victim's saved chat configuration (older address)", c => c.PostAsJsonAsync("/api/v1/telegram/test", new { configurationId = w.ChatConfig })),
+        ("test the victim's saved chat configuration", c => c.PostAsJsonAsync("/api/v1/notifications/channels/test", new { configurationId = w.ChatConfig })),
         ("test the victim's saved storage configuration", c => c.PostAsJsonAsync("/api/v1/storage/test", new { configurationId = w.StorageConfig })),
         ("read the victim's email delivery logs", c => c.GetAsync($"/api/v1/emails/delivery-logs?projectCode={w.Victim}")),
-        ("read the victim's chat delivery logs", c => c.GetAsync($"/api/v1/chat/delivery-logs?projectCode={w.Victim}")),
+        ("read the victim's chat delivery logs", c => c.GetAsync($"/api/v1/notifications/channels/delivery-logs?projectCode={w.Victim}")),
         ("list the victim's files", c => c.GetAsync($"/api/v1/storage/files?projectCode={w.Victim}")),
         ("download the victim's file", c => c.GetAsync($"/api/v1/storage/files/{w.FileId}")),
         ("see the victim's thumbnail", c => c.GetAsync($"/api/v1/storage/files/{w.FileId}/thumbnail")),
@@ -154,10 +153,10 @@ public class ProjectIsolationTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.GetAsync($"{Configs}?projectCode={w.Attacker}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.GetAsync($"{Configs}/{ownConfig}")).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await w.AttackerClient.PostAsJsonAsync(Configs, new { projectCode = w.Attacker, channelType = "Chat", providerType = "Mock", name = "Chat", settings = new { } })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.PostAsJsonAsync("/api/v1/chat/test", new { configurationId = ownConfig })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.PostAsJsonAsync("/api/v1/notifications/channels/test", new { configurationId = ownConfig })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.PostAsJsonAsync("/api/v1/storage/test", new { configurationId = ownStorage })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.PostAsJsonAsync("/api/v1/chat/send", new { text = "mine" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.GetAsync("/api/v1/chat/delivery-logs")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "mine" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await w.AttackerClient.GetAsync("/api/v1/notifications/channels/delivery-logs")).StatusCode);
     }
 
     [Fact]
@@ -166,7 +165,7 @@ public class ProjectIsolationTests(ApiFactory factory) : IClassFixture<ApiFactor
         var w = await BuildAsync();
         var before = await FingerprintAsync(w.Victim);
 
-        var response = await w.AttackerClient.PostAsJsonAsync("/api/v1/chat/test", new { providerType = "Mock" });
+        var response = await w.AttackerClient.PostAsJsonAsync("/api/v1/notifications/channels/test", new { providerType = "Mock" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(before, await FingerprintAsync(w.Victim));

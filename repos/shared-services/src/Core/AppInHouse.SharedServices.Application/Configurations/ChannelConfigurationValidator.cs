@@ -58,7 +58,7 @@ public static partial class ChannelConfigurationValidator
         // A bot token or a webhook address must have the right shape (and a webhook address must be on its platform's host): the service
         // sends requests to them. The message never repeats the value.
         if (!string.IsNullOrEmpty(command.Secret) && !SecretMask.IsMask(command.Secret) && Enum.IsDefined(command.ProviderType)
-            && (Chat.ChatSecretRules.Check(command.ProviderType, command.Secret) ?? Storage.StorageSecretRules.Check(command.ProviderType, command.Secret)) is { } secretProblem)
+            && (Notifications.Bots.BotSecretRules.Check(command.ProviderType, command.Secret) ?? Storage.StorageSecretRules.Check(command.ProviderType, command.Secret)) is { } secretProblem)
             Add(nameof(command.Secret), secretProblem);
 
         return errors.ToDictionary(e => e.Key, e => e.Value.ToArray());
@@ -95,7 +95,7 @@ public static partial class ChannelConfigurationValidator
 
             // Likewise the chat settings (chat id, parse mode, username, avatar address, channel, emoji): shape only, none is required.
             if (command.ChannelType is ChannelType.Chat or ChannelType.Telegram)
-                foreach (var problem in Chat.ChatSettingsReader.Validate(document.RootElement))
+                foreach (var problem in Notifications.Bots.BotSettingsReader.Validate(document.RootElement))
                     add(field, problem);
 
             // And the storage settings (folder, size limit, bucket, region, service address, access key id): shape only when saving a draft.

@@ -123,8 +123,8 @@ public class ApiKeyManagerTests
     {
         var created = await new Fixture().CreateAsync(scopes: [.. ApiScopes.Assignable]);
 
-        Assert.Equal(7, created.Key.Scopes.Count);
-        Assert.Equal(["config:read", "config:write", "email:send", "chat:send", "storage:upload", "storage:read", "storage:delete"], created.Key.Scopes);
+        Assert.Equal(8, created.Key.Scopes.Count);
+        Assert.Equal(["config:read", "config:write", "email:send", "chat:send", "chat:converse", "storage:upload", "storage:read", "storage:delete"], created.Key.Scopes);
     }
 
     [Theory]

@@ -2,6 +2,7 @@ using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Audit;
 using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Application.Email;
+using AppInHouse.SharedServices.Application.Conversations;
 using AppInHouse.SharedServices.Application.Platform;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<IBackgroundJobRepository, BackgroundJobRepository>();
         services.AddScoped<IUsageRepository, UsageRepository>();
         services.AddScoped<IRetentionRepository, RetentionRepository>();
+        services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IAuditLogWriter, AuditLogWriter>();
         return services;

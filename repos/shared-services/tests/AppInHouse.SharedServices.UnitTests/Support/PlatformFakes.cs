@@ -56,14 +56,14 @@ internal sealed class FakeChannelSender : INotificationChannelSender
 
 internal sealed class FakeJobQueue : IJobQueue
 {
-    public sealed record Enqueued(Guid Id, string Queue, string Type, object Payload);
+    public sealed record Enqueued(Guid Id, string Queue, string Type, object Payload, TimeSpan? Delay = null);
 
     public List<Enqueued> Jobs { get; } = [];
     public List<string> Retried { get; } = [];
 
-    public Task<Guid> EnqueueAsync(string queue, string type, object payload, CancellationToken cancellationToken = default)
+    public Task<Guid> EnqueueAsync(string queue, string type, object payload, CancellationToken cancellationToken = default, TimeSpan? delay = null)
     {
-        var job = new Enqueued(Guid.NewGuid(), queue, type, payload);
+        var job = new Enqueued(Guid.NewGuid(), queue, type, payload, delay);
         Jobs.Add(job);
         return Task.FromResult(job.Id);
     }

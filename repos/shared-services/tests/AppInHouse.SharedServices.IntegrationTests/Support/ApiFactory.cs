@@ -5,7 +5,7 @@ using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Infrastructure.Storage;
 using AppInHouse.SharedServices.Domain;
 using System.Net;
-using AppInHouse.SharedServices.Infrastructure.Chat;
+using AppInHouse.SharedServices.Infrastructure.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Webhooks;
 using AppInHouse.SharedServices.Infrastructure.Email;
 using AppInHouse.SharedServices.Infrastructure.Webhooks;
@@ -77,6 +77,9 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
             ["Jobs:RetryDelaysSeconds:2"] = "0",
             ["Jobs:SchedulesEnabled"] = "false",
             ["Jobs:MetricsCacheSeconds"] = "0",
+
+            // A member who is offline hears of a message after one second here (20 in production).
+            ["Chat:OfflineGraceSeconds"] = "1",
         };
 
         foreach (var (key, value) in ExtraSettings) settings[key] = value;   // a test host can change any of the above
@@ -87,10 +90,10 @@ public class ApiFactory : WebApplicationFactory<ApiEntryPoint>
         builder.ConfigureServices(services =>
         {
             services.AddHttpClient<SendGridEmailProvider>().ConfigurePrimaryHttpMessageHandler(() => SendGrid);
-            services.AddHttpClient<TelegramBotChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddHttpClient<TelegramBotProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
             services.AddHttpClient<IWebhookSender, HttpWebhookSender>().ConfigurePrimaryHttpMessageHandler(() => Webhook);
-            services.AddHttpClient<DiscordWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
-            services.AddHttpClient<SlackWebhookChatProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddHttpClient<DiscordWebhookBotProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
+            services.AddHttpClient<SlackWebhookBotProvider>().ConfigurePrimaryHttpMessageHandler(() => Chat);
             services.AddSingleton<Amazon.Runtime.HttpClientFactory>(new StubS3HttpClientFactory(S3));
             services.AddSingleton<IHostAddressResolver>(new PublicHostResolver());   // no real DNS: the webhook hosts "resolve" to a public address
         });

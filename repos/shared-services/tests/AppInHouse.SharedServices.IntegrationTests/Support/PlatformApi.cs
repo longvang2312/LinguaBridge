@@ -2,8 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AppInHouse.SharedServices.Domain;
-using AppInHouse.SharedServices.Infrastructure.Chat;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Infrastructure.Notifications.Bots;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AppInHouse.SharedServices.IntegrationTests.Support;
@@ -51,7 +51,7 @@ internal static class PlatformApi
     /// </summary>
     public static Dictionary<string, object?> Data(object values) => values.GetType().GetProperties().ToDictionary(p => p.Name, p => p.GetValue(values));
 
-    public static MockChatProvider MockChat(ApiFactory factory) => factory.Services.GetServices<IChatProvider>().OfType<MockChatProvider>().Single();
+    public static MockBotProvider MockChat(ApiFactory factory) => factory.Services.GetServices<IBotProvider>().OfType<MockBotProvider>().Single();
 
     public static HttpResponseMessage ServerError() => new(HttpStatusCode.InternalServerError) { Content = new StringContent("""{"errors":[{"message":"provider is down"}]}""") };
 

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
@@ -161,15 +161,15 @@ public class QuotaAndEventHooksTests
         var provider = new FakeChatProvider(ProviderType.Mock);
         var quota = new FakeQuotaGuard();
         var events = new RecordingEvents();
-        var dispatcher = new ChatDispatcher(configs.Manager, [provider], new FakeDeliveryLogRepository(), new FakeUnitOfWork(), configs.Clock, NullLogger<ChatDispatcher>.Instance, quota, events);
+        var dispatcher = new NotificationBotDispatcher(configs.Manager, [provider], new FakeDeliveryLogRepository(), new FakeUnitOfWork(), configs.Clock, NullLogger<NotificationBotDispatcher>.Instance, quota, events);
         var saved = await configs.Manager.SaveAsync(new SaveChannelConfigurationCommand("crm", ChannelType.Chat, ProviderType.Mock, "Chat", "{}", null));
         await configs.Manager.ActivateAsync(saved.Id);
 
-        await dispatcher.SendAsync(new SendChatCommand("crm", "hello"));
-        provider.SendResult = new ChatSendResult(false, Error: "bot blocked");
-        await dispatcher.SendAsync(new SendChatCommand("crm", "again"));
+        await dispatcher.SendAsync(new SendBotMessageCommand("crm", "hello"));
+        provider.SendResult = new BotSendResult(false, Error: "bot blocked");
+        await dispatcher.SendAsync(new SendBotMessageCommand("crm", "again"));
         quota.Refuse = Over(QuotaKind.DailyChat);
-        await Assert.ThrowsAsync<QuotaExceededException>(() => dispatcher.SendAsync(new SendChatCommand("crm", "third")));
+        await Assert.ThrowsAsync<QuotaExceededException>(() => dispatcher.SendAsync(new SendBotMessageCommand("crm", "third")));
 
         Assert.Equal([("crm", ChannelType.Chat), ("crm", ChannelType.Chat), ("crm", ChannelType.Chat)], quota.SendChecks);
         Assert.Equal(["chat.sent", "chat.failed"], events.Published.Select(p => p.Event));
@@ -385,15 +385,15 @@ public class JobHandlerTests
         var configs = new ManagerFixture();
         var saved = await configs.Manager.SaveAsync(new SaveChannelConfigurationCommand("crm", ChannelType.Chat, ProviderType.Mock, "Chat", "{}", null));
         await configs.Manager.ActivateAsync(saved.Id);
-        var dispatcher = new ChatDispatcher(configs.Manager, [provider], new FakeDeliveryLogRepository(), new FakeUnitOfWork(), configs.Clock, NullLogger<ChatDispatcher>.Instance);
+        var dispatcher = new NotificationBotDispatcher(configs.Manager, [provider], new FakeDeliveryLogRepository(), new FakeUnitOfWork(), configs.Clock, NullLogger<NotificationBotDispatcher>.Instance);
         var handler = new ChatJobHandler(dispatcher);
 
         await handler.HandleAsync(Job(JobQueues.Chat, "send", new ChatJobPayload("crm", "42", "*hello*")), CancellationToken.None);
-        provider.SendResult = new ChatSendResult(false, Error: "bot blocked");
+        provider.SendResult = new BotSendResult(false, Error: "bot blocked");
         await Assert.ThrowsAsync<InvalidOperationException>(() => handler.HandleAsync(Job(JobQueues.Chat, "send", new ChatJobPayload("crm", "42", "again")), CancellationToken.None));
 
         var (message, _) = provider.Sent[0];
-        Assert.Equal(("42", "*hello*", ChatFormat.PlainText), (message.Recipient, message.Text, message.Format));
+        Assert.Equal(("42", "*hello*", BotFormat.PlainText), (message.Recipient, message.Text, message.Format));
     }
 
     // ------------------------------------------------------------------------------------------------ outbox and webhooks

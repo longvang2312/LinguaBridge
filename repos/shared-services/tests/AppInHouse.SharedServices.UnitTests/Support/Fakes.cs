@@ -170,24 +170,24 @@ internal static class FakeChatSecrets
 }
 
 /// <summary>A chat provider that records what it was given and answers as told.</summary>
-internal sealed class FakeChatProvider(ProviderType type) : AppInHouse.SharedServices.Application.Chat.IChatProvider
+internal sealed class FakeChatProvider(ProviderType type) : AppInHouse.SharedServices.Application.Notifications.Bots.IBotProvider
 {
     public ProviderType Type { get; } = type;
-    public List<(AppInHouse.SharedServices.Application.Chat.ChatMessage Message, ChannelRuntimeConfiguration Config)> Sent { get; } = [];
+    public List<(AppInHouse.SharedServices.Application.Notifications.Bots.BotMessage Message, ChannelRuntimeConfiguration Config)> Sent { get; } = [];
     public List<(ChannelRuntimeConfiguration Config, string Recipient, string Text)> Tested { get; } = [];
-    public AppInHouse.SharedServices.Application.Chat.ChatSendResult SendResult { get; set; } = new(true, "42", ProviderResponse: "Accepted (42)", Target: "-1001");
-    public AppInHouse.SharedServices.Application.Chat.ChatTestResult TestResult { get; set; } = new(true, "Test message accepted.", 5);
+    public AppInHouse.SharedServices.Application.Notifications.Bots.BotSendResult SendResult { get; set; } = new(true, "42", ProviderResponse: "Accepted (42)", Target: "-1001");
+    public AppInHouse.SharedServices.Application.Notifications.Bots.BotTestResult TestResult { get; set; } = new(true, "Test message accepted.", 5);
     public Exception? Throw { get; set; }
 
-    public Task<AppInHouse.SharedServices.Application.Chat.ChatSendResult> SendMessageAsync(
-        AppInHouse.SharedServices.Application.Chat.ChatMessage message, ChannelRuntimeConfiguration config, CancellationToken ct = default)
+    public Task<AppInHouse.SharedServices.Application.Notifications.Bots.BotSendResult> SendMessageAsync(
+        AppInHouse.SharedServices.Application.Notifications.Bots.BotMessage message, ChannelRuntimeConfiguration config, CancellationToken ct = default)
     {
         Sent.Add((message, config));
         if (Throw is not null) throw Throw;
         return Task.FromResult(SendResult);
     }
 
-    public Task<AppInHouse.SharedServices.Application.Chat.ChatTestResult> TestConnectionAsync(ChannelRuntimeConfiguration config, string testRecipient, string testMessage, CancellationToken ct = default)
+    public Task<AppInHouse.SharedServices.Application.Notifications.Bots.BotTestResult> TestConnectionAsync(ChannelRuntimeConfiguration config, string testRecipient, string testMessage, CancellationToken ct = default)
     {
         Tested.Add((config, testRecipient, testMessage));
         if (Throw is not null) throw Throw;

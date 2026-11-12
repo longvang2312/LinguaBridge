@@ -113,7 +113,7 @@ public class NotificationDispatcherTests
 
         var listed = await dispatcher.ListTemplatesAsync();
 
-        Assert.Equal(5, listed.Count);
+        Assert.Equal(7, listed.Count);
         foreach (var template in listed)
         {
             _sender.Emails.Clear();

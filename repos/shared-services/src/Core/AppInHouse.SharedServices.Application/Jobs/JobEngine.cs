@@ -47,9 +47,9 @@ public sealed class JobQueueService(
         [JobQueues.Webhook] = "Outbound webhook deliveries and inbound webhook processing",
     };
 
-    public async Task<Guid> EnqueueAsync(string queue, string type, object payload, CancellationToken cancellationToken = default)
+    public async Task<Guid> EnqueueAsync(string queue, string type, object payload, CancellationToken cancellationToken = default, TimeSpan? delay = null)
     {
-        var job = BackgroundJobRecord.Create(queue, type, JobJson.Serialize(payload), settings.MaxAttempts, clock.GetUtcNow());
+        var job = BackgroundJobRecord.Create(queue, type, JobJson.Serialize(payload), settings.MaxAttempts, clock.GetUtcNow(), delay);
         jobs.Add(job);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         channels.Write(new BackgroundJobItem(job.Id, job.Queue));

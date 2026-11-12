@@ -2,10 +2,10 @@ using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
 using AppInHouse.SharedServices.Domain;
 
-namespace AppInHouse.SharedServices.Application.Chat;
+namespace AppInHouse.SharedServices.Application.Notifications.Bots;
 
 /// <summary>How the text is meant to be read. <see cref="MarkdownV2"/> is Telegram's own dialect; the others adapt it to what each platform understands.</summary>
-public enum ChatFormat
+public enum BotFormat
 {
     /// <summary>The text is shown exactly as written: whatever a platform would treat as markup is neutralised.</summary>
     PlainText,
@@ -21,40 +21,40 @@ public enum ChatFormat
 /// One message, ready to send. <see cref="Recipient"/> is a chat id for Telegram, an optional channel override for Slack, and unused by
 /// Discord (a webhook always posts to the channel it was made for). Empty means "use the configuration's default".
 /// <see cref="Format"/> null means "as the configuration says" (Telegram's <c>parseMode</c> setting, otherwise plain text); a format given
-/// explicitly always wins, and <see cref="ChatFormat.PlainText"/> is always shown as written.
+/// explicitly always wins, and <see cref="BotFormat.PlainText"/> is always shown as written.
 /// Metadata keys the providers know: <c>safeEscape=true</c> escapes the text whatever the format.
 /// </summary>
-public sealed record ChatMessage(
-    string? Recipient, string Text, ChatFormat? Format, string ProjectCode, IReadOnlyDictionary<string, string>? Metadata = null);
+public sealed record BotMessage(
+    string? Recipient, string Text, BotFormat? Format, string ProjectCode, IReadOnlyDictionary<string, string>? Metadata = null);
 
 /// <summary>
 /// What a provider reports about one send. <see cref="Target"/> says where it went in words that are safe to store (a chat id, a channel
 /// name), never a webhook address or a token.
 /// </summary>
-public sealed record ChatSendResult(bool Success, string? ProviderMessageId = null, string? Error = null, string? ProviderResponse = null, string? Target = null);
+public sealed record BotSendResult(bool Success, string? ProviderMessageId = null, string? Error = null, string? ProviderResponse = null, string? Target = null);
 
-public sealed record ChatTestResult(bool Success, string Message, int LatencyMs);
+public sealed record BotTestResult(bool Success, string Message, int LatencyMs);
 
 /// <summary>
 /// One way of sending chat messages (Telegram Bot API, a Discord or Slack webhook, a mock). It is handed the configuration to use on every
 /// call, so activating a new version or rolling back takes effect at once. A provider reports failures in the result, with a message that
 /// contains neither the token nor the webhook address.
 /// </summary>
-public interface IChatProvider
+public interface IBotProvider
 {
     ProviderType Type { get; }
 
-    Task<ChatSendResult> SendMessageAsync(ChatMessage message, ChannelRuntimeConfiguration config, CancellationToken ct = default);
+    Task<BotSendResult> SendMessageAsync(BotMessage message, ChannelRuntimeConfiguration config, CancellationToken ct = default);
 
     /// <summary>Sends <paramref name="testMessage"/> to <paramref name="testRecipient"/> (empty: the configuration's default) with this configuration.</summary>
-    Task<ChatTestResult> TestConnectionAsync(ChannelRuntimeConfiguration config, string testRecipient, string testMessage, CancellationToken ct = default);
+    Task<BotTestResult> TestConnectionAsync(ChannelRuntimeConfiguration config, string testRecipient, string testMessage, CancellationToken ct = default);
 }
 
 /// <summary>Send one chat message for a project. Empty <see cref="Recipient"/> and null <see cref="Format"/> mean the configuration's defaults.</summary>
-public sealed record SendChatCommand(
-    string ProjectCode, string Text, string? Recipient = null, ChatFormat? Format = null, IReadOnlyDictionary<string, string>? Metadata = null);
+public sealed record SendBotMessageCommand(
+    string ProjectCode, string Text, string? Recipient = null, BotFormat? Format = null, IReadOnlyDictionary<string, string>? Metadata = null);
 
-public enum ChatFailure
+public enum BotFailure
 {
     None,
 
@@ -65,8 +65,8 @@ public enum ChatFailure
     ProviderFailure,
 }
 
-public sealed record SendChatResult(
-    bool Success, ChatFailure Failure, Guid? DeliveryLogId, int LatencyMs, string? Error,
+public sealed record SendBotMessageResult(
+    bool Success, BotFailure Failure, Guid? DeliveryLogId, int LatencyMs, string? Error,
     string? ConfigurationProject = null, int? ConfigurationVersion = null);
 
 /// <summary>
@@ -74,20 +74,20 @@ public sealed record SendChatResult(
 /// Without it, <see cref="ProviderType"/>, <see cref="SettingsJson"/> and <see cref="Secret"/> are tried from memory: nothing is stored,
 /// nothing is activated. <see cref="TestRecipient"/> and <see cref="TestMessage"/> are optional (the default chat, a stock sentence).
 /// </summary>
-public sealed record TestChatCommand(
+public sealed record TestBotCommand(
     string? TestRecipient = null, string? TestMessage = null, Guid? ConfigurationId = null,
     ProviderType? ProviderType = null, string? SettingsJson = null, string? Secret = null);
 
-public sealed record TestChatResult(bool Success, string Message, int LatencyMs, ProviderType ProviderType, bool UsedSavedConfiguration, Guid? ConfigurationId);
+public sealed record TestBotResult(bool Success, string Message, int LatencyMs, ProviderType ProviderType, bool UsedSavedConfiguration, Guid? ConfigurationId);
 
-public interface IChatDispatcher
+public interface INotificationBotDispatcher
 {
-    Task<SendChatResult> SendAsync(SendChatCommand command, CancellationToken cancellationToken = default);
+    Task<SendBotMessageResult> SendAsync(SendBotMessageCommand command, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<DeliveryLogDto>> RecentAsync(string? projectCode, int limit, CancellationToken cancellationToken = default);
 }
 
-public interface IChatTestService
+public interface INotificationBotTestService
 {
-    Task<TestChatResult> TestAsync(TestChatCommand command, CancellationToken cancellationToken = default);
+    Task<TestBotResult> TestAsync(TestBotCommand command, CancellationToken cancellationToken = default);
 }

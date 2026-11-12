@@ -1,7 +1,8 @@
 using AppInHouse.SharedServices.Application.Abstractions;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Configurations;
+using AppInHouse.SharedServices.Application.Conversations;
 using AppInHouse.SharedServices.Application.Email;
 using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Application.Storage;
@@ -42,25 +43,33 @@ public sealed class EmailJobHandler(IEmailDispatcher dispatcher) : IJobHandler
     }
 }
 
-public sealed class ChatJobHandler(IChatDispatcher dispatcher) : IJobHandler
+public sealed class ChatJobHandler(INotificationBotDispatcher dispatcher, IOfflineNotificationHandler? offline = null) : IJobHandler
 {
     public string Queue => JobQueues.Chat;
 
     public async Task HandleAsync(BackgroundJobRecord job, CancellationToken cancellationToken)
     {
+        // The queue also carries the notices to conversation members who stayed offline (a job type of their own).
+        if (job.Type == ConversationService.OfflineJobType)
+        {
+            if (offline is null) throw new JobPermanentFailureException("Offline notifications are not available.");
+            await offline.HandleAsync(JobJson.Read<OfflineNotificationPayload>(job), cancellationToken);
+            return;
+        }
+
         var payload = JobJson.Read<ChatJobPayload>(job);
-        SendChatResult result;
+        SendBotMessageResult result;
         try
         {
-            result = await dispatcher.SendAsync(new SendChatCommand(payload.Project, payload.Text, payload.Recipient, ChatFormat.PlainText), cancellationToken);
+            result = await dispatcher.SendAsync(new SendBotMessageCommand(payload.Project, payload.Text, payload.Recipient, BotFormat.PlainText), cancellationToken);
         }
         catch (Exception ex) when (ex is QuotaExceededException or ProjectInactiveException or ValidationException)
         {
             throw new JobPermanentFailureException(ex.Message);
         }
 
-        if (result.Failure == ChatFailure.NoConfiguration) throw new JobPermanentFailureException(result.Error ?? "There is no chat configuration.");
-        if (result.Failure != ChatFailure.None) throw new InvalidOperationException(result.Error ?? "The message could not be delivered.");
+        if (result.Failure == BotFailure.NoConfiguration) throw new JobPermanentFailureException(result.Error ?? "There is no chat configuration.");
+        if (result.Failure != BotFailure.None) throw new InvalidOperationException(result.Error ?? "The message could not be delivered.");
     }
 }
 

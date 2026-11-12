@@ -1,7 +1,8 @@
 using AppInHouse.SharedServices.Application.ApiKeys;
 using AppInHouse.SharedServices.Application.Audit;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Configurations;
+using AppInHouse.SharedServices.Application.Conversations;
 using AppInHouse.SharedServices.Application.Email;
 using AppInHouse.SharedServices.Application.Jobs;
 using AppInHouse.SharedServices.Application.Notifications;
@@ -29,14 +30,21 @@ public static class DependencyInjection
         services.AddScoped<IEmailTestService, EmailTestService>();
 
         // Chat: the providers (Telegram, Discord, Slack, mock) are registered by the infrastructure layer.
-        services.AddScoped<IChatDispatcher, ChatDispatcher>();
-        services.AddScoped<IChatTestService, ChatTestService>();
+        services.AddScoped<INotificationBotDispatcher, NotificationBotDispatcher>();
+        services.AddScoped<INotificationBotTestService, NotificationBotTestService>();
 
         // Storage: the providers (local disk, S3, mock) and the thumbnail service are registered by the infrastructure layer.
         services.AddScoped<IStorageService, StorageService>();
         services.AddScoped<IStorageTestService, StorageTestService>();
 
         AddPlatformServices(services);
+
+        // Conversations: the presence tracker and the realtime push come from the infrastructure layer and the host (without them nothing is pushed).
+        services.TryAddSingleton(new ConversationSettings());
+        services.TryAddSingleton<IChatRealtime, NoChatRealtime>();
+        services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IOfflineNotificationHandler, OfflineNotificationHandler>();
+        services.AddScoped<IChatMonitor, ChatMonitor>();
         return services;
     }
     /// <summary>Projects and quotas, notifications, the job engine, webhooks and metrics. Their stores and workers come from the other layers.</summary>

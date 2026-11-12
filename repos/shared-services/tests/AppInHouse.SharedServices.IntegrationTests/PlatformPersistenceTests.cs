@@ -23,7 +23,7 @@ public class PlatformPersistenceTests
         using (var scope = host.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<SharedServicesDbContext>();
-            Assert.Equal(["PasswordReset", "PaymentSuccess", "SecurityAlert", "SystemMaintenance", "UserRegistered"], await db.NotificationTemplates.Select(t => t.Code).OrderBy(c => c).ToListAsync());
+            Assert.Equal(["ChatMessageOfflineChat", "ChatMessageOfflineEmail", "PasswordReset", "PaymentSuccess", "SecurityAlert", "SystemMaintenance", "UserRegistered"], await db.NotificationTemplates.Select(t => t.Code).OrderBy(c => c).ToListAsync());
             Assert.Equal(["crm", "default", "identity", "linguabridge"], await db.ProjectTenants.Select(p => p.ProjectCode).OrderBy(c => c).ToListAsync());
             var crm = await db.ProjectTenants.SingleAsync(p => p.ProjectCode == "crm");
             Assert.Equal((ProjectEnvironment.Staging, 1000, 500), (crm.Environment, crm.DailyEmailQuota, crm.DailyChatQuota));
@@ -44,7 +44,7 @@ public class PlatformPersistenceTests
         using (var scope = host.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<SharedServicesDbContext>();
-            Assert.Equal(5, await db.NotificationTemplates.CountAsync());
+            Assert.Equal(7, await db.NotificationTemplates.CountAsync());
             Assert.Equal(4, await db.ProjectTenants.CountAsync());
             var crm = await db.ProjectTenants.SingleAsync(p => p.ProjectCode == "crm");
             Assert.Equal(("CRM renamed", ProjectEnvironment.Production, 7, (int?)null), (crm.Name, crm.Environment, crm.DailyEmailQuota, crm.DailyChatQuota));
@@ -162,7 +162,7 @@ public class PlatformPersistenceTests
         Assert.Equal(2, await usage.CountActiveApiKeysAsync(project, now));   // not the revoked one, not the expired one
         Assert.Equal(1, await usage.CountNotificationsAsync("Failed", since));
         Assert.Equal(2, await usage.CountNotificationsAsync(null, since));
-        Assert.Equal(5, await usage.CountActiveTemplatesAsync());
+        Assert.Equal(7, await usage.CountActiveTemplatesAsync());
         Assert.Equal(4, await usage.CountActiveProjectsAsync());
     }
 

@@ -1,12 +1,15 @@
 using System.Text.Encodings.Web;
 using System.Text.Json.Serialization;
 using AppInHouse.SharedServices.Api.Auth;
+using AppInHouse.SharedServices.Api.Chat;
 using AppInHouse.SharedServices.Api.Endpoints;
 using AppInHouse.SharedServices.Api.Errors;
 using AppInHouse.SharedServices.Api.Seeding;
 using AppInHouse.SharedServices.Application;
+using AppInHouse.SharedServices.Application.Conversations;
 using AppInHouse.SharedServices.Infrastructure;
 using AppInHouse.SharedServices.Persistence;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +18,11 @@ builder.Services.AddSharedServicesApplication();
 builder.Services.AddSharedServicesInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.AddSharedServicesPersistence(builder.Configuration);
 builder.Services.AddSharedServicesAuthentication(builder.Configuration);
+
+// Realtime chat: the hub pushes what the conversation service saves, and addresses users by "project:user".
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, ChatUserIdProvider>();
+builder.Services.Replace(ServiceDescriptor.Singleton<IChatRealtime, SignalRChatRealtime>());
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<SharedServicesExceptionHandler>();
@@ -69,8 +77,27 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger
 }
 
 // Swagger (above) is middleware, so the fallback policy never sees it; endpoints below are protected by default.
+// The chat hub's token comes in the address (browsers cannot set headers on a WebSocket); move it before authentication reads the headers.
+app.Use(async (context, next) =>
+{
+    HubAuthentication.MoveTokenFromQuery(context);
+    await next();
+});
 app.UseAuthentication();
 app.UseAuthorization();
+
+// A caller of the chat hub must say who is chatting; answering here (400/403) beats connecting and being dropped.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments(ChatHub.Path) && context.User.Identity?.IsAuthenticated == true
+        && !ChatActorResolver.TryResolve(context, null, out _, out var refusal))
+    {
+        await refusal!.ExecuteAsync(context);
+        return;
+    }
+
+    await next();
+});
 
 app.MapGet("/health", (TimeProvider clock) => Results.Ok(new HealthResponse("Healthy", "AppInHouse.SharedServices.Api", clock.GetUtcNow())))
     .WithName("GetHealth")
@@ -79,10 +106,12 @@ app.MapGet("/health", (TimeProvider clock) => Results.Ok(new HealthResponse("Hea
 
 app.MapChannelConfigurationEndpoints();
 app.MapEmailEndpoints();
-app.MapChatEndpoints();
+app.MapNotificationChannelEndpoints();
 app.MapStorageEndpoints();
 app.MapApiKeyEndpoints();
 app.MapPlatformEndpoints();
+app.MapConversationEndpoints();
+app.MapHub<ChatHub>(ChatHub.Path);
 
 app.Run();
 

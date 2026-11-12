@@ -10,7 +10,7 @@ public enum ChannelType
 
     Storage,
 
-    /// <summary>Instant messaging: Telegram, Discord, Slack.</summary>
+    /// <summary>The bots that send notifications out: Telegram, Discord, Slack (a notification channel, like <see cref="Email"/>).</summary>
     Chat,
 }
 
@@ -74,6 +74,17 @@ public static class ProviderCatalog
         provider is ProviderType.SendGrid or ProviderType.Brevo or ProviderType.TelegramBot or ProviderType.S3
             or ProviderType.DiscordWebhook or ProviderType.SlackWebhook;
 
-    /// <summary>The channels that carry chat messages; <see cref="ChannelType.Telegram"/> is the older name of <see cref="ChannelType.Chat"/>.</summary>
-    public static IReadOnlyList<ChannelType> ChatChannels { get; } = [ChannelType.Chat, ChannelType.Telegram];
+    /// <summary>
+    /// The channels of the bots that send messages out (Telegram, Discord, Slack). They belong to the notification service, which also owns
+    /// email: the real-time chat between users is a different thing and has no configuration here. <see cref="ChannelType.Telegram"/> is the
+    /// older name of <see cref="ChannelType.Chat"/>, and <see cref="ChannelType.Chat"/> keeps its name in stored configurations.
+    /// </summary>
+    public static IReadOnlyList<ChannelType> BotChannels { get; } = [ChannelType.Chat, ChannelType.Telegram];
+
+    /// <summary>Every channel the notification service sends through: email and the bots. Storage is not one of them.</summary>
+    public static IReadOnlyList<ChannelType> NotificationChannels { get; } = [ChannelType.Email, ChannelType.Chat, ChannelType.Telegram];
+
+    public static bool IsNotificationChannel(ChannelType channel) => NotificationChannels.Contains(channel);
+
+    public static bool IsBotChannel(ChannelType channel) => BotChannels.Contains(channel);
 }

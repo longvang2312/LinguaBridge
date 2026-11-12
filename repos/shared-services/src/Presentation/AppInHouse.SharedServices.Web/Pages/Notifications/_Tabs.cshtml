@@ -1,0 +1,6 @@
+@model string
+@* The two pages of the notification service: templates and sending, and the channels (the bots) that carry the messages. *@
+<ul class="nav nav-tabs mb-3" id="notification-tabs">
+    <li class="nav-item"><a class="nav-link @(Model == "hub" ? "active" : string.Empty)" id="tab-hub" asp-page="/Notifications/Index">Mẫu &amp; Gửi Thông Báo</a></li>
+    <li class="nav-item"><a class="nav-link @(Model == "channels" ? "active" : string.Empty)" id="tab-channels" asp-page="/Notifications/Channels">Kênh &amp; Bot Gửi Tin</a></li>
+</ul>

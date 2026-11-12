@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
 using AppInHouse.SharedServices.Application.Abstractions;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.Application.Email;
@@ -57,7 +57,7 @@ public interface INotificationChannelSender
 }
 
 /// <summary>
-/// Sends through <see cref="IEmailDispatcher"/> and <see cref="IChatDispatcher"/>, each call in a scope of its own: both save to the
+/// Sends through <see cref="IEmailDispatcher"/> and <see cref="INotificationBotDispatcher"/>, each call in a scope of its own: both save to the
 /// database, and one database context must not be used by two requests at once.
 /// </summary>
 public sealed class ScopedNotificationChannelSender(IServiceScopeFactory scopes) : INotificationChannelSender
@@ -82,9 +82,9 @@ public sealed class ScopedNotificationChannelSender(IServiceScopeFactory scopes)
         await using var scope = scopes.CreateAsyncScope();
         try
         {
-            var result = await scope.ServiceProvider.GetRequiredService<IChatDispatcher>()
-                .SendAsync(new SendChatCommand(projectCode, text, recipient, ChatFormat.PlainText), cancellationToken);
-            return new ChannelSendOutcome(result.Failure == ChatFailure.None, result.Error, result.DeliveryLogId);
+            var result = await scope.ServiceProvider.GetRequiredService<INotificationBotDispatcher>()
+                .SendAsync(new SendBotMessageCommand(projectCode, text, recipient, BotFormat.PlainText), cancellationToken);
+            return new ChannelSendOutcome(result.Failure == BotFailure.None, result.Error, result.DeliveryLogId);
         }
         catch (QuotaExceededException quota)
         {

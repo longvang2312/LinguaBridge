@@ -26,6 +26,9 @@ public sealed class SharedServicesDbContext(DbContextOptions<SharedServicesDbCon
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
     public DbSet<InboundWebhookLog> InboundWebhookLogs => Set<InboundWebhookLog>();
     public DbSet<BackgroundJobRecord> BackgroundJobs => Set<BackgroundJobRecord>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ConversationMember> ConversationMembers => Set<ConversationMember>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     /// <summary>jsonb on PostgreSQL, plain text on SQLite (development and tests).</summary>
     internal bool UsesJsonb => Database.IsNpgsql();

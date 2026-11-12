@@ -19,8 +19,8 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
     public SendTestEmailRequest? LastTestRequest { get; private set; }
     public SaveChannelConfigurationRequest? LastSave { get; private set; }
     public List<DeliveryLogDto> ChatLogs { get; set; } = [];
-    public SendTestChatMessageResponse? ChatTestResponse { get; set; }
-    public SendTestChatMessageRequest? LastChatTestRequest { get; private set; }
+    public TestBotChannelResponse? ChatTestResponse { get; set; }
+    public TestBotChannelRequest? LastChatTestRequest { get; private set; }
 
     private void Enter(string call)
     {
@@ -76,20 +76,45 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
         return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(Logs);
     }
 
-    public Task<SendChatMessageResponse> SendChatMessageAsync(SendChatMessageRequest request, CancellationToken cancellationToken = default)
+    // ---- notification channels (the bots)
+
+    public Task<IReadOnlyList<ChannelConfigurationResponse>> GetNotificationChannelsAsync(string? projectCode = null, string kind = "bot", string? status = null, CancellationToken cancellationToken = default)
     {
-        Enter($"send-chat:{request.Text}");
-        return Task.FromResult(new SendChatMessageResponse(true, "Sent", Guid.NewGuid(), 1, "default", 1));
+        Enter($"channels:{projectCode}:{kind}:{status}");
+        var wanted = kind switch { "email" => new[] { "Email" }, "all" => new[] { "Email", "Chat", "Telegram" }, _ => new[] { "Chat", "Telegram" } };
+        return Task.FromResult<IReadOnlyList<ChannelConfigurationResponse>>([.. Items.Where(c =>
+            wanted.Contains(c.ChannelType)
+            && (string.IsNullOrWhiteSpace(projectCode) || c.ProjectCode == projectCode)
+            && (string.IsNullOrWhiteSpace(status) || c.Status.Equals(status, StringComparison.OrdinalIgnoreCase)))]);
     }
 
-    public Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default)
+    public Task<ChannelConfigurationResponse> GetNotificationChannelAsync(Guid id, CancellationToken cancellationToken = default) => GetConfigurationAsync(id, cancellationToken);
+
+    public Task<ChannelConfigurationResponse> SaveNotificationChannelAsync(SaveNotificationChannelRequest request, CancellationToken cancellationToken = default) =>
+        SaveConfigurationAsync(new SaveChannelConfigurationRequest(request.ProjectCode, request.ChannelType ?? "Chat", request.ProviderType, request.Name, request.Settings, request.Secret), cancellationToken);
+
+    public Task<ChannelConfigurationResponse> ActivateNotificationChannelAsync(Guid id, CancellationToken cancellationToken = default) => ActivateConfigurationAsync(id, cancellationToken);
+
+    public Task<ChannelConfigurationResponse> RollbackNotificationChannelAsync(RollbackNotificationChannelRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"rollback:{request.Name}");
+        return Task.FromResult(Items.First());
+    }
+
+    public Task<TestBotChannelResponse> TestNotificationChannelAsync(TestBotChannelRequest request, CancellationToken cancellationToken = default)
     {
         Enter($"test-chat:{request.ConfigurationId?.ToString() ?? "unsaved"}:{request.ProviderType}");
         LastChatTestRequest = request;
-        return Task.FromResult(ChatTestResponse ?? new SendTestChatMessageResponse(true, "Test message accepted.", 9, request.ProviderType ?? "TelegramBot", request.ConfigurationId is not null, request.ConfigurationId));
+        return Task.FromResult(ChatTestResponse ?? new TestBotChannelResponse(true, "Test message accepted.", 9, request.ProviderType ?? "TelegramBot", request.ConfigurationId is not null, request.ConfigurationId));
     }
 
-    public Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
+    public Task<SendBotMessageResponse> SendNotificationChannelMessageAsync(SendBotMessageRequest request, CancellationToken cancellationToken = default)
+    {
+        Enter($"send-chat:{request.Text}");
+        return Task.FromResult(new SendBotMessageResponse(true, "Sent", Guid.NewGuid(), 1, "default", 1));
+    }
+
+    public Task<IReadOnlyList<DeliveryLogDto>> GetBotDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
     {
         Enter($"chat-logs:{projectCode}:{limit}");
         return Task.FromResult<IReadOnlyList<DeliveryLogDto>>(ChatLogs);
@@ -321,6 +346,47 @@ public sealed class FakeSharedServicesClient : ISharedServicesClient
         var overview = Overview ?? HealthyOverview();
         return Task.FromResult(new HealthStatusDto("Healthy", overview.GeneratedAt, overview.Services));
     }
+
+    // ---- conversations
+
+    public ChatMonitorDto? ChatMonitor { get; set; }
+    public RealtimeCheckResult? RealtimeResult { get; set; }
+    public string? LastMonitorProject { get; private set; }
+
+    public static ChatMonitorDto SampleMonitor(string? project = "default") => new(
+        project, 3, 2, 1, 12, 2, 3, ["lan", "minh"],
+        [new MonitoredConversationDto(Guid.NewGuid(), project ?? "default", "Group", "Team LinguaBridge", 4, 9, DateTimeOffset.UtcNow.AddMinutes(-3)),
+         new MonitoredConversationDto(Guid.NewGuid(), project ?? "default", "Direct", null, 2, 3, DateTimeOffset.UtcNow.AddHours(-1))]);
+
+    public Task<ChatMonitorDto> GetChatMonitorAsync(string? projectCode = null, CancellationToken cancellationToken = default)
+    {
+        Enter("chat-monitor");
+        LastMonitorProject = projectCode;
+        return Task.FromResult(ChatMonitor ?? SampleMonitor(projectCode));
+    }
+
+    public Task<RealtimeCheckResult> CheckRealtimeAsync(CancellationToken cancellationToken = default)
+    {
+        Enter("realtime-check");
+        return Task.FromResult(RealtimeResult ?? new RealtimeCheckResult(true, "The hub is reachable and offers WebSockets.", ["WebSockets", "ServerSentEvents", "LongPolling"], 4, 200));
+    }
+
+    // The conversation calls of a user are not used by the portal.
+    public Task<CreateConversationResponse> CreateConversationAsync(ChatUser user, CreateConversationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<ConversationSummaryDto>> GetConversationsAsync(ChatUser user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<MessagePageDto> GetConversationMessagesAsync(ChatUser user, Guid conversationId, DateTimeOffset? before = null, Guid? beforeId = null, int? limit = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<ChatMessageDto> SendConversationMessageAsync(ChatUser user, Guid conversationId, string content, Guid? attachmentFileId = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<DateTimeOffset> MarkConversationReadAsync(ChatUser user, Guid conversationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<ConversationDto> RenameConversationAsync(ChatUser user, Guid conversationId, string title, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<ConversationDto> AddConversationMembersAsync(ChatUser user, Guid conversationId, IReadOnlyList<ChatMemberRequest> members, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task RemoveConversationMemberAsync(ChatUser user, Guid conversationId, string userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
     // ---- storage
 

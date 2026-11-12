@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using AppInHouse.SharedServices.Domain;
 
-namespace AppInHouse.SharedServices.Application.Chat;
+namespace AppInHouse.SharedServices.Application.Notifications.Bots;
 
 /// <summary>How Telegram should read the text of a message that has no format of its own.</summary>
 public enum TelegramParseMode
@@ -13,7 +13,7 @@ public enum TelegramParseMode
 }
 
 /// <summary>The non-secret part of a chat configuration (the keys of <c>SettingsJson</c>). The bot token or webhook address is the secret and is separate.</summary>
-public sealed record ChatSettings(
+public sealed record BotSettings(
     string? DefaultChatId, TelegramParseMode ParseMode, string? DefaultUsername, string? AvatarUrl, string? DefaultChannel, string? IconEmoji);
 
 /// <summary>
@@ -21,7 +21,7 @@ public sealed record ChatSettings(
 /// <c>defaultUsername, avatarUrl</c> for Discord and <c>defaultChannel, iconEmoji</c> for Slack. Nothing here is required: the recipient
 /// can come with each message.
 /// </summary>
-public static partial class ChatSettingsReader
+public static partial class BotSettingsReader
 {
     [GeneratedRegex(@"^(-?\d{1,20}|@[A-Za-z0-9_]{5,32})$")]
     private static partial Regex TelegramChatId();
@@ -33,7 +33,7 @@ public static partial class ChatSettingsReader
     [GeneratedRegex(@"^:[A-Za-z0-9_+-]{1,50}:$")]
     private static partial Regex Emoji();
 
-    public static ChatSettings Read(JsonElement settings)
+    public static BotSettings Read(JsonElement settings)
     {
         string? Text(string name) =>
             settings.ValueKind == JsonValueKind.Object && settings.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
@@ -41,7 +41,7 @@ public static partial class ChatSettingsReader
                 : null;
 
         var parseMode = Enum.TryParse<TelegramParseMode>(Text("parseMode"), ignoreCase: true, out var parsed) ? parsed : TelegramParseMode.PlainText;
-        return new ChatSettings(Text("defaultChatId"), parseMode, Text("defaultUsername"), Text("avatarUrl"), Text("defaultChannel"), Text("iconEmoji"));
+        return new BotSettings(Text("defaultChatId"), parseMode, Text("defaultUsername"), Text("avatarUrl"), Text("defaultChannel"), Text("iconEmoji"));
     }
 
     /// <summary>The problems with these settings; empty when they are fine.</summary>
@@ -85,7 +85,7 @@ public static partial class ChatSettingsReader
 /// call an arbitrary server (and send it the message). The Telegram bot token ends up in a URL path, so it may hold no character that could
 /// change that path. Messages never repeat the value.
 /// </summary>
-public static partial class ChatSecretRules
+public static partial class BotSecretRules
 {
     private static readonly string[] DiscordHosts = ["discord.com", "discordapp.com"];
 
@@ -130,7 +130,7 @@ public static partial class ChatSecretRules
 }
 
 /// <summary>Neutralises what each platform would otherwise read as markup, so a text sent as plain text arrives as written.</summary>
-public static class ChatMarkup
+public static class BotMarkup
 {
     // Telegram MarkdownV2: these must all be escaped with a backslash anywhere in the text, or the API answers 400 "can't parse entities".
     private const string TelegramSpecials = "_*[]()~`>#+-=|{}.!\\";

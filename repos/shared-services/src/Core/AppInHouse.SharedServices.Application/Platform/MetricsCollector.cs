@@ -60,7 +60,7 @@ public sealed class MetricsCollector(
         var since = now.AddHours(-24);
         var until = now.AddMinutes(5);
         ChannelType[] email = [ChannelType.Email];
-        var chat = ProviderCatalog.ChatChannels;
+        var chat = ProviderCatalog.BotChannels;
 
         var emailSent = await usage.CountDeliveriesAsync(null, email, DeliveryStatus.Sent, since, until, ct);
         var emailFailed = await usage.CountDeliveriesAsync(null, email, DeliveryStatus.Failed, since, until, ct);

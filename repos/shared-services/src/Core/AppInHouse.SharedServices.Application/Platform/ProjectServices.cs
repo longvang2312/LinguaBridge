@@ -24,7 +24,7 @@ public sealed class QuotaGuard(IProjectRepository projects, IUsageRepository usa
         if (limit is not { } allowed) return;
 
         var (from, to) = Today(clock.GetUtcNow());
-        var channels = chat ? ProviderCatalog.ChatChannels : [ChannelType.Email];
+        var channels = chat ? ProviderCatalog.BotChannels : [ChannelType.Email];
         var used = await usage.CountDeliveriesAsync(tenant.ProjectCode, channels, DeliveryStatus.Sent, from, to, cancellationToken);
         if (used >= allowed)
         {
@@ -130,7 +130,7 @@ public sealed class ProjectManager(
         var now = clock.GetUtcNow();
         var (from, to) = QuotaGuard.Today(now);
         var emails = await usage.CountDeliveriesAsync(code, [ChannelType.Email], DeliveryStatus.Sent, from, to, cancellationToken);
-        var chats = await usage.CountDeliveriesAsync(code, ProviderCatalog.ChatChannels, DeliveryStatus.Sent, from, to, cancellationToken);
+        var chats = await usage.CountDeliveriesAsync(code, ProviderCatalog.BotChannels, DeliveryStatus.Sent, from, to, cancellationToken);
         return new ProjectUsageDto(
             code, DateOnly.FromDateTime(from.UtcDateTime), emails, tenant.DailyEmailQuota, chats, tenant.DailyChatQuota,
             await usage.SumStorageBytesAsync(code, cancellationToken), tenant.StorageQuotaBytes,

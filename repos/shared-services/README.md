@@ -1,6 +1,6 @@
 # AppInHouse Shared Services
 
-Shared infrastructure for the AppInHouse projects: **email, chat (Telegram, Discord, Slack) and file storage**, configured at run time
+Shared infrastructure for the AppInHouse projects: **email, notifications through bots (Telegram, Discord, Slack), realtime chat between people, and file storage**, configured at run time
 (no deploy to change a password or switch provider), with API keys per project, an audit trail, and a web portal to manage it all.
 Design: `docs/architecture/shared_services_design.md`.
 
@@ -9,10 +9,10 @@ Design: `docs/architecture/shared_services_design.md`.
 | Project | Role |
 |---|---|
 | `Domain` | Entities and rules, no dependencies: `ChannelConfiguration` and its version rules, `ApiKey`, `StoredFile`, the four logs |
-| `Application` | Use cases and validation: `ChannelConfigManager`, `EmailDispatcher`, `ChatDispatcher`, `StorageService`, `ApiKeyManager`, `AuditLogReader`; the interfaces the other layers implement |
+| `Application` | Use cases and validation: `ChannelConfigManager`, `EmailDispatcher`, `NotificationBotDispatcher` (the bots), `ConversationService` (realtime chat), `StorageService`, `ApiKeyManager`, `AuditLogReader`; the interfaces the other layers implement |
 | `Persistence` | EF Core: `SharedServicesDbContext` (schema `shared`, snake_case), repositories, PostgreSQL migration |
-| `Infrastructure` | The providers (SMTP/SendGrid, Telegram/Discord/Slack, local disk/S3, mocks), the thumbnail service, `DataProtectionSecretProtector` |
-| `Api` | REST API, port **5030**: `/health`, `/api/v1/...`, Swagger in development |
+| `Infrastructure` | The providers (SMTP/SendGrid, the Telegram/Discord/Slack bots, local disk/S3, mocks), the presence tracker of the chat hub, the thumbnail service, `DataProtectionSecretProtector` |
+| `Api` | REST API, port **5030**: `/health`, `/api/v1/...`, the SignalR hub `/hubs/chat`, Swagger in development |
 | `Web` | Management portal, port **5031**: Razor Pages and Bootstrap 5; talks to the API through the client SDK only |
 | `ClientSdk` | Typed .NET client (`ISharedServicesClient`) with no reference to the service's own projects |
 
@@ -81,17 +81,73 @@ services.AddSharedServicesClient(options =>
     options.BaseAddress = new Uri("http://localhost:5030");
     options.ApiKey = "aih_live_...";          // from configuration or a secret store, never from code
 });
-// then inject ISharedServicesClient: SendEmailAsync, SendChatMessageAsync, UploadFileAsync, ...
+// then inject ISharedServicesClient: SendEmailAsync, SendNotificationChannelMessageAsync, UploadFileAsync, ...
 ```
 
-`ISharedServicesClient` covers configurations (list, get, save, activate, rollback), email (send, test, delivery logs), chat (send, test,
-delivery logs), storage (upload, download, thumbnail, metadata, list, delete, test, media logs, queue a thumbnail rebuild), API keys (create, list,
+`ISharedServicesClient` covers configurations (list, get, save, activate, rollback), email (send, test, delivery logs), notification channels
+(the bots: list, get, save, activate, rollback, test, `SendNotificationChannelMessageAsync`, delivery logs), realtime chat (`CreateConversationAsync`,
+`GetConversationsAsync`, `GetConversationMessagesAsync`, `SendConversationMessageAsync`, mark read, rename, add and remove members, the monitor), storage (upload, download, thumbnail, metadata, list, delete, test, media logs, queue a thumbnail rebuild), API keys (create, list,
 revoke, rotate), the audit log, and the platform services: notifications (dispatch, templates, logs), background jobs (queues, retry, schedules),
 webhooks (subscriptions, test, inbound sources), projects (list, create, update, usage) and metrics (overview, health status).
 
 ## The platform services
 
-Eight services share one API. The first three (email, chat, storage) are described above; the rest sit on top of them.
+Eight services share one API:
+
+| # | Service | Where |
+|---|---|---|
+| 1 | Email | `/api/v1/emails/*`, configurations at `/api/v1/channel-configurations` |
+| 2 | Chat (realtime, person to person) | `/api/v1/chat/*` and the hub `/hubs/chat` (below) |
+| 3 | Media & Storage | `/api/v1/storage/*` and the storage configurations |
+| 4 | Project & Access | `/api/v1/projects/*`, `/api/v1/api-keys/*` |
+| 5 | Notifications (omnichannel, **owns the bots**) | `/api/v1/notifications/*` (dispatch, templates, logs, `channels/*`) |
+| 6 | Background jobs | `/api/v1/jobs/*` |
+| 7 | Webhooks | `/api/v1/webhooks/*` |
+| 8 | Monitoring & Audit | `/api/v1/metrics/*`, `/api/v1/audit-logs`, the delivery, media and system logs |
+
+### Bots: the Notification Service
+
+Telegram, Discord and Slack bots are channels of the **Notification Service**. There is one address for each job and no alias:
+
+| Job | Endpoint | Scope |
+|---|---|---|
+| List channels (`kind=bot\|email\|all`) | `GET /api/v1/notifications/channels` | `config:read` |
+| Save a draft / activate / roll back | `POST .../channels`, `POST .../channels/{id}/activate`, `POST .../channels/rollback` | `config:write` |
+| Try a bot (saved, or from memory: nothing is saved) | `POST /api/v1/notifications/channels/test` | `config:write` |
+| Send through the active bot | `POST /api/v1/notifications/channels/send` | `chat:send` |
+| Delivery logs (no text, no token) | `GET /api/v1/notifications/channels/delivery-logs` | `config:read` |
+
+The older `POST /api/v1/chat/send`, `/chat/messages`, `/chat/test`, `/telegram/test` and `GET /chat/delivery-logs` were **removed** (404): the `/api/v1/chat/...`
+prefix is for realtime chat only. Stored bot configurations did not move (the channel type is still `Chat`/`Telegram` in the table), so nothing needs migrating.
+The portal manages them at **Notifications → Kênh & Bot** (`/Notifications/Channels`).
+
+### Realtime chat
+
+People talk to people, one to one or in groups, with the history kept in the database and delivery pushed over a SignalR hub.
+
+| Job | Endpoint |
+|---|---|
+| Create a direct or group conversation / list the caller's | `POST` / `GET /api/v1/chat/conversations` |
+| History (keyset: `before`, `limit`) / send | `GET` / `POST /api/v1/chat/conversations/{id}/messages` |
+| Mark read | `POST /api/v1/chat/conversations/{id}/read` |
+| Add members / remove one or leave | `POST /api/v1/chat/conversations/{id}/members`, `DELETE .../members/{userId}` |
+| Monitor (platform view: counts, who is online; no message text) | `GET /api/v1/chat/monitor` |
+| Live | the SignalR hub `/hubs/chat` (`SendMessage`, `MarkAsRead`, `Typing`, `GetOnlinePeers`) |
+
+- **Scope** `chat:converse`. **Who is chatting** is never taken from the request body: a project's API key speaks for one of its users, named in the
+  `X-Chat-User` header (and `X-Chat-User-Name`, percent-encoded UTF-8), in the key's own project only; a bearer token speaks for its own `sub` and the headers are ignored.
+  A `senderId` in a body is ignored, the sender is always the caller.
+- **Only members** read or write a conversation: anyone else gets **403** for the history, a message, a read mark, a new member, and learns nothing about the room.
+- **WebSocket tokens.** A browser cannot set headers on a WebSocket, so SignalR sends `?access_token=`. For `/hubs/chat` only, and only when the call carries no
+  header credential, the token is moved into the `Authorization` header and **removed from the address** before the rest of the pipeline sees it; an API key is
+  never read from the address. The default log levels do not log the address of a request (`Microsoft.AspNetCore` is `Warning`), but a reverse proxy
+  in front of the API logs it: configure the proxy to log the path without the query string for `/hubs/`.
+- **The notice never goes beyond the sender's scopes.** The contact details of a member (email, bot chat id) are typed by the caller, so the notice goes out only by the
+  ways the *sender's* credential may send: email needs `email:send`, the bot needs `chat:send` (a bearer token: the same scopes). A key with `chat:converse` only
+  chats and sends nothing outside the service. The permission is recorded when the message is saved and travels in the job.
+- **Offline notice.** If a member of a one-to-one conversation is not connected `Chat:OfflineGraceSeconds` (20) after a message, one job on the `chat` queue
+  sends the notice through the Notification Service (email, or the bot, whichever the person has; it carries only the sender and the first 100 characters of the message).
+
 
 | Service | Endpoints | In short |
 |---|---|---|
@@ -112,7 +168,7 @@ A project key sees only its own subscriptions, notifications and usage; jobs, sc
   "Last used" is recorded at most once a minute per key.
 - **Rotation**: `POST /api/v1/api-keys/{id}/rotate?graceDays=7` (or the portal's button) makes a new key like the old one; both work during the
   grace period, then the old one stops. A project can hold several keys at once.
-- Scopes: `config:read`, `config:write`, `email:send`, `chat:send`, `storage:upload` (also lets a key read its own project's files),
+- Scopes: `config:read`, `config:write`, `email:send`, `chat:send` (send through the bots), `chat:converse` (realtime chat), `storage:upload` (also lets a key read its own project's files),
   `storage:read`, `storage:delete`.
 - Only a **platform** key (project `default`) can create, revoke and rotate keys, and read the audit log: a project key that could mint keys
   could give itself any scope and outlive its own revocation. A project key may list its own project's keys.
@@ -142,6 +198,7 @@ file reads and deletes, and the logs. A *public* file can be read by anyone; it 
 | `Storage:AllowPrivateNetworkHosts` | Whether an S3 `serviceUrl` (MinIO, R2) may be on a private or loopback network (off). **Independent of** `Email:AllowPrivateNetworkHosts`. Link-local and metadata addresses are never allowed |
 | `Email:AllowPrivateNetworkHosts` | The same switch for SMTP hosts (off) |
 | `Chat:TelegramBaseUrl` | The Telegram Bot API address (a host setting on purpose: the bot token is in the request path) |
+| `Chat:OfflineGraceSeconds` | How long a member must stay offline before the notice of a one-to-one message goes out (20) |
 | `Jobs:RetryDelaysSeconds` | The waits between attempts (default 1, 5, 15). The number of attempts is one more than the number of waits |
 | `Jobs:WorkersPerQueue`, `Jobs:LogRetentionDays`, `Jobs:FinishedJobRetentionDays`, `Jobs:MetricsCacheSeconds`, `Jobs:SchedulesEnabled` | Workers (2), retention (90 and 7 days), how long a metrics snapshot is reused (60 s), the timer of the scheduled tasks |
 | `Webhooks:AllowPrivateNetworkHosts` | Whether an outbound webhook may go to a private or loopback address (off; **switch on where the applications are on the same private network**). Link-local and metadata addresses are never allowed. Independent of the email and storage switches |

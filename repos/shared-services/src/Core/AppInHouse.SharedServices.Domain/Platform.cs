@@ -426,7 +426,7 @@ public sealed class BackgroundJobRecord
     public DateTimeOffset UpdatedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
 
-    public static BackgroundJobRecord Create(string queue, string type, string payloadJson, int maxAttempts, DateTimeOffset now)
+    public static BackgroundJobRecord Create(string queue, string type, string payloadJson, int maxAttempts, DateTimeOffset now, TimeSpan? delay = null)
     {
         if (!JobQueues.IsKnown(queue)) throw new DomainException($"Unknown queue '{queue}'.");
         if (string.IsNullOrWhiteSpace(type)) throw new DomainException("A job needs a type.");
@@ -440,7 +440,7 @@ public sealed class BackgroundJobRecord
             PayloadJson = payloadJson,
             Status = JobStatus.Pending,
             MaxAttempts = maxAttempts,
-            NextAttemptAt = now,
+            NextAttemptAt = delay is { } wait && wait > TimeSpan.Zero ? now + wait : now,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -493,6 +493,9 @@ public sealed class BackgroundJobRecord
 /// <summary>The notification templates and projects every installation starts with.</summary>
 public static class PlatformDefaults
 {
+    public const string ChatOfflineEmailTemplate = "ChatMessageOfflineEmail";
+    public const string ChatOfflineChatTemplate = "ChatMessageOfflineChat";
+
     public static IReadOnlyList<(string Code, string Name, string Subject, string Body, NotificationChannel Channel, NotificationPriority Priority)> Templates { get; } =
     [
         ("UserRegistered", "Chào mừng người dùng mới", "Chào mừng {{UserName}} đến với {{AppName}}",
@@ -510,6 +513,13 @@ public static class PlatformDefaults
         ("PaymentSuccess", "Thanh toán thành công", "Đã nhận thanh toán {{Amount}} cho {{PlanName}}",
             "Xin chào {{UserName}},\n\nChúng tôi đã nhận thanh toán {{Amount}} cho gói {{PlanName}}. Mã giao dịch: {{TransactionId}}.",
             NotificationChannel.Email, NotificationPriority.Normal),
+        // Sent by the chat service to a conversation member who is offline (the other stock templates are for the applications).
+        (ChatOfflineEmailTemplate, "Tin nhắn mới (email)", "Tin nhắn mới từ {{SenderName}}",
+            "🔔 Bạn có tin nhắn mới từ {{SenderName}}: '{{Preview}}' trong AppInHouse",
+            NotificationChannel.Email, NotificationPriority.Normal),
+        (ChatOfflineChatTemplate, "Tin nhắn mới (chat)", "Tin nhắn mới từ {{SenderName}}",
+            "🔔 Bạn có tin nhắn mới từ {{SenderName}}: '{{Preview}}' trong AppInHouse",
+            NotificationChannel.Chat, NotificationPriority.Normal),
     ];
 
     public static IReadOnlyList<(string Code, string Name, string Description, ProjectEnvironment Environment, int? Emails, int? Chats, long? StorageBytes)> Projects { get; } =

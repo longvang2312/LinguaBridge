@@ -7,22 +7,22 @@ using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Domain;
 using Microsoft.Extensions.Logging;
 
-namespace AppInHouse.SharedServices.Application.Chat;
+namespace AppInHouse.SharedServices.Application.Notifications.Bots;
 
 /// <summary>
 /// Sends a chat message for a project: picks the project's active chat configuration (or the "default" project's), routes to the provider
 /// that configuration names, measures the time, and writes the outcome to the delivery log. The log keeps who it was for (a chat id, a
 /// channel), whether it went out, the provider's short answer and the time; never the message, a bot token or a webhook address.
 /// </summary>
-public sealed class ChatDispatcher(
+public sealed class NotificationBotDispatcher(
     IChannelConfigManager configurations,
-    IEnumerable<IChatProvider> providers,
+    IEnumerable<IBotProvider> providers,
     IDeliveryLogRepository deliveryLogs,
     IUnitOfWork unitOfWork,
     TimeProvider clock,
-    ILogger<ChatDispatcher> logger,
+    ILogger<NotificationBotDispatcher> logger,
     IQuotaGuard? quotas = null,
-    IEventPublisher? events = null) : IChatDispatcher
+    IEventPublisher? events = null) : INotificationBotDispatcher
 {
     public const string FallbackProject = "default";
 
@@ -32,7 +32,7 @@ public sealed class ChatDispatcher(
     private const int MaxRecentLogs = 100;
     private const int MaxMetadataEntries = 20;
 
-    public async Task<SendChatResult> SendAsync(SendChatCommand command, CancellationToken cancellationToken = default)
+    public async Task<SendBotMessageResult> SendAsync(SendBotMessageCommand command, CancellationToken cancellationToken = default)
     {
         var project = ChannelConfigurationValidator.NormalizeProjectCode(command.ProjectCode);
         var message = Prepare(command, project);
@@ -45,7 +45,7 @@ public sealed class ChatDispatcher(
         }
         catch (SecretProtectionException)
         {
-            return await Record(project, ChannelType.Chat, message.Recipient, ChatFailure.ProviderFailure,
+            return await Record(project, ChannelType.Chat, message.Recipient, BotFailure.ProviderFailure,
                 "The stored chat credentials cannot be read; enter them again.", 0, null, cancellationToken);
         }
 
@@ -54,18 +54,18 @@ public sealed class ChatDispatcher(
             var error = project == FallbackProject
                 ? "There is no active chat configuration."
                 : $"Project '{project}' has no active chat configuration, and neither has '{FallbackProject}'.";
-            return await Record(project, ChannelType.Chat, message.Recipient, ChatFailure.NoConfiguration, error, 0, null, cancellationToken);
+            return await Record(project, ChannelType.Chat, message.Recipient, BotFailure.NoConfiguration, error, 0, null, cancellationToken);
         }
 
         var provider = providers.FirstOrDefault(p => p.Type == configuration.ProviderType);
         if (provider is null)
         {
-            return await Record(project, configuration.ChannelType, message.Recipient, ChatFailure.ProviderFailure,
+            return await Record(project, configuration.ChannelType, message.Recipient, BotFailure.ProviderFailure,
                 $"The {configuration.ProviderType} chat provider is not available.", 0, configuration, cancellationToken);
         }
 
         var stopwatch = Stopwatch.StartNew();
-        ChatSendResult result;
+        BotSendResult result;
         try
         {
             result = await provider.SendMessageAsync(message, configuration, cancellationToken);
@@ -77,30 +77,30 @@ public sealed class ChatDispatcher(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "The {Provider} chat provider threw while sending for project {Project}.", configuration.ProviderType, project);
-            result = new ChatSendResult(false, Error: ErrorText.Clean(ex.Message, configuration.Secret));
+            result = new BotSendResult(false, Error: ErrorText.Clean(ex.Message, configuration.Secret));
         }
 
         stopwatch.Stop();
         var latency = (int)Math.Min(stopwatch.ElapsedMilliseconds, int.MaxValue);
         var target = result.Target ?? message.Recipient;
         return result.Success
-            ? await Record(project, configuration.ChannelType, target, ChatFailure.None,
+            ? await Record(project, configuration.ChannelType, target, BotFailure.None,
                 ErrorText.Clean(result.ProviderResponse ?? result.ProviderMessageId ?? "Accepted", configuration.Secret), latency, configuration, cancellationToken)
-            : await Record(project, configuration.ChannelType, target, ChatFailure.ProviderFailure,
+            : await Record(project, configuration.ChannelType, target, BotFailure.ProviderFailure,
                 ErrorText.Clean(result.Error, configuration.Secret), latency, configuration, cancellationToken);
     }
 
     public async Task<IReadOnlyList<DeliveryLogDto>> RecentAsync(string? projectCode, int limit, CancellationToken cancellationToken = default)
     {
         var project = string.IsNullOrWhiteSpace(projectCode) ? null : ChannelConfigurationValidator.NormalizeProjectCode(projectCode);
-        var rows = await deliveryLogs.ListRecentAsync(project, ProviderCatalog.ChatChannels, Math.Clamp(limit, 1, MaxRecentLogs), cancellationToken);
+        var rows = await deliveryLogs.ListRecentAsync(project, ProviderCatalog.BotChannels, Math.Clamp(limit, 1, MaxRecentLogs), cancellationToken);
         return [.. rows.Select(l => new DeliveryLogDto(l.Id, l.ProjectCode, l.ChannelType, l.Recipient, l.Status, l.ProviderResponse, l.LatencyMs, l.CreatedAt))];
     }
 
     // ------------------------------------------------------------------------------------------------ steps
 
     /// <summary>Checks the request. Anything wrong with it is a ValidationException (nothing is sent, nothing is logged).</summary>
-    private static ChatMessage Prepare(SendChatCommand command, string project)
+    private static BotMessage Prepare(SendBotMessageCommand command, string project)
     {
         var errors = new Dictionary<string, string[]>();
         if (project.Length == 0) errors["ProjectCode"] = ["The project is required."];
@@ -117,7 +117,7 @@ public sealed class ChatDispatcher(
             errors["Metadata"] = [$"At most {MaxMetadataEntries} entries, keys up to 50 characters, values up to 500."];
 
         if (errors.Count > 0) throw new ValidationException(errors);
-        return new ChatMessage(recipient, command.Text, command.Format, project, command.Metadata);
+        return new BotMessage(recipient, command.Text, command.Format, project, command.Metadata);
     }
 
     /// <summary>The project's own configuration first, then the default project's; within each, a chat configuration, then one saved under the older Telegram channel.</summary>
@@ -125,7 +125,7 @@ public sealed class ChatDispatcher(
     {
         foreach (var owner in project == FallbackProject ? new[] { FallbackProject } : [project, FallbackProject])
         {
-            foreach (var channel in ProviderCatalog.ChatChannels)
+            foreach (var channel in ProviderCatalog.BotChannels)
             {
                 var found = await configurations.GetActiveForRuntimeAsync(owner, channel, cancellationToken: cancellationToken);
                 if (found is not null) return found;
@@ -135,25 +135,25 @@ public sealed class ChatDispatcher(
         return null;
     }
 
-    private async Task<SendChatResult> Record(
-        string project, ChannelType channel, string? target, ChatFailure failure, string text, int latencyMs,
+    private async Task<SendBotMessageResult> Record(
+        string project, ChannelType channel, string? target, BotFailure failure, string text, int latencyMs,
         ChannelRuntimeConfiguration? configuration, CancellationToken cancellationToken)
     {
         var log = DeliveryLog.Create(
             project, channel, string.IsNullOrWhiteSpace(target) ? "(default)" : target,
-            failure == ChatFailure.None ? DeliveryStatus.Sent : DeliveryStatus.Failed,
+            failure == BotFailure.None ? DeliveryStatus.Sent : DeliveryStatus.Failed,
             text.Length > 500 ? text[..500] : text, latencyMs, clock.GetUtcNow());
         deliveryLogs.Add(log);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         if (events is not null)
         {
             await events.PublishAsync(
-                failure == ChatFailure.None ? WebhookEvents.ChatSent : WebhookEvents.ChatFailed, project,
-                new { target = log.Recipient, deliveryLogId = log.Id, latencyMs, error = failure == ChatFailure.None ? null : text }, cancellationToken);
+                failure == BotFailure.None ? WebhookEvents.ChatSent : WebhookEvents.ChatFailed, project,
+                new { target = log.Recipient, deliveryLogId = log.Id, latencyMs, error = failure == BotFailure.None ? null : text }, cancellationToken);
         }
 
-        return new SendChatResult(
-            failure == ChatFailure.None, failure, log.Id, latencyMs, failure == ChatFailure.None ? null : text,
+        return new SendBotMessageResult(
+            failure == BotFailure.None, failure, log.Id, latencyMs, failure == BotFailure.None ? null : text,
             configuration?.ProjectCode, configuration?.Version);
     }
 }

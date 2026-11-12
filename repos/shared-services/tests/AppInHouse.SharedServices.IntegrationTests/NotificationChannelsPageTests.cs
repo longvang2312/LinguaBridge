@@ -10,12 +10,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AppInHouse.SharedServices.IntegrationTests;
 
-public class ChatPageTests : IClassFixture<WebFactory>
+public class NotificationChannelsPageTests : IClassFixture<WebFactory>
 {
     private const string Mask = "••••••••";
     private readonly WebFactory _factory;
 
-    public ChatPageTests(WebFactory factory)
+    public NotificationChannelsPageTests(WebFactory factory)
     {
         _factory = factory;
         _factory.Api.Failure = null;
@@ -65,7 +65,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
         return [.. fields];
     }
 
-    private async Task<(HttpClient Client, string Token, string Html)> OpenAsync(string url = "/Chat")
+    private async Task<(HttpClient Client, string Token, string Html)> OpenAsync(string url = "/Notifications/Channels")
     {
         var client = NewClient();
         var html = await client.GetStringAsync(url);
@@ -74,7 +74,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
 
     private static async Task<JsonElement> PostTestAsync(HttpClient client, string token, Dictionary<string, string>? changes = null, bool withHeader = true)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/Chat?handler=SendTest") { Content = new FormUrlEncodedContent(FormFields(token, changes)) };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Notifications/Channels?handler=SendTest") { Content = new FormUrlEncodedContent(FormFields(token, changes)) };
         if (withHeader) request.Headers.Add("RequestVerificationToken", token);
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -88,7 +88,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     {
         var (_, _, html) = await OpenAsync();
 
-        Assert.Contains("Tin Nhắn &amp; Chat", html);
+        Assert.Contains("Thông Báo Đa Kênh", html);
         foreach (var provider in new[] { "TelegramBot", "DiscordWebhook", "SlackWebhook", "Mock" })
             Assert.Contains($"<option value=\"{provider}\"", html);
         foreach (var id in new[] { "Form_TelegramChatId", "Form_TelegramParseMode", "Form_DiscordUsername", "Form_DiscordAvatarUrl", "Form_SlackChannel", "Form_SlackIcon", "Form_Secret", "send-test-button", "save-draft", "save-activate" })
@@ -108,8 +108,8 @@ public class ChatPageTests : IClassFixture<WebFactory>
     [Fact]
     public async Task EachProject_ShowsItsOwnProviderAndSettings()
     {
-        var (_, _, lb) = await OpenAsync("/Chat?project=linguabridge");
-        var (_, _, id) = await OpenAsync("/Chat?project=identity");
+        var (_, _, lb) = await OpenAsync("/Notifications/Channels?project=linguabridge");
+        var (_, _, id) = await OpenAsync("/Notifications/Channels?project=identity");
 
         Assert.Matches("""<option value="DiscordWebhook"[^>]*selected""", lb);
         Assert.Contains("LB Bot", lb);
@@ -121,7 +121,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     [Fact]
     public async Task AProjectWithoutAConfiguration_SaysItUsesTheDefaultOne()
     {
-        var (_, _, html) = await OpenAsync("/Chat?project=brandnew");
+        var (_, _, html) = await OpenAsync("/Notifications/Channels?project=brandnew");
 
         Assert.Contains("chưa có cấu hình chat", html);
         Assert.Contains("brandnew", html);
@@ -146,7 +146,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     {
         _factory.Api.Items = [Chat("Alerts bot", 1, "Active", "legacy", "TelegramBot", """{"defaultChatId":"-77"}""") with { ChannelType = "Telegram" }];
 
-        var (_, _, html) = await OpenAsync("/Chat?project=legacy");
+        var (_, _, html) = await OpenAsync("/Notifications/Channels?project=legacy");
 
         Assert.Contains("Alerts bot", html);
         Assert.Contains("-77", html);
@@ -170,29 +170,62 @@ public class ChatPageTests : IClassFixture<WebFactory>
     {
         _factory.Api.Failure = new HttpRequestException("connection refused");
 
-        var response = await NewClient().GetAsync("/Chat");
+        var response = await NewClient().GetAsync("/Notifications/Channels");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("id=\"load-error\"", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task TheOlderTelegramAddress_RedirectsToChat_KeepingTheProject()
+    public async Task TheOlderTelegramAddress_RedirectsToTheBotChannels_KeepingTheProject()
     {
         var response = await NewClient().GetAsync("/Telegram?project=linguabridge");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.StartsWith("/Chat", response.Headers.Location!.OriginalString);
+        Assert.StartsWith("/Notifications/Channels", response.Headers.Location!.OriginalString);
         Assert.Contains("linguabridge", response.Headers.Location.OriginalString);
     }
 
     [Fact]
-    public async Task TheSidebar_HasTheChatEntry()
+    public async Task TheSidebar_HasTheNotificationEntry_ForTheBots_AndTheChatEntry_ForRealtimeChat()
     {
         var html = await NewClient().GetStringAsync("/");
 
-        Assert.Contains("Tin Nhắn &amp; Chat<small>Telegram · Discord · Slack</small>", html);
+        Assert.Contains("Thông Báo Đa Kênh<small>Mẫu · Telegram · Discord · Slack</small>", html);
+        Assert.Contains("href=\"/Notifications\"", html);
+        Assert.Contains("Trò Chuyện Trực Tuyến<small>1-1 · Nhóm · Realtime</small>", html);
         Assert.Contains("href=\"/Chat\"", html);
+        Assert.DoesNotContain("Tin Nhắn &amp; Chat", html);
+        Assert.True(html.IndexOf("Cấu hình Email", StringComparison.Ordinal) < html.IndexOf("Thông Báo Đa Kênh", StringComparison.Ordinal)
+                    && html.IndexOf("Thông Báo Đa Kênh", StringComparison.Ordinal) < html.IndexOf("Trò Chuyện Trực Tuyến", StringComparison.Ordinal));   // Email, Notifications, Chat
+    }
+
+    [Fact]
+    public async Task TheBotSettings_AreATabOfTheNotificationService_NextToTheTemplates()
+    {
+        var channels = await NewClient().GetStringAsync("/Notifications/Channels");
+        var hub = await NewClient().GetStringAsync("/Notifications");
+
+        Assert.Matches("class=\"nav-link active\" id=\"tab-channels\"", channels);
+        Assert.Contains("href=\"/Notifications\"", channels);
+        Assert.Contains("Kênh &amp; Bot Gửi Tin", channels);
+        Assert.Contains("id=\"chat-form\"", channels);
+        Assert.Matches("class=\"nav-link active\" id=\"tab-hub\"", hub);
+        Assert.Contains("href=\"/Notifications/Channels\"", hub);
+        Assert.DoesNotContain("id=\"chat-form\"", hub);
+    }
+
+    [Fact]
+    public async Task TheChatPage_HasNoBotSettingsAnyMore_ButPointsToWhereTheyWent()
+    {
+        var html = await NewClient().GetStringAsync("/Chat");
+
+        Assert.DoesNotContain("id=\"chat-form\"", html);
+        Assert.DoesNotContain("id=\"send-test-button\"", html);
+        Assert.DoesNotContain("Form.Secret", html);
+        Assert.DoesNotContain("Bot Token", html);
+        Assert.Contains("id=\"bots-link\"", html);
+        Assert.Contains("href=\"/Notifications/Channels\"", html);
     }
 
     // ------------------------------------------------------------------------------------------------ saving
@@ -202,7 +235,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     {
         var (client, token, _) = await OpenAsync();
 
-        var response = await client.PostAsync("/Chat?handler=SaveDraft", new FormUrlEncodedContent(FormFields(token, new() { ["Form.TelegramChatId"] = "-555", ["Form.Secret"] = Mask })));
+        var response = await client.PostAsync("/Notifications/Channels?handler=SaveDraft", new FormUrlEncodedContent(FormFields(token, new() { ["Form.TelegramChatId"] = "-555", ["Form.Secret"] = Mask })));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.NotNull(_factory.Api.LastSave);
@@ -217,7 +250,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     {
         var (client, token, _) = await OpenAsync();
 
-        var response = await client.PostAsync("/Chat?handler=SaveActivate", new FormUrlEncodedContent(FormFields(token, new() { ["Form.Secret"] = FakeChatSecrets.TelegramToken("page") })));
+        var response = await client.PostAsync("/Notifications/Channels?handler=SaveActivate", new FormUrlEncodedContent(FormFields(token, new() { ["Form.Secret"] = FakeChatSecrets.TelegramToken("page") })));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(FakeChatSecrets.TelegramToken("page"), _factory.Api.LastSave!.Secret);
@@ -230,7 +263,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     {
         var (client, token, _) = await OpenAsync();
 
-        await client.PostAsync("/Chat?handler=SaveDraft", new FormUrlEncodedContent(FormFields(token, new()
+        await client.PostAsync("/Notifications/Channels?handler=SaveDraft", new FormUrlEncodedContent(FormFields(token, new()
         {
             ["Form.ProviderType"] = "SlackWebhook", ["Form.SlackChannel"] = "#ops", ["Form.TelegramChatId"] = "-1001", ["Form.DiscordUsername"] = "x",
         })));
@@ -247,7 +280,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
         var (client, token, _) = await OpenAsync();
         _factory.Api.Failure = new SharedServicesApiException(400, "Validation", new Dictionary<string, string[]> { ["Secret"] = ["The webhook must point to discord.com."] });
 
-        var save = await client.PostAsync("/Chat?handler=SaveDraft", new FormUrlEncodedContent(FormFields(token)));
+        var save = await client.PostAsync("/Notifications/Channels?handler=SaveDraft", new FormUrlEncodedContent(FormFields(token)));
         Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         _factory.Api.Failure = null;
         var next = await client.GetStringAsync(save.Headers.Location!.OriginalString);
@@ -260,10 +293,10 @@ public class ChatPageTests : IClassFixture<WebFactory>
     public async Task APostWithoutTheAntiForgeryToken_IsRefused_AndNothingIsCalled()
     {
         var client = NewClient();
-        await client.GetAsync("/Chat");
+        await client.GetAsync("/Notifications/Channels");
         _factory.Api.Calls.Clear();
 
-        var response = await client.PostAsync("/Chat?handler=SaveDraft", new FormUrlEncodedContent(FormFields("wrong")));
+        var response = await client.PostAsync("/Notifications/Channels?handler=SaveDraft", new FormUrlEncodedContent(FormFields("wrong")));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.DoesNotContain(_factory.Api.Calls, c => c.StartsWith("save:") || c.StartsWith("activate:"));
@@ -339,7 +372,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     public async Task AFailedTest_ShowsTheProvidersAnswer()
     {
         var (client, token, _) = await OpenAsync();
-        _factory.Api.ChatTestResponse = new SendTestChatMessageResponse(false, "Telegram rejected the bot token (401).", 80, "TelegramBot", false, null);
+        _factory.Api.ChatTestResponse = new TestBotChannelResponse(false, "Telegram rejected the bot token (401).", 80, "TelegramBot", false, null);
 
         var result = await PostTestAsync(client, token, new() { ["Form.Secret"] = FakeChatSecrets.TelegramToken("bad") });
 
@@ -351,7 +384,7 @@ public class ChatPageTests : IClassFixture<WebFactory>
     public async Task TheTestHandler_NeedsTheAntiForgeryToken()
     {
         var (client, _, _) = await OpenAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/Chat?handler=SendTest") { Content = new FormUrlEncodedContent(FormFields("wrong")) };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Notifications/Channels?handler=SendTest") { Content = new FormUrlEncodedContent(FormFields("wrong")) };
 
         var response = await client.SendAsync(request);
 
@@ -418,25 +451,25 @@ public class ChatPageEndToEndTests(ApiFactory factory) : IClassFixture<ApiFactor
         var browser = portal.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
 
         // 1. Open the page, change only the chat id (the secret stays the mask), Save draft.
-        var html = await browser.GetStringAsync($"/Chat?project={project}");
+        var html = await browser.GetStringAsync($"/Notifications/Channels?project={project}");
         Assert.Equal(Mask, Attribute(html, "Form_Secret"));
-        var draft = await browser.PostAsync("/Chat?handler=SaveDraft", new FormUrlEncodedContent(With(FormAsLoaded(html, project), ("Form.TelegramChatId", "-2002"))));
+        var draft = await browser.PostAsync("/Notifications/Channels?handler=SaveDraft", new FormUrlEncodedContent(With(FormAsLoaded(html, project), ("Form.TelegramChatId", "-2002"))));
         Assert.Equal(HttpStatusCode.Redirect, draft.StatusCode);
 
         // 2. The page now shows the DRAFT (not the active version), so what is shown is what Save & activate will activate.
-        html = await browser.GetStringAsync($"/Chat?project={project}");
+        html = await browser.GetStringAsync($"/Notifications/Channels?project={project}");
         Assert.Equal("-2002", Attribute(html, "Form_TelegramChatId"));
         Assert.Contains("id=\"live-version\"", html);
 
         // 3. Save & activate straight from what is shown.
-        var activated = await browser.PostAsync("/Chat?handler=SaveActivate", new FormUrlEncodedContent(FormAsLoaded(html, project)));
+        var activated = await browser.PostAsync("/Notifications/Channels?handler=SaveActivate", new FormUrlEncodedContent(FormAsLoaded(html, project)));
         Assert.Equal(HttpStatusCode.Redirect, activated.StatusCode);
 
         // 4. The live version has the draft's chat id AND the token that was stored.
         factory.Chat.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"ok\":true,\"result\":{\"message_id\":1}}") };
         factory.Chat.Calls.Clear();
         var send = await factory.ClientWithKey((await factory.CreateKeyForProjectAsync(project, null, ApiScopes.ChatSend)).PlainKey)
-            .PostAsJsonAsync("/api/v1/chat/send", new { text = "after activation" });
+            .PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "after activation" });
         Assert.Equal(HttpStatusCode.OK, send.StatusCode);
         var (request, body) = Assert.Single(factory.Chat.Calls);
         Assert.Contains($"/bot{storedToken}/sendMessage", request.RequestUri!.AbsoluteUri);
@@ -459,9 +492,9 @@ public class ChatPageEndToEndTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         using var portal = new PortalOnRealApiFactory(admin);
         var browser = portal.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
-        var html = await browser.GetStringAsync($"/Chat?project={project}");
+        var html = await browser.GetStringAsync($"/Notifications/Channels?project={project}");
         var fields = With(FormAsLoaded(html, project), ("Form.TelegramChatId", "-77"), ("Form.Secret", FakeChatSecrets.TelegramToken("e2e-typed")));
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/Chat?handler=SendTest") { Content = new FormUrlEncodedContent(fields) };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Notifications/Channels?handler=SendTest") { Content = new FormUrlEncodedContent(fields) };
         request.Headers.Add("RequestVerificationToken", TokenIn(html));
 
         var response = await browser.SendAsync(request);

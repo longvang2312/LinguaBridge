@@ -68,8 +68,9 @@ public partial class WebTests : IClassFixture<WebFactory>
         Assert.Contains("SMTP", html);
         Assert.Contains("SendGrid", html);
         Assert.Contains("Brevo", html);
-        Assert.Contains("Tin Nhắn &amp; Chat", html);
-        Assert.Contains("Telegram · Discord · Slack", html);
+        Assert.Contains("Thông Báo Đa Kênh", html);
+        Assert.Contains("Mẫu · Telegram · Discord · Slack", html);
+        Assert.Contains("Trò Chuyện Trực Tuyến", html);
         Assert.Contains("Lưu trữ &amp; Media Browser", html);
         Assert.Contains("Ứng dụng &amp; API Keys", html);
         Assert.Contains("Audit Logs &amp; Lịch sử gửi tin", html);
@@ -100,7 +101,7 @@ public partial class WebTests : IClassFixture<WebFactory>
         var response = await NewClient().GetAsync("/Telegram");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/Chat", response.Headers.Location!.OriginalString);
+        Assert.Equal("/Notifications/Channels", response.Headers.Location!.OriginalString);
     }
 
     [Fact]

@@ -1,5 +1,5 @@
 using AppInHouse.SharedServices.Application.Common;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Configurations;
 using AppInHouse.SharedServices.ClientSdk;
 using AppInHouse.SharedServices.Domain;
@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AppInHouse.SharedServices.UnitTests;
 
-public class ChatDispatcherTests
+public class NotificationBotDispatcherTests
 {
     private sealed class Fixture
     {
@@ -19,13 +19,13 @@ public class ChatDispatcherTests
         public FakeChatProvider Mock { get; } = new(ProviderType.Mock);
         public FakeDeliveryLogRepository Logs { get; } = new();
         public FakeUnitOfWork Unit { get; } = new();
-        public ChatDispatcher Dispatcher { get; }
+        public NotificationBotDispatcher Dispatcher { get; }
 
         public Fixture(bool withTelegramProvider = true)
         {
             var providers = new List<FakeChatProvider> { Discord, Slack, Mock };
             if (withTelegramProvider) providers.Add(Telegram);
-            Dispatcher = new ChatDispatcher(Configs.Manager, providers, Logs, Unit, Configs.Clock, NullLogger<ChatDispatcher>.Instance);
+            Dispatcher = new NotificationBotDispatcher(Configs.Manager, providers, Logs, Unit, Configs.Clock, NullLogger<NotificationBotDispatcher>.Instance);
         }
 
         public async Task<ChannelConfigurationDto> ActivateAsync(
@@ -37,7 +37,7 @@ public class ChatDispatcherTests
         }
     }
 
-    private static SendChatCommand Hello(string project = "linguabridge", string text = "Disk almost full") => new(project, text);
+    private static SendBotMessageCommand Hello(string project = "linguabridge", string text = "Disk almost full") => new(project, text);
 
     // ------------------------------------------------------------------------------------------------ routing
 
@@ -79,8 +79,8 @@ public class ChatDispatcherTests
         var f = new Fixture();
         await f.ActivateAsync("linguabridge", ProviderType.TelegramBot);
 
-        await f.Dispatcher.SendAsync(new SendChatCommand("linguabridge", "a", Recipient: "  -1009  "));
-        await f.Dispatcher.SendAsync(new SendChatCommand("linguabridge", "b", Recipient: "   "));
+        await f.Dispatcher.SendAsync(new SendBotMessageCommand("linguabridge", "a", Recipient: "  -1009  "));
+        await f.Dispatcher.SendAsync(new SendBotMessageCommand("linguabridge", "b", Recipient: "   "));
 
         Assert.Equal("-1009", f.Telegram.Sent[0].Message.Recipient);
         Assert.Null(f.Telegram.Sent[1].Message.Recipient);
@@ -92,11 +92,11 @@ public class ChatDispatcherTests
         var f = new Fixture();
         await f.ActivateAsync("linguabridge", ProviderType.TelegramBot);
 
-        await f.Dispatcher.SendAsync(new SendChatCommand("linguabridge", "a"));
-        await f.Dispatcher.SendAsync(new SendChatCommand("linguabridge", "b", Format: ChatFormat.MarkdownV2));
+        await f.Dispatcher.SendAsync(new SendBotMessageCommand("linguabridge", "a"));
+        await f.Dispatcher.SendAsync(new SendBotMessageCommand("linguabridge", "b", Format: BotFormat.MarkdownV2));
 
         Assert.Null(f.Telegram.Sent[0].Message.Format);
-        Assert.Equal(ChatFormat.MarkdownV2, f.Telegram.Sent[1].Message.Format);
+        Assert.Equal(BotFormat.MarkdownV2, f.Telegram.Sent[1].Message.Format);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class ChatDispatcherTests
         var result = await f.Dispatcher.SendAsync(Hello("shop"));
 
         Assert.False(result.Success);
-        Assert.Equal(ChatFailure.NoConfiguration, result.Failure);
+        Assert.Equal(BotFailure.NoConfiguration, result.Failure);
         Assert.Contains("shop", result.Error);
         Assert.Contains("default", result.Error);
         var log = Assert.Single(f.Logs.Rows);
@@ -188,7 +188,7 @@ public class ChatDispatcherTests
 
         var result = await f.Dispatcher.SendAsync(Hello("default"));
 
-        Assert.Equal(ChatFailure.NoConfiguration, result.Failure);
+        Assert.Equal(BotFailure.NoConfiguration, result.Failure);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class ChatDispatcherTests
 
         var result = await f.Dispatcher.SendAsync(Hello("default"));
 
-        Assert.Equal(ChatFailure.ProviderFailure, result.Failure);
+        Assert.Equal(BotFailure.ProviderFailure, result.Failure);
         Assert.Contains("TelegramBot", result.Error);
         Assert.Equal(DeliveryStatus.Failed, Assert.Single(f.Logs.Rows).Status);
     }
@@ -227,7 +227,7 @@ public class ChatDispatcherTests
     {
         var f = new Fixture();
         await f.ActivateAsync("linguabridge", ProviderType.DiscordWebhook);
-        f.Discord.SendResult = new ChatSendResult(true, ProviderResponse: "Discord accepted (200)");   // a webhook posts where it was made for
+        f.Discord.SendResult = new BotSendResult(true, ProviderResponse: "Discord accepted (200)");   // a webhook posts where it was made for
 
         await f.Dispatcher.SendAsync(Hello());
 
@@ -239,12 +239,12 @@ public class ChatDispatcherTests
     {
         var f = new Fixture();
         await f.ActivateAsync("linguabridge", ProviderType.DiscordWebhook);
-        f.Discord.SendResult = new ChatSendResult(false, Error: $"Discord refused {FakeChatSecrets.DiscordWebhook}\nmore");
+        f.Discord.SendResult = new BotSendResult(false, Error: $"Discord refused {FakeChatSecrets.DiscordWebhook}\nmore");
 
         var result = await f.Dispatcher.SendAsync(Hello());
 
         Assert.False(result.Success);
-        Assert.Equal(ChatFailure.ProviderFailure, result.Failure);
+        Assert.Equal(BotFailure.ProviderFailure, result.Failure);
         Assert.DoesNotContain(FakeChatSecrets.DiscordWebhook, result.Error);
         var log = Assert.Single(f.Logs.Rows);
         Assert.Equal(DeliveryStatus.Failed, log.Status);
@@ -271,9 +271,9 @@ public class ChatDispatcherTests
     {
         var f = new Fixture();
         await f.ActivateAsync("linguabridge", ProviderType.SlackWebhook);
-        f.Slack.SendResult = new ChatSendResult(true, ProviderResponse: "Slack accepted (200)", Target: "#alerts");
+        f.Slack.SendResult = new BotSendResult(true, ProviderResponse: "Slack accepted (200)", Target: "#alerts");
 
-        await f.Dispatcher.SendAsync(new SendChatCommand("linguabridge", "Confidential incident 7781 details"));
+        await f.Dispatcher.SendAsync(new SendBotMessageCommand("linguabridge", "Confidential incident 7781 details"));
 
         var everything = string.Join('|', typeof(DeliveryLog).GetProperties().Select(p => p.GetValue(f.Logs.Rows[0])?.ToString() ?? string.Empty));
         Assert.DoesNotContain("Confidential", everything);
@@ -309,7 +309,7 @@ public class ChatDispatcherTests
         foreach (var (project, text) in new[] { ("a", "1"), ("b", "2"), ("a", "3"), ("a", "4") })
         {
             f.Configs.Clock.Advance(TimeSpan.FromMinutes(1));
-            f.Mock.SendResult = new ChatSendResult(true, Target: text);
+            f.Mock.SendResult = new BotSendResult(true, Target: text);
             await f.Dispatcher.SendAsync(Hello(project, "msg"));
         }
 
@@ -349,8 +349,8 @@ public class ChatDispatcherTests
         var f = new Fixture();
         await f.ActivateAsync("default", ProviderType.Mock);
 
-        await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(Hello("default", new string('x', ChatDispatcher.MaxTextLength + 1))));
-        var ok = await f.Dispatcher.SendAsync(Hello("default", new string('x', ChatDispatcher.MaxTextLength)));
+        await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(Hello("default", new string('x', NotificationBotDispatcher.MaxTextLength + 1))));
+        var ok = await f.Dispatcher.SendAsync(Hello("default", new string('x', NotificationBotDispatcher.MaxTextLength)));
 
         Assert.True(ok.Success);
         Assert.Single(f.Mock.Sent);
@@ -363,11 +363,11 @@ public class ChatDispatcherTests
         await f.ActivateAsync("default", ProviderType.Mock);
         string[] Keys(ValidationException e) => [.. e.Errors.Keys];
 
-        Assert.Contains("Format", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(new SendChatCommand("default", "x", Format: (ChatFormat)99)))));
-        Assert.Contains("Recipient", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(new SendChatCommand("default", "x", Recipient: "-100\nBcc")))));
-        Assert.Contains("Recipient", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(new SendChatCommand("default", "x", Recipient: new string('9', 101))))));
+        Assert.Contains("Format", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(new SendBotMessageCommand("default", "x", Format: (BotFormat)99)))));
+        Assert.Contains("Recipient", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(new SendBotMessageCommand("default", "x", Recipient: "-100\nBcc")))));
+        Assert.Contains("Recipient", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(new SendBotMessageCommand("default", "x", Recipient: new string('9', 101))))));
         Assert.Contains("Metadata", Keys(await Assert.ThrowsAsync<ValidationException>(() => f.Dispatcher.SendAsync(
-            new SendChatCommand("default", "x", Metadata: Enumerable.Range(0, 21).ToDictionary(i => $"k{i}", _ => "v"))))));
+            new SendBotMessageCommand("default", "x", Metadata: Enumerable.Range(0, 21).ToDictionary(i => $"k{i}", _ => "v"))))));
         Assert.Empty(f.Mock.Sent);
     }
 }
@@ -381,10 +381,10 @@ public class ChatTestServiceTests
         public FakeChatProvider Discord { get; } = new(ProviderType.DiscordWebhook);
         public FakeChatProvider Slack { get; } = new(ProviderType.SlackWebhook);
         public FakeChatProvider Mock { get; } = new(ProviderType.Mock);
-        public ChatTestService Service { get; }
+        public NotificationBotTestService Service { get; }
 
         public Fixture() =>
-            Service = new ChatTestService(Configs.Manager, [Telegram, Discord, Slack, Mock], Configs.Audit, Configs.UnitOfWork, NullLogger<ChatTestService>.Instance);
+            Service = new NotificationBotTestService(Configs.Manager, [Telegram, Discord, Slack, Mock], Configs.Audit, Configs.UnitOfWork, NullLogger<NotificationBotTestService>.Instance);
 
         public async Task<ChannelConfigurationDto> SaveAsync(ProviderType provider, string settings = "{}", string? secret = null, ChannelType channel = ChannelType.Chat) =>
             await Configs.Manager.SaveAsync(new SaveChannelConfigurationCommand("default", channel, provider, "Chat", settings, secret ?? FakeChatSecrets.For(provider)));
@@ -397,7 +397,7 @@ public class ChatTestServiceTests
     {
         var f = new Fixture();
 
-        var result = await f.Service.TestAsync(new TestChatCommand("-1007", "a test", ProviderType: ProviderType.TelegramBot, SettingsJson: """{"defaultChatId":"-1"}""", Secret: FakeChatSecrets.TelegramToken));
+        var result = await f.Service.TestAsync(new TestBotCommand("-1007", "a test", ProviderType: ProviderType.TelegramBot, SettingsJson: """{"defaultChatId":"-1"}""", Secret: FakeChatSecrets.TelegramToken));
 
         Assert.True(result.Success);
         Assert.False(result.UsedSavedConfiguration);
@@ -417,7 +417,7 @@ public class ChatTestServiceTests
         var snapshot = f.Configs.Repository.Rows.Select(r => (r.Id, r.Version, r.Status, r.SettingsJson, r.EncryptedSecret, r.LastTestedAt, r.LastTestStatus)).ToList();
         var auditBefore = f.Configs.Audit.Entries.Count;
 
-        await f.Service.TestAsync(new TestChatCommand(ProviderType: ProviderType.DiscordWebhook, Secret: FakeChatSecrets.DiscordWebhook));
+        await f.Service.TestAsync(new TestBotCommand(ProviderType: ProviderType.DiscordWebhook, Secret: FakeChatSecrets.DiscordWebhook));
 
         Assert.Equal(snapshot, f.Configs.Repository.Rows.Select(r => (r.Id, r.Version, r.Status, r.SettingsJson, r.EncryptedSecret, r.LastTestedAt, r.LastTestStatus)).ToList());
         Assert.Equal(ConfigurationStatus.Active, f.Configs.Repository.Rows.Single().Status);
@@ -432,20 +432,20 @@ public class ChatTestServiceTests
     {
         var f = new Fixture();
 
-        await f.Service.TestAsync(new TestChatCommand(ProviderType: ProviderType.Mock));
+        await f.Service.TestAsync(new TestBotCommand(ProviderType: ProviderType.Mock));
 
         var (_, recipient, text) = Assert.Single(f.Mock.Tested);
         Assert.Equal(string.Empty, recipient);
-        Assert.Equal(ChatTestService.DefaultTestMessage, text);
+        Assert.Equal(NotificationBotTestService.DefaultTestMessage, text);
     }
 
     [Fact]
     public async Task AFailedTest_IsAnAnswer_WithTheSecretRemovedFromTheMessage()
     {
         var f = new Fixture();
-        f.Discord.TestResult = new ChatTestResult(false, $"refused {FakeChatSecrets.DiscordWebhook}", 30);
+        f.Discord.TestResult = new BotTestResult(false, $"refused {FakeChatSecrets.DiscordWebhook}", 30);
 
-        var result = await f.Service.TestAsync(new TestChatCommand(ProviderType: ProviderType.DiscordWebhook, Secret: FakeChatSecrets.DiscordWebhook));
+        var result = await f.Service.TestAsync(new TestBotCommand(ProviderType: ProviderType.DiscordWebhook, Secret: FakeChatSecrets.DiscordWebhook));
 
         Assert.False(result.Success);
         Assert.DoesNotContain(FakeChatSecrets.DiscordWebhook, result.Message);
@@ -458,7 +458,7 @@ public class ChatTestServiceTests
         var f = new Fixture();
         f.Telegram.Throw = new InvalidOperationException($"explosion {FakeChatSecrets.TelegramToken}");
 
-        var result = await f.Service.TestAsync(new TestChatCommand(ProviderType: ProviderType.TelegramBot, Secret: FakeChatSecrets.TelegramToken));
+        var result = await f.Service.TestAsync(new TestBotCommand(ProviderType: ProviderType.TelegramBot, Secret: FakeChatSecrets.TelegramToken));
 
         Assert.False(result.Success);
         Assert.DoesNotContain(FakeChatSecrets.TelegramToken, result.Message);
@@ -474,8 +474,8 @@ public class ChatTestServiceTests
         var saved = await f.SaveAsync(provider);
         await f.Configs.Manager.ActivateAsync(saved.Id);
 
-        var error = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(ProviderType: provider)));
-        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(ProviderType: provider, Secret: "••••••••")));   // the mask is not a secret
+        var error = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(ProviderType: provider)));
+        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(ProviderType: provider, Secret: "••••••••")));   // the mask is not a secret
 
         Assert.Contains("Secret", error.Errors.Keys);
         Assert.All(new[] { f.Telegram, f.Discord, f.Slack }, p => Assert.Empty(p.Tested));
@@ -491,7 +491,7 @@ public class ChatTestServiceTests
     {
         var f = new Fixture();
 
-        var error = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(ProviderType: provider, Secret: secret)));
+        var error = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(ProviderType: provider, Secret: secret)));
 
         Assert.Contains("Secret", error.Errors.Keys);
         Assert.DoesNotContain(secret, string.Join(' ', error.Errors.SelectMany(e => e.Value)));
@@ -504,9 +504,9 @@ public class ChatTestServiceTests
         var f = new Fixture();
 
         var withSecret = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(
-            new TestChatCommand(ProviderType: ProviderType.TelegramBot, SettingsJson: """{"botToken":"oops"}""", Secret: FakeChatSecrets.TelegramToken)));
-        var wrongKind = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(ProviderType: ProviderType.Smtp)));
-        var noProvider = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand()));
+            new TestBotCommand(ProviderType: ProviderType.TelegramBot, SettingsJson: """{"botToken":"oops"}""", Secret: FakeChatSecrets.TelegramToken)));
+        var wrongKind = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(ProviderType: ProviderType.Smtp)));
+        var noProvider = await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand()));
 
         Assert.Contains("SettingsJson", withSecret.Errors.Keys);
         Assert.Contains("ProviderType", wrongKind.Errors.Keys);
@@ -518,8 +518,8 @@ public class ChatTestServiceTests
     {
         var f = new Fixture();
 
-        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(new string('9', 101), ProviderType: ProviderType.Mock)));
-        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(TestMessage: new string('x', ChatTestService.MaxTestMessageLength + 1), ProviderType: ProviderType.Mock)));
+        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(new string('9', 101), ProviderType: ProviderType.Mock)));
+        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(TestMessage: new string('x', NotificationBotTestService.MaxTestMessageLength + 1), ProviderType: ProviderType.Mock)));
     }
 
     // ------------------------------------------------------------------------------------------------ a saved version
@@ -531,7 +531,7 @@ public class ChatTestServiceTests
         var saved = await f.SaveAsync(ProviderType.SlackWebhook);   // a draft: it can be tested before it is activated
         f.Configs.Clock.Advance(TimeSpan.FromMinutes(5));
 
-        var result = await f.Service.TestAsync(new TestChatCommand(ConfigurationId: saved.Id));
+        var result = await f.Service.TestAsync(new TestBotCommand(ConfigurationId: saved.Id));
 
         Assert.True(result.Success);
         Assert.True(result.UsedSavedConfiguration);
@@ -547,9 +547,9 @@ public class ChatTestServiceTests
     {
         var f = new Fixture();
         var saved = await f.SaveAsync(ProviderType.TelegramBot);
-        f.Telegram.TestResult = new ChatTestResult(false, "refused", 9);
+        f.Telegram.TestResult = new BotTestResult(false, "refused", 9);
 
-        var result = await f.Service.TestAsync(new TestChatCommand(ConfigurationId: saved.Id));
+        var result = await f.Service.TestAsync(new TestBotCommand(ConfigurationId: saved.Id));
 
         Assert.False(result.Success);
         Assert.Equal(TestStatus.Failed, f.Configs.Repository.Rows.Single().LastTestStatus);
@@ -562,7 +562,7 @@ public class ChatTestServiceTests
         var f = new Fixture();
         var saved = await f.SaveAsync(ProviderType.TelegramBot, channel: ChannelType.Telegram);
 
-        var result = await f.Service.TestAsync(new TestChatCommand(ConfigurationId: saved.Id));
+        var result = await f.Service.TestAsync(new TestBotCommand(ConfigurationId: saved.Id));
 
         Assert.True(result.Success);
         Assert.Single(f.Telegram.Tested);
@@ -574,7 +574,7 @@ public class ChatTestServiceTests
         var f = new Fixture();
         var saved = await f.SaveAsync(ProviderType.SlackWebhook, """{"defaultChannel":"#saved"}""");
 
-        await f.Service.TestAsync(new TestChatCommand(ConfigurationId: saved.Id,
+        await f.Service.TestAsync(new TestBotCommand(ConfigurationId: saved.Id,
             ProviderType: ProviderType.SlackWebhook, SettingsJson: """{"defaultChannel":"#other"}""", Secret: FakeChatSecrets.SlackWebhook));
 
         var (config, _, _) = Assert.Single(f.Slack.Tested);
@@ -588,8 +588,8 @@ public class ChatTestServiceTests
         var f = new Fixture();
         var email = await f.Configs.Manager.SaveAsync(new SaveChannelConfigurationCommand("default", ChannelType.Email, ProviderType.Mock, "Mail", "{}", null));
 
-        await Assert.ThrowsAsync<NotFoundException>(() => f.Service.TestAsync(new TestChatCommand(ConfigurationId: Guid.NewGuid())));
-        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestChatCommand(ConfigurationId: email.Id)));
+        await Assert.ThrowsAsync<NotFoundException>(() => f.Service.TestAsync(new TestBotCommand(ConfigurationId: Guid.NewGuid())));
+        await Assert.ThrowsAsync<ValidationException>(() => f.Service.TestAsync(new TestBotCommand(ConfigurationId: email.Id)));
     }
 }
 
@@ -712,11 +712,11 @@ public class ChatClientSdkTests
     {
         var (client, handler) = Make(_ => Json(System.Net.HttpStatusCode.OK, """{"success":true,"status":"Sent","deliveryLogId":"7f2d6a1e-0000-0000-0000-000000000009","latencyMs":42,"configurationProject":"default","configurationVersion":3}"""));
 
-        var response = await client.SendChatMessageAsync(new SendChatMessageRequest("Disk almost full", Recipient: "-1001", Format: "PlainText"));
+        var response = await client.SendNotificationChannelMessageAsync(new SendBotMessageRequest("Disk almost full", Recipient: "-1001", Format: "PlainText"));
 
         Assert.True(response.Success);
         Assert.Equal(("Sent", 42, "default", 3), (response.Status, response.LatencyMs, response.ConfigurationProject, response.ConfigurationVersion));
-        Assert.Equal(("/api/v1/chat/send", HttpMethod.Post), (handler.Requests[0].Url, handler.Requests[0].Method));
+        Assert.Equal(("/api/v1/notifications/channels/send", HttpMethod.Post), (handler.Requests[0].Url, handler.Requests[0].Method));
         Assert.Contains("\"text\":\"Disk almost full\"", handler.Requests[0].Body);
         Assert.Contains("\"recipient\":\"-1001\"", handler.Requests[0].Body);
         Assert.Contains("\"format\":\"PlainText\"", handler.Requests[0].Body);
@@ -729,7 +729,7 @@ public class ChatClientSdkTests
     {
         var (client, _) = Make(_ => Json(status, """{"title":"x","detail":"Project shop has no active chat configuration."}"""));
 
-        var exception = await Assert.ThrowsAsync<SharedServicesApiException>(() => client.SendChatMessageAsync(new SendChatMessageRequest("hi")));
+        var exception = await Assert.ThrowsAsync<SharedServicesApiException>(() => client.SendNotificationChannelMessageAsync(new SendBotMessageRequest("hi")));
 
         Assert.Equal(code, exception.StatusCode);
         Assert.Contains("shop", exception.Message);
@@ -741,11 +741,11 @@ public class ChatClientSdkTests
         var (client, handler) = Make(_ => Json(System.Net.HttpStatusCode.OK, """{"success":false,"message":"Telegram rejected the bot token (401).","latencyMs":80,"providerType":"TelegramBot","usedSavedConfiguration":false,"configurationId":null}"""));
         using var settings = System.Text.Json.JsonDocument.Parse("""{"defaultChatId":"-1001"}""");
 
-        var response = await client.SendTestChatMessageAsync(new SendTestChatMessageRequest("-1001", "hello", ProviderType: "TelegramBot", Settings: settings.RootElement.Clone(), Secret: "typed-secret"));
+        var response = await client.TestNotificationChannelAsync(new TestBotChannelRequest("-1001", "hello", ProviderType: "TelegramBot", Settings: settings.RootElement.Clone(), Secret: "typed-secret"));
 
         Assert.False(response.Success);
         Assert.Contains("rejected the bot token", response.Message);
-        Assert.Equal("/api/v1/chat/test", handler.Requests[0].Url);
+        Assert.Equal("/api/v1/notifications/channels/test", handler.Requests[0].Url);
         Assert.Contains("\"secret\":\"typed-secret\"", handler.Requests[0].Body);
         Assert.Contains("\"message\":\"hello\"", handler.Requests[0].Body);
     }
@@ -755,13 +755,13 @@ public class ChatClientSdkTests
     {
         var (client, handler) = Make(_ => Json(System.Net.HttpStatusCode.OK, """[{"id":"7f2d6a1e-0000-0000-0000-000000000009","projectCode":"default","channelType":"Chat","recipient":"-1001","status":"Sent","providerResponse":"Telegram accepted (message 5)","latencyMs":12,"createdAt":"2026-11-11T08:00:00+00:00"}]"""));
 
-        var logs = await client.GetChatDeliveryLogsAsync("default", 5);
+        var logs = await client.GetBotDeliveryLogsAsync("default", 5);
 
         var log = Assert.Single(logs);
         Assert.Equal(("-1001", "Sent", "Chat", 12), (log.Recipient, log.Status, log.ChannelType, log.LatencyMs));
-        Assert.Equal("/api/v1/chat/delivery-logs?limit=5&projectCode=default", handler.Requests[0].Url);
+        Assert.Equal("/api/v1/notifications/channels/delivery-logs?limit=5&projectCode=default", handler.Requests[0].Url);
 
-        await client.GetChatDeliveryLogsAsync();
-        Assert.Equal("/api/v1/chat/delivery-logs?limit=20", handler.Requests[1].Url);
+        await client.GetBotDeliveryLogsAsync();
+        Assert.Equal("/api/v1/notifications/channels/delivery-logs?limit=20", handler.Requests[1].Url);
     }
 }

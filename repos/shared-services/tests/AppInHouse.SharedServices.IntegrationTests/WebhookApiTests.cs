@@ -156,7 +156,7 @@ public class WebhookSubscriptionApiTests(WebhookApiFactory factory) : IClassFixt
         var target = NewTarget();
         await CreateAsync(admin, target, ["chat.sent", "file.uploaded"], project);
 
-        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/chat/send", new { text = "hello", projectCode = project })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "hello", projectCode = project })).StatusCode);
         using var form = new MultipartFormDataContent { { new ByteArrayContent(TestFiles.Png()) { Headers = { ContentType = new("image/png") } }, "file", "logo.png" }, { new StringContent(project), "projectCode" } };
         var uploaded = await ReadAsync(await admin.PostAsync("/api/v1/storage/upload", form));
 
@@ -525,8 +525,9 @@ public class InboundWebhookApiTests(WebhookApiFactory factory) : IClassFixture<W
 
         await factory.CreateClient().SendAsync(Telegram_(WebhookApiFactory.TelegramSecret, """{"update_id":31337}"""));
 
-        Assert.True(await UntilAsync(() => factory.Webhook.Calls.ToArray().Any(c => c.Request.RequestUri!.ToString() == target)));
-        var (request, body) = factory.Webhook.Calls.ToArray().First(c => c.Request.RequestUri!.ToString() == target);
+        // Other tests post inbound calls at the same time (this subscription hears every one on the platform project): pick this test's own.
+        Assert.True(await UntilAsync(() => factory.Webhook.Calls.ToArray().Any(c => c.Request.RequestUri!.ToString() == target && c.Body.Contains("31337"))));
+        var (request, body) = factory.Webhook.Calls.ToArray().First(c => c.Request.RequestUri!.ToString() == target && c.Body.Contains("31337"));
         Assert.True(WebhookSigner.IsValid(secret, Encoding.UTF8.GetBytes(body), request.Headers.GetValues("X-AIH-Signature").Single()));
         using var json = JsonDocument.Parse(body);
         Assert.Equal("webhook.received", json.RootElement.GetProperty("event").GetString());

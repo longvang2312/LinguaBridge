@@ -185,7 +185,7 @@ public class ProjectApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await ActivateAsync(admin, code, "Storage", "LocalDisk", new { rootPath = "uploads" });
         var client = await ProjectClientAsync(factory, code, ApiScopes.EmailSend, ApiScopes.ChatSend, ApiScopes.StorageUpload, ApiScopes.ConfigRead);
         for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/emails/send", new { to = NewRecipient(), subject = "s", textBody = "t" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/chat/send", new { text = "hello" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "hello" })).StatusCode);
         var png = TestFiles.Png();
         using var form = new MultipartFormDataContent { { new ByteArrayContent(png) { Headers = { ContentType = new("image/png") } }, "file", "a.png" } };
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/v1/storage/upload", form)).StatusCode);
@@ -238,8 +238,8 @@ public class ProjectApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await ActivateMockChatAsync(admin, code);
         var client = await ProjectClientAsync(factory, code, ApiScopes.EmailSend, ApiScopes.ChatSend);
 
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/chat/send", new { text = "one" })).StatusCode);
-        var second = await client.PostAsJsonAsync("/api/v1/chat/send", new { text = "two" });
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "one" })).StatusCode);
+        var second = await client.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "two" });
 
         Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/emails/send", new { to = NewRecipient(), subject = "s", textBody = "t" })).StatusCode);
@@ -368,7 +368,7 @@ public class ProjectApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         await PutAsync(admin, code, new { name = "Paused", isActive = false });
         var email = await Email();
-        var chat = await client.PostAsJsonAsync("/api/v1/chat/send", new { text = "hi" });
+        var chat = await client.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "hi" });
         var upload = await Upload();
         var notification = await client.PostAsJsonAsync("/api/v1/notifications/dispatch", new { templateCode = "PasswordReset", recipientEmail = NewRecipient(), data = Data(new { UserName = "a", AppName = "b", ActionUrl = "c", ExpiryMinutes = 1 }) });
 

@@ -31,7 +31,8 @@ public class NotificationApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var templates = (await ReadAsync(response)).EnumerateArray().ToList();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(["PasswordReset", "PaymentSuccess", "SecurityAlert", "SystemMaintenance", "UserRegistered"], templates.Select(t => t.GetProperty("code").GetString()));
+        // The five stock templates for the applications, and the two the chat service uses for members who are offline.
+        Assert.Equal(["ChatMessageOfflineChat", "ChatMessageOfflineEmail", "PasswordReset", "PaymentSuccess", "SecurityAlert", "SystemMaintenance", "UserRegistered"], templates.Select(t => t.GetProperty("code").GetString()));
         var registered = templates.Single(t => t.GetProperty("code").GetString() == "UserRegistered");
         Assert.Equal(["UserName", "AppName", "ActionUrl", "ExpiryMinutes"], registered.GetProperty("placeholders").EnumerateArray().Select(p => p.GetString()));
         Assert.Equal("Email", registered.GetProperty("defaultChannel").GetString());

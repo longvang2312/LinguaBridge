@@ -1,3 +1,5 @@
+using AppInHouse.SharedServices.Infrastructure.Realtime;
+using AppInHouse.SharedServices.Application.Conversations;
 using AppInHouse.SharedServices.Application.Jobs;
 using AppInHouse.SharedServices.Application.Platform;
 using AppInHouse.SharedServices.Application.Webhooks;
@@ -7,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using AppInHouse.SharedServices.Infrastructure.Storage;
 using AppInHouse.SharedServices.Application.Storage;
 using AppInHouse.SharedServices.Application.Abstractions;
-using AppInHouse.SharedServices.Application.Chat;
+using AppInHouse.SharedServices.Application.Notifications.Bots;
 using AppInHouse.SharedServices.Application.Email;
-using AppInHouse.SharedServices.Infrastructure.Chat;
+using AppInHouse.SharedServices.Infrastructure.Notifications.Bots;
 using AppInHouse.SharedServices.Infrastructure.Email;
 using AppInHouse.SharedServices.Infrastructure.Security;
 using Microsoft.AspNetCore.DataProtection;
@@ -93,30 +95,30 @@ public static class DependencyInjection
     /// </summary>
     private static void AddChatProviders(IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<ChatOptions>(configuration.GetSection(ChatOptions.SectionName));
-        services.AddSingleton<MockChatProvider>();
-        services.AddSingleton<IChatProvider>(provider => provider.GetRequiredService<MockChatProvider>());
+        services.Configure<BotOptions>(configuration.GetSection(BotOptions.SectionName));
+        services.AddSingleton<MockBotProvider>();
+        services.AddSingleton<IBotProvider>(provider => provider.GetRequiredService<MockBotProvider>());
 
-        services.AddHttpClient<TelegramBotChatProvider>((provider, client) =>
+        services.AddHttpClient<TelegramBotProvider>((provider, client) =>
             {
-                var options = provider.GetRequiredService<IOptions<ChatOptions>>().Value;
+                var options = provider.GetRequiredService<IOptions<BotOptions>>().Value;
                 client.BaseAddress = new Uri(options.TelegramBaseUrl.TrimEnd('/') + "/");
                 client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
             })
             .RemoveAllLoggers()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
-        services.AddHttpClient<DiscordWebhookChatProvider>((provider, client) =>
-                client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<IOptions<ChatOptions>>().Value.TimeoutSeconds))
+        services.AddHttpClient<DiscordWebhookBotProvider>((provider, client) =>
+                client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<IOptions<BotOptions>>().Value.TimeoutSeconds))
             .RemoveAllLoggers()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
-        services.AddHttpClient<SlackWebhookChatProvider>((provider, client) =>
-                client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<IOptions<ChatOptions>>().Value.TimeoutSeconds))
+        services.AddHttpClient<SlackWebhookBotProvider>((provider, client) =>
+                client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<IOptions<BotOptions>>().Value.TimeoutSeconds))
             .RemoveAllLoggers()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 
-        services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<TelegramBotChatProvider>());
-        services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<DiscordWebhookChatProvider>());
-        services.AddTransient<IChatProvider>(provider => provider.GetRequiredService<SlackWebhookChatProvider>());
+        services.AddTransient<IBotProvider>(provider => provider.GetRequiredService<TelegramBotProvider>());
+        services.AddTransient<IBotProvider>(provider => provider.GetRequiredService<DiscordWebhookBotProvider>());
+        services.AddTransient<IBotProvider>(provider => provider.GetRequiredService<SlackWebhookBotProvider>());
     }
 
     /// <summary>The storage providers the service can route to (local disk, S3, a mock) and the thumbnail service. Host settings: section <c>Storage</c>.</summary>
@@ -154,5 +156,9 @@ public static class DependencyInjection
             .RemoveAllLoggers()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddSingleton<IInboundSecretProvider, ConfigurationInboundSecretProvider>();
+
+        // Conversations: who is connected (the realtime push itself is the SignalR hub of the API host). Settings: section "Chat".
+        services.Replace(ServiceDescriptor.Singleton(configuration.GetSection(ConversationSettings.SectionName).Get<ConversationSettings>() ?? new ConversationSettings()));
+        services.AddSingleton<IUserPresenceTracker, UserPresenceTracker>();
     }
 }

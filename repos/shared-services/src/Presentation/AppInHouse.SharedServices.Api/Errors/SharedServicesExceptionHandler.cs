@@ -1,3 +1,4 @@
+using AppInHouse.SharedServices.Application.Conversations;
 using AppInHouse.SharedServices.Application.Abstractions;
 using AppInHouse.SharedServices.Application.Common;
 using AppInHouse.SharedServices.Application.Platform;
@@ -49,6 +50,9 @@ public sealed class SharedServicesExceptionHandler(IProblemDetailsService proble
                 break;
             case ProjectInactiveException inactive:
                 problem = new ProblemDetails { Status = StatusCodes.Status403Forbidden, Title = "The project is deactivated", Detail = inactive.Message };
+                break;
+            case ConversationAccessDeniedException notAllowed:
+                problem = new ProblemDetails { Status = StatusCodes.Status403Forbidden, Title = "Not allowed in this conversation", Detail = notAllowed.Message };
                 break;
             case ChannelNotPermittedException denied:
                 problem = new ProblemDetails { Status = StatusCodes.Status403Forbidden, Title = "The key may not use this channel", Detail = denied.Message };

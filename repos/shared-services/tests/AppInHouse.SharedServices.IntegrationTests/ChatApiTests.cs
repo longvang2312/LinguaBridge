@@ -10,10 +10,9 @@ namespace AppInHouse.SharedServices.IntegrationTests;
 public class ChatApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string Configs = "/api/v1/channel-configurations";
-    private const string Send = "/api/v1/chat/send";
-    private const string Test = "/api/v1/chat/test";
-    private const string OldTest = "/api/v1/telegram/test";
-    private const string Logs = "/api/v1/chat/delivery-logs";
+    private const string Send = "/api/v1/notifications/channels/send";
+    private const string Test = "/api/v1/notifications/channels/test";
+    private const string Logs = "/api/v1/notifications/channels/delivery-logs";
 
     private static string NewProject() => "p" + Guid.NewGuid().ToString("N")[..8];
 
@@ -174,11 +173,11 @@ public class ChatApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task TheTestEndpoint_NeedsConfigWrite_OnBothAddresses()
+    public async Task TheTestEndpoint_NeedsConfigWrite()
     {
         var reader = await ProjectClientAsync(NewProject(), ApiScopes.ChatSend, ApiScopes.ConfigRead);
 
-        foreach (var address in new[] { Test, OldTest })
+        foreach (var address in new[] { Test })
         {
             Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsJsonAsync(address, new { providerType = "Mock" })).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await factory.ClientWithKey(null).PostAsJsonAsync(address, new { providerType = "Mock" })).StatusCode);
@@ -263,7 +262,6 @@ public class ChatApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
     [Theory]
     [InlineData(Test)]
-    [InlineData(OldTest)]
     public async Task ATestFromMemory_ChangesNothingThatIsSaved_AndSendsWithTheTypedSecret(string address)
     {
         var project = NewProject();
@@ -390,9 +388,9 @@ public class ChatApiDevelopmentTests(DevelopmentApiFactory factory) : IClassFixt
         var (plain, _) = await factory.CreateKeyForProjectAsync("default", null, ApiScopes.ChatSend, ApiScopes.ConfigWrite);
         var client = factory.ClientWithKey(plain);
 
-        var malformed = await client.PostAsync("/api/v1/chat/send", new StringContent("{not json", System.Text.Encoding.UTF8, "application/json"));
-        var blank = await client.PostAsJsonAsync("/api/v1/chat/send", new { text = "" });
-        var badTest = await client.PostAsJsonAsync("/api/v1/chat/test", new { providerType = "DiscordWebhook", secret = "https://evil.example.com/x" });
+        var malformed = await client.PostAsync("/api/v1/notifications/channels/send", new StringContent("{not json", System.Text.Encoding.UTF8, "application/json"));
+        var blank = await client.PostAsJsonAsync("/api/v1/notifications/channels/send", new { text = "" });
+        var badTest = await client.PostAsJsonAsync("/api/v1/notifications/channels/test", new { providerType = "DiscordWebhook", secret = "https://evil.example.com/x" });
 
         Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);

@@ -43,7 +43,7 @@ public class MetricsApiTests
         Assert.Equal((0L, 0, 4), (overview.GetProperty("storageBytes").GetInt64(), overview.GetProperty("fileCount").GetInt32(), overview.GetProperty("activeProjects").GetInt32()));
         Assert.Equal(1, overview.GetProperty("activeApiKeys").GetInt32());   // the key this test just made
         Assert.True(overview.GetProperty("uptimeSeconds").GetInt64() >= 0);
-        Assert.Equal("5", Service(overview, "notifications").GetProperty("metrics").GetProperty("activeTemplates").GetString());
+        Assert.Equal("7", Service(overview, "notifications").GetProperty("metrics").GetProperty("activeTemplates").GetString());
         Assert.Equal("No active email configuration.", Service(overview, "email").GetProperty("detail").GetString());
     }
 

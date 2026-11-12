@@ -182,15 +182,15 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link @Lit(page == "/Chat")" asp-page="/Chat">
-                            <i class="bi bi-chat-dots text-info"></i>
-                            <span class="label">Tin Nhắn &amp; Chat<small>Telegram · Discord · Slack</small></span>
+                        <a class="nav-link @Lit(page.StartsWith("/Notifications"))" asp-page="/Notifications/Index">
+                            <i class="bi bi-bell text-danger"></i>
+                            <span class="label">Thông Báo Đa Kênh<small>Mẫu · Telegram · Discord · Slack</small></span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link @Lit(page.StartsWith("/Notifications"))" asp-page="/Notifications/Index">
-                            <i class="bi bi-bell text-danger"></i>
-                            <span class="label">Notification Hub<small>Đa kênh · Smart Routing</small></span>
+                        <a class="nav-link @Lit(page == "/Chat")" asp-page="/Chat">
+                            <i class="bi bi-chat-dots text-info"></i>
+                            <span class="label">Trò Chuyện Trực Tuyến<small>1-1 · Nhóm · Realtime</small></span>
                         </a>
                     </li>
 

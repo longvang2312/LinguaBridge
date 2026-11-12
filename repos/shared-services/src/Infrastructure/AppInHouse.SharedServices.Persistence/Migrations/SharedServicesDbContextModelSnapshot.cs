@@ -287,6 +287,169 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                     b.ToTable("channel_configurations", "shared");
                 });
 
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AttachmentFileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attachment_file_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("message_type");
+
+                    b.Property<string>("SenderId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sender_id");
+
+                    b.Property<string>("SenderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sender_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_messages");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_chat_messages_created_at");
+
+                    b.HasIndex("ConversationId", "CreatedAt")
+                        .HasDatabaseName("ix_chat_messages_conversation_id_created_at");
+
+                    b.ToTable("chat_messages", "shared");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.Conversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DirectKey")
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)")
+                        .HasColumnName("direct_key");
+
+                    b.Property<DateTimeOffset>("LastMessageAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_message_at");
+
+                    b.Property<string>("ProjectCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("project_code");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_conversations");
+
+                    b.HasIndex("ProjectCode", "DirectKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_conversations_project_code_direct_key");
+
+                    b.HasIndex("ProjectCode", "LastMessageAt")
+                        .HasDatabaseName("ix_conversations_project_code_last_message_at");
+
+                    b.ToTable("conversations", "shared");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.ConversationMember", b =>
+                {
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("ChatId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("chat_id");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsMuted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_muted");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<DateTimeOffset>("LastReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_read_at");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.HasKey("ConversationId", "UserId")
+                        .HasName("pk_conversation_members");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_conversation_members_user_id");
+
+                    b.ToTable("conversation_members", "shared");
+                });
+
             modelBuilder.Entity("AppInHouse.SharedServices.Domain.DeliveryLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -804,6 +967,26 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                     b.ToTable("webhook_subscriptions", "shared");
                 });
 
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.ChatMessage", b =>
+                {
+                    b.HasOne("AppInHouse.SharedServices.Domain.Conversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_chat_messages_conversations_conversation_id");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.ConversationMember", b =>
+                {
+                    b.HasOne("AppInHouse.SharedServices.Domain.Conversation", null)
+                        .WithMany("Members")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_conversation_members_conversations_conversation_id");
+                });
+
             modelBuilder.Entity("AppInHouse.SharedServices.Domain.MediaLog", b =>
                 {
                     b.HasOne("AppInHouse.SharedServices.Domain.StoredFile", null)
@@ -811,6 +994,11 @@ namespace AppInHouse.SharedServices.Persistence.Migrations
                         .HasForeignKey("FileId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_media_logs_stored_files_file_id");
+                });
+
+            modelBuilder.Entity("AppInHouse.SharedServices.Domain.Conversation", b =>
+                {
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

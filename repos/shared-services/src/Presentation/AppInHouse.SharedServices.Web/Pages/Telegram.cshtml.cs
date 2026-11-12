@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AppInHouse.SharedServices.Web.Pages;
 
-/// <summary>The older address of the chat section (it was only Telegram): it goes to <c>/Chat</c>, keeping the chosen project.</summary>
+/// <summary>The older address of the Telegram settings (the bots are now channels of the notification service): it goes to <c>/Notifications/Channels</c>, where the bots are now, keeping the chosen project.</summary>
 public class TelegramModel : PageModel
 {
-    public IActionResult OnGet(string? project) => RedirectToPage("/Chat", string.IsNullOrWhiteSpace(project) ? null : new { project });
+    public IActionResult OnGet(string? project) => RedirectToPage("/Notifications/Channels", string.IsNullOrWhiteSpace(project) ? null : new { project });
 }

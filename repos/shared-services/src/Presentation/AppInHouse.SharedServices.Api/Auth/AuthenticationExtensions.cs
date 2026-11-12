@@ -13,6 +13,7 @@ public static class Policies
     public const string ConfigWrite = ApiScopes.ConfigWrite;
     public const string EmailSend = ApiScopes.EmailSend;
     public const string ChatSend = ApiScopes.ChatSend;
+    public const string ChatConverse = ApiScopes.ChatConverse;
     public const string StorageUpload = ApiScopes.StorageUpload;
     public const string StorageRead = ApiScopes.StorageRead;
     public const string StorageDelete = ApiScopes.StorageDelete;
@@ -110,6 +111,7 @@ public static class AuthenticationExtensions
             options.AddPolicy(Policies.EmailSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.EmailSend)));
             // "telegram:send" is the scope keys had before chat covered more than Telegram; it keeps working.
             options.AddPolicy(Policies.ChatSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ChatSend, ApiScopes.TelegramSend)));
+            options.AddPolicy(Policies.ChatConverse, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.ChatConverse)));
             options.AddPolicy(Policies.StorageUpload, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageUpload)));
             options.AddPolicy(Policies.StorageRead, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.StorageRead, ApiScopes.StorageUpload, ApiScopes.StorageDelete)));
             options.AddPolicy(Policies.NotificationSend, policy => policy.RequireAuthenticatedUser().AddRequirements(new ScopeRequirement(ApiScopes.EmailSend, ApiScopes.ChatSend, ApiScopes.TelegramSend)));

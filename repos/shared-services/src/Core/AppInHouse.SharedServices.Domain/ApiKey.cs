@@ -21,6 +21,9 @@ public static class ApiScopes
     /// <summary>Send a chat message (Telegram, Discord, Slack). <see cref="TelegramSend"/> is accepted for it too, for callers that predate this scope.</summary>
     public const string ChatSend = "chat:send";
 
+    /// <summary>Use conversations: create rooms, read and send messages as a user of the project (and connect to the realtime hub).</summary>
+    public const string ChatConverse = "chat:converse";
+
     /// <summary>Upload files. Also lets a key read the files of its project.</summary>
     public const string StorageUpload = "storage:upload";
 
@@ -32,7 +35,7 @@ public static class ApiScopes
 
     /// <summary>The scopes a key can be given when it is created (the older <see cref="TelegramSend"/> is no longer offered).</summary>
     public static IReadOnlyList<string> Assignable { get; } =
-        [ConfigRead, ConfigWrite, EmailSend, ChatSend, StorageUpload, StorageRead, StorageDelete];
+        [ConfigRead, ConfigWrite, EmailSend, ChatSend, ChatConverse, StorageUpload, StorageRead, StorageDelete];
 }
 
 /// <summary>

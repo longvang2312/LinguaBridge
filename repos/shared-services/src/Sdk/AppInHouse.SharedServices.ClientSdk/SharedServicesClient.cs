@@ -25,13 +25,6 @@ public interface ISharedServicesClient
 
     Task<IReadOnlyList<DeliveryLogDto>> GetEmailDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
 
-    /// <summary>Sends a chat message with the project's active chat configuration. A refusal or failure throws <see cref="SharedServicesApiException"/> (409 no configuration, 502 not delivered).</summary>
-    Task<SendChatMessageResponse> SendChatMessageAsync(SendChatMessageRequest request, CancellationToken cancellationToken = default);
-
-    Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
-
     /// <summary>Stores a file. A refusal throws <see cref="SharedServicesApiException"/> (400 not an allowed type or not what it claims to be, 409 no storage configuration, 413 too large, 502 not stored).</summary>
     Task<UploadFileResponse> UploadFileAsync(UploadFileRequest request, Stream fileStream, CancellationToken cancellationToken = default);
 
@@ -124,9 +117,58 @@ public interface ISharedServicesClient
     Task<SystemMetricsOverviewDto> GetMetricsOverviewAsync(CancellationToken ct = default);
 
     Task<HealthStatusDto> GetHealthStatusAsync(CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- notification channels (the bots, and email)
+
+    /// <summary>The bot configurations (every version, secrets masked). <paramref name="kind"/> is "bot", "email" or "all".</summary>
+    Task<IReadOnlyList<ChannelConfigurationResponse>> GetNotificationChannelsAsync(string? projectCode = null, string kind = "bot", string? status = null, CancellationToken cancellationToken = default);
+
+    Task<ChannelConfigurationResponse> GetNotificationChannelAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Creates version 1, or the next version, of a bot channel as a Draft. The secret is stored protected and never returned.</summary>
+    Task<ChannelConfigurationResponse> SaveNotificationChannelAsync(SaveNotificationChannelRequest request, CancellationToken cancellationToken = default);
+
+    Task<ChannelConfigurationResponse> ActivateNotificationChannelAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<ChannelConfigurationResponse> RollbackNotificationChannelAsync(RollbackNotificationChannelRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Tests a bot (saved, or from memory). A failed test is a result, not an exception.</summary>
+    Task<TestBotChannelResponse> TestNotificationChannelAsync(TestBotChannelRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Sends a message through the project's bot. A refusal or failure throws <see cref="SharedServicesApiException"/> (409 no configuration, 502 not delivered).</summary>
+    Task<SendBotMessageResponse> SendNotificationChannelMessageAsync(SendBotMessageRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DeliveryLogDto>> GetBotDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default);
+
+    // ---------------------------------------------------------------------------------------------- conversations (need the chat:converse scope)
+
+    /// <summary>Starts a direct conversation or a group for <paramref name="user"/>. A direct one is never duplicated: the existing one comes back with Created false.</summary>
+    Task<CreateConversationResponse> CreateConversationAsync(ChatUser user, CreateConversationRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ConversationSummaryDto>> GetConversationsAsync(ChatUser user, CancellationToken cancellationToken = default);
+
+    /// <summary>The history, newest first. A user who is not a member gets <see cref="SharedServicesApiException"/> with status 403.</summary>
+    Task<MessagePageDto> GetConversationMessagesAsync(ChatUser user, Guid conversationId, DateTimeOffset? before = null, Guid? beforeId = null, int? limit = null, CancellationToken cancellationToken = default);
+
+    Task<ChatMessageDto> SendConversationMessageAsync(ChatUser user, Guid conversationId, string content, Guid? attachmentFileId = null, CancellationToken cancellationToken = default);
+
+    Task<DateTimeOffset> MarkConversationReadAsync(ChatUser user, Guid conversationId, CancellationToken cancellationToken = default);
+
+    Task<ConversationDto> RenameConversationAsync(ChatUser user, Guid conversationId, string title, CancellationToken cancellationToken = default);
+
+    Task<ConversationDto> AddConversationMembersAsync(ChatUser user, Guid conversationId, IReadOnlyList<ChatMemberRequest> members, CancellationToken cancellationToken = default);
+
+    /// <summary>Leaves a group (the user removes themself) or removes a member (owner or admin).</summary>
+    Task RemoveConversationMemberAsync(ChatUser user, Guid conversationId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>Totals, who is online and the busiest conversations (titles and counts only). Needs only config:read.</summary>
+    Task<ChatMonitorDto> GetChatMonitorAsync(string? projectCode = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Asks the realtime hub (/hubs/chat) to negotiate a connection: whether it is reachable and which transports it offers. A refusal is a result, not an exception.</summary>
+    Task<RealtimeCheckResult> CheckRealtimeAsync(CancellationToken cancellationToken = default);
 }
 
-public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClient
+public sealed partial class SharedServicesClient(HttpClient http) : ISharedServicesClient
 {
     private const string Root = "api/v1/channel-configurations";
 
@@ -187,25 +229,6 @@ public sealed class SharedServicesClient(HttpClient http) : ISharedServicesClien
     {
         var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
         using var response = await http.GetAsync($"api/v1/emails/delivery-logs?{query}", cancellationToken);
-        return await ReadAsync<List<DeliveryLogDto>>(response, cancellationToken);
-    }
-
-    public async Task<SendChatMessageResponse> SendChatMessageAsync(SendChatMessageRequest request, CancellationToken cancellationToken = default)
-    {
-        using var response = await http.PostAsJsonAsync("api/v1/chat/send", request, Json, cancellationToken);
-        return await ReadAsync<SendChatMessageResponse>(response, cancellationToken);
-    }
-
-    public async Task<SendTestChatMessageResponse> SendTestChatMessageAsync(SendTestChatMessageRequest request, CancellationToken cancellationToken = default)
-    {
-        using var response = await http.PostAsJsonAsync("api/v1/chat/test", request, Json, cancellationToken);
-        return await ReadAsync<SendTestChatMessageResponse>(response, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<DeliveryLogDto>> GetChatDeliveryLogsAsync(string? projectCode = null, int limit = 20, CancellationToken cancellationToken = default)
-    {
-        var query = $"limit={limit}" + (string.IsNullOrWhiteSpace(projectCode) ? string.Empty : $"&projectCode={Uri.EscapeDataString(projectCode)}");
-        using var response = await http.GetAsync($"api/v1/chat/delivery-logs?{query}", cancellationToken);
         return await ReadAsync<List<DeliveryLogDto>>(response, cancellationToken);
     }
 

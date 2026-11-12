@@ -126,7 +126,7 @@ public class IndexModel(ISharedServicesClient client, ILogger<IndexModel> logger
 
         try
         {
-            chatLogs = await client.GetChatDeliveryLogsAsync(limit: 25, cancellationToken: cancellationToken);
+            chatLogs = await client.GetBotDeliveryLogsAsync(limit: 25, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
@@ -168,12 +168,12 @@ public class IndexModel(ISharedServicesClient client, ILogger<IndexModel> logger
                 [new("Quản lý Email", "/Email", "bi-sliders"), new("Gửi thử", "/Email#test", "bi-send")]
             ),
             new(
-                "chat", "Tin Nhắn & Chat Service", "Truyền thông", "Telegram · Discord · Slack",
-                "Phân phối tin nhắn thông báo tức thời đến Telegram Bot, Discord webhook và Slack channel với bộ escape Markdown an toàn.",
+                "chat", "Chat Service", "Truyền thông", "Realtime · SignalR · 1-1 & Nhóm",
+                "Trò chuyện trực tuyến giữa người dùng. Các bot gửi tin ra ngoài (Telegram, Discord, Slack) do Notification Service quản lý; số liệu bot hiển thị ở đây cho tới khi Chat có số liệu riêng.",
                 "bi-chat-dots-fill", "accent-chat", "icon-chat", StatusOf("chat"), StatusTextOf("chat"), "/Chat",
                 CountActive("Chat"), CountDraft("Chat"),
-                [new("Gửi 24h", Metric("chat", "sent24h")), new("Lỗi 24h", Metric("chat", "failed24h"))],
-                [new("Quản lý Chat", "/Chat", "bi-sliders"), new("Test Bot", "/Chat#test", "bi-send")]
+                [new("Tin bot 24h", Metric("chat", "sent24h")), new("Lỗi bot 24h", Metric("chat", "failed24h"))],
+                [new("Giám sát Realtime", "/Chat", "bi-activity"), new("Kênh & Bot", "/Notifications/Channels", "bi-robot")]
             ),
             new(
                 "storage", "Media & Storage Service", "Dữ liệu & Tệp tin", "S3 · MinIO · Local Disk",
@@ -193,11 +193,11 @@ public class IndexModel(ISharedServicesClient client, ILogger<IndexModel> logger
             ),
             new(
                 "notifications", "Notification Service", "Truyền thông đa kênh", "Smart Routing · Multi-Channel",
-                "Bộ điều phối thông báo trung tâm cấp cao: nhận sự kiện hệ thống, tự động ánh xạ template và gửi đồng thời qua Email + Chat bot.",
+                "Trung tâm thông báo đa kênh: Email, Telegram, Discord, Slack. Nhận sự kiện hệ thống, ánh xạ template và gửi đồng thời qua các kênh phù hợp.",
                 "bi-bell-fill", "accent-notifications", "icon-notifications", StatusOf("notifications"), StatusTextOf("notifications"), "/Notifications/Index",
                 int.TryParse(Metric("notifications", "activeTemplates", "0"), out var templateCount) ? templateCount : 0, 0,
                 [new("Mẫu thông báo", $"{Metric("notifications", "activeTemplates")} mẫu"), new("Hôm nay", Metric("notifications", "dispatched24h"))],
-                [new("Xem Hub", "/Notifications/Index", "bi-grid"), new("Gửi thông báo", "/Notifications/Index#dispatch-card", "bi-send-fill")]
+                [new("Xem Hub", "/Notifications/Index", "bi-grid"), new("Kênh & Bot", "/Notifications/Channels", "bi-robot"), new("Gửi thông báo", "/Notifications/Index#dispatch-card", "bi-send-fill")]
             ),
             new(
                 "jobs", "Background Job Service", "Vận hành & Tác vụ", "Message Queues · Cron Scheduler",

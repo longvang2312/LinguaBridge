@@ -566,9 +566,9 @@ public class PlatformEntityRulesTests
     }
 
     [Fact]
-    public void TheStockTemplates_AreTheFiveTheServiceStartsWith_AndAllOfThemAreValid()
+    public void TheStockTemplates_AreTheFiveForApplicationsAndTheTwoOfTheChat_AndAllOfThemAreValid()
     {
-        Assert.Equal(["UserRegistered", "PasswordReset", "SecurityAlert", "SystemMaintenance", "PaymentSuccess"], PlatformDefaults.Templates.Select(t => t.Code));
+        Assert.Equal(["UserRegistered", "PasswordReset", "SecurityAlert", "SystemMaintenance", "PaymentSuccess", "ChatMessageOfflineEmail", "ChatMessageOfflineChat"], PlatformDefaults.Templates.Select(t => t.Code));
         foreach (var (code, name, subject, body, channel, priority) in PlatformDefaults.Templates)
             Assert.Equal(code, NotificationTemplate.Create(code, name, subject, body, channel, priority, Now).Code);
     }

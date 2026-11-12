@@ -221,8 +221,8 @@ public sealed record RetryFailedResult(string Queue, int Requeued);
 
 public interface IJobQueue
 {
-    /// <summary>Saves the job and wakes the worker of the queue. <paramref name="payload"/> is stored as JSON.</summary>
-    Task<Guid> EnqueueAsync(string queue, string type, object payload, CancellationToken cancellationToken = default);
+    /// <summary>Saves the job and wakes the worker of the queue. <paramref name="payload"/> is stored as JSON. With <paramref name="delay"/> the job is not run before that time has passed.</summary>
+    Task<Guid> EnqueueAsync(string queue, string type, object payload, CancellationToken cancellationToken = default, TimeSpan? delay = null);
 
     Task<IReadOnlyList<JobQueueStatusDto>> GetQueuesAsync(CancellationToken cancellationToken = default);
 
